@@ -16,6 +16,10 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Icon sf="house.fill" />
           <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="shop">
+          <NativeTabs.Trigger.Icon sf="bag.fill" />
+          <NativeTabs.Trigger.Label>Shop</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
         <NativeTabs.Trigger name="build">
           <NativeTabs.Trigger.Icon sf="sparkles" />
           <NativeTabs.Trigger.Label>Build</NativeTabs.Trigger.Label>
@@ -46,6 +50,10 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{ title: "Home", tabBarButtonTestID: "tab-home", tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="shop"
+        options={{ title: "Shop", tabBarButtonTestID: "tab-shop", tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="build"

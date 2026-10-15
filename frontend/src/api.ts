@@ -17,8 +17,17 @@ export type JewelryType = {
   styles: Option[];
   sizes: Option[];
 };
-export type Addon = { id: string; name: string; shape: string; color: string | null; price: number; types: string[] };
-export type Catalog = { types: JewelryType[]; metals: Metal[]; addons: Addon[] };
+export type Addon = {
+  id: string; name: string; shape: string; color: string | null; price: number; types: string[];
+  image?: string | null; source?: "shopify"; url?: string;
+};
+export type StoreInfo = { domain: string; name: string; currency: string; product_count: number; last_synced: string };
+export type Catalog = { types: JewelryType[]; metals: Metal[]; addons: Addon[]; store: StoreInfo | null };
+export type StoreProduct = {
+  id: string; title: string; handle: string; vendor: string; product_type: string; tags: string[];
+  description: string; price: number; compare_at_price: number | null; available: boolean;
+  image: string | null; images: string[]; url: string;
+};
 
 export type DesignSpec = {
   type: string;
@@ -51,6 +60,25 @@ export function createQuote(body: { design: DesignSpec; name: string; email: str
   return request<{ id: string; price: number }>("/quotes", { method: "POST", body: JSON.stringify(body) });
 }
 
+export function useStoreProducts(q: string, productType: string) {
+  return useQuery({
+    queryKey: ["store-products", q, productType],
+    queryFn: () =>
+      request<{ products: StoreProduct[]; product_types: string[] }>(
+        `/store/products?q=${encodeURIComponent(q)}&product_type=${encodeURIComponent(productType)}`,
+      ),
+  });
+}
+
+export function useStoreProduct(id: string) {
+  return useQuery({ queryKey: ["store-product", id], queryFn: () => request<StoreProduct>(`/store/products/${id}`) });
+}
+
+export const connectStore = (domain: string) =>
+  request<{ store: StoreInfo }>("/store/connect", { method: "POST", body: JSON.stringify({ domain }) });
+export const syncStore = () => request<{ store: StoreInfo }>("/store/sync", { method: "POST" });
+export const disconnectStore = () => request<{ store: null }>("/store", { method: "DELETE" });
+
 export function computePrice(c: Catalog, d: DesignSpec): number {
   const t = c.types.find((x) => x.id === d.type);
   if (!t) return 0;
@@ -64,4 +92,4 @@ export function computePrice(c: Catalog, d: DesignSpec): number {
   return Math.round(total);
 }
 
-export const formatPrice = (n: number) => `$${n.toLocaleString("en-US")}`;
+export const formatPrice = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;

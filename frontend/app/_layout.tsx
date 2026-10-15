@@ -40,6 +40,8 @@ export default function RootLayout() {
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="design/[id]" options={{ presentation: "modal" }} />
+              <Stack.Screen name="product/[id]" options={{ presentation: "modal" }} />
+              <Stack.Screen name="store-connect" options={{ presentation: "modal" }} />
             </Stack>
           </KeyboardProvider>
         </QueryClientProvider>

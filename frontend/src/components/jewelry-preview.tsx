@@ -1,5 +1,5 @@
-import React from "react";
-import Svg, { Circle, Ellipse, G, Line, Path, Polygon, Text as SvgText } from "react-native-svg";
+import React, { useId } from "react";
+import Svg, { Circle, ClipPath, Defs, Ellipse, G, Image as SvgImage, Line, Path, Polygon, Text as SvgText } from "react-native-svg";
 
 import type { Addon, Catalog, DesignSpec } from "@/src/api";
 import { useTheme } from "@/src/theme";
@@ -37,11 +37,34 @@ function Pearl({ cx, cy, r, color }: { cx: number; cy: number; r: number; color:
   );
 }
 
+// Store product photo, cropped to a round bezel in the chosen metal.
+function ProductCharm({ addon, cx, cy, s, metal }: { addon: Addon; cx: number; cy: number; s: number; metal: string }) {
+  const clipId = `clip${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  return (
+    <G>
+      <Defs>
+        <ClipPath id={clipId}>
+          <Circle cx={cx} cy={cy} r={s} />
+        </ClipPath>
+      </Defs>
+      <Circle cx={cx} cy={cy} r={s + 2} fill={metal} />
+      {addon.image ? (
+        <SvgImage href={addon.image} x={cx - s} y={cy - s} width={s * 2} height={s * 2}
+          preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clipId})`} />
+      ) : (
+        <Circle cx={cx} cy={cy} r={s} fill={HIGHLIGHT} />
+      )}
+    </G>
+  );
+}
+
 export function Charm({ addon, cx, cy, s, metal, canvas, letter }: {
   addon: Addon; cx: number; cy: number; s: number; metal: string; canvas: string; letter: string;
 }) {
   const stroke = shade(metal, -0.3);
   switch (addon.shape) {
+    case "image":
+      return <ProductCharm addon={addon} cx={cx} cy={cy + s * 0.7} s={s * 1.7} metal={metal} />;
     case "heart":
       return (
         <Path
@@ -100,8 +123,9 @@ export function Charm({ addon, cx, cy, s, metal, canvas, letter }: {
   }
 }
 
-function Stone({ addon, cx, cy, r }: { addon?: Addon; cx: number; cy: number; r: number }) {
+function Stone({ addon, cx, cy, r, metal = "#D4AF37" }: { addon?: Addon; cx: number; cy: number; r: number; metal?: string }) {
   if (!addon) return <Gem cx={cx} cy={cy} r={r} color="#F4F6F6" />;
+  if (addon.shape === "image") return <ProductCharm addon={addon} cx={cx} cy={cy} s={r} metal={metal} />;
   if (addon.shape === "pearl") return <Pearl cx={cx} cy={cy} r={r} color={addon.color ?? HIGHLIGHT} />;
   return <Gem cx={cx} cy={cy} r={r} color={addon.color ?? HIGHLIGHT} />;
 }
@@ -200,7 +224,7 @@ export function JewelryPreview({ catalog, design, width = "100%", height = "100%
             {[-1, 1].map((s) => (
               <Line key={s} x1={cx + s * 10} y1={top - 2} x2={cx + s * 14} y2={top - 30} stroke={metal} strokeWidth={3} strokeLinecap="round" />
             ))}
-            <Stone addon={stone} cx={cx} cy={top - 18} r={17} />
+            <Stone metal={metal} addon={stone} cx={cx} cy={top - 18} r={17} />
           </G>
         )}
         {!!engr && (
@@ -219,7 +243,7 @@ export function JewelryPreview({ catalog, design, width = "100%", height = "100%
               <G key={x}>
                 <Circle cx={x} cy={60 + r} r={r} fill="none" stroke={metal} strokeWidth={4 + sizeIdx} />
                 <Circle cx={x} cy={60 + r} r={r} fill="none" stroke={HIGHLIGHT} strokeOpacity={0.45} strokeWidth={1} />
-                {stone && <Stone addon={stone} cx={x} cy={60 + 2 * r} r={6} />}
+                {stone && <Stone metal={metal} addon={stone} cx={x} cy={60 + 2 * r} r={6} />}
               </G>
             );
           }
@@ -230,7 +254,7 @@ export function JewelryPreview({ catalog, design, width = "100%", height = "100%
                 <Path d={`M ${x - 10} 52 C ${x - 10} 30, ${x + 10} 30, ${x} 58`} fill="none" stroke={metal} strokeWidth={2.5} />
                 <Line x1={x} y1={58} x2={x} y2={58 + len} stroke={metal} strokeWidth={2} strokeDasharray="4 2" />
                 <Circle cx={x} cy={58 + len + 12} r={14} fill={metal} />
-                <Stone addon={stone} cx={x} cy={58 + len + 12} r={12} />
+                <Stone metal={metal} addon={stone} cx={x} cy={58 + len + 12} r={12} />
               </G>
             );
           }
@@ -238,7 +262,7 @@ export function JewelryPreview({ catalog, design, width = "100%", height = "100%
           return (
             <G key={x}>
               <Circle cx={x} cy={120} r={r + 3} fill={metal} stroke={shade(metal, -0.3)} strokeWidth={1} />
-              <Stone addon={stone} cx={x} cy={120} r={r} />
+              <Stone metal={metal} addon={stone} cx={x} cy={120} r={r} />
             </G>
           );
         })}

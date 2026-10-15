@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 2 — Shopify Store Sync feature end-to-end validated (backend + mobile UI, viewport 390x844). Backend: 32/32 pytest cases pass (16 base jewelry regression + 16 new Shopify tests in /app/backend/tests/test_shopify_store.py). Verified GET /api/store returns Gado Jewellers / gadojewellers.com / 117 products / CAD. GET /api/store/products returns 117 products, product_types list, and supports q + product_type filters (Ring=19). GET /api/store/products/{id} returns the full doc; 404 on unknown id. GET /api/catalog embeds store info and includes shop- addons (source=shopify, shape=image, image URL, types=[necklace,bracelet,ring,earrings]). POST /api/price and POST /api/quotes accept a shop- addon id and include its float price (verified for necklace and ring). POST /api/store/connect validation: 'notadomain' -> 400 'Enter a full store domain...', 'example.com' -> 400 'This store doesn't expose a public product list.', min_length<3 -> 422. Did NOT call /api/store/sync, DELETE /api/store, nor re-sync gadojewellers.com (rate-limit compliant). Frontend: Shop tab shows GADO JEWELLERS eyebrow + product grid, shop-type-chip-Ring filter narrows list, shop-search-input + shop-search-clear work, shop-product-card opens product detail with product-detail-title ('Angelina Engagement Ring'), product-detail-price ('$3,000 CAD'), all 4 product-add-to-{type}-button, product-view-in-store-button, product-detail-close-button. Adding to necklace navigates to Build with the shop addon preselected and preview+total reflecting $3,180 (180+3000). On ring: adding shop stone -> $3,370; tapping a built-in stone replaces the shop stone (single-select) -> $770; save-design-button persists with correct $770 total and detail shows Stone row. builder-browse-shop-button present and functional. shop-store-settings-button opens store-connect-screen; store-connected-card shows store-connected-domain=gadojewellers.com and store-product-count='117 products · CAD · synced ...'. Invalid domain 'notadomain' in store-domain-input + store-connect-button shows store-connect-error='Enter a full store domain, e.g. yourstore.myshopify.com'. All regressions (home → category → build → save → detail → quote) remain green.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_jewelry_api.py",
+    "/app/backend/tests/test_shopify_store.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py get_catalog filters store_products by {available: true} before mapping to addons (correct — 97 of 117 are available). The /api/store/products endpoint returns all 117 regardless of availability so the Shop tab shows sold-out tagged items — intentional and matches UI 'Sold out' badge.",
+    "shopify_sync._transform rounds price to float; compute_price does int(round(total)) so the final quote price is an int — safe for mongo insert and for the frontend formatPrice.",
+    "shopify_sync._get has backoff on 429 (Retry-After header) and a ValueError bubble to a 400 — good rate-limit handling.",
+    "/api/store/connect returns 400 for bare words via explicit '.' check before HTTP calls — avoids wasted HTTP, correct validation.",
+    "product_as_addon exposes all 4 types ({necklace, bracelet, ring, earrings}) so compute_price's `d.type in a['types']` check always allows a shop- addon — matches spec of using shop products as charms AND centre stones.",
+    "frontend/src/api.ts uses EXPO_PUBLIC_BACKEND_URL for every call, no hardcoding.",
+    "shop.tsx FlatList and store-connect.tsx KeyboardAwareScrollView are correct RN patterns; testIDs match the review-request spec exactly."
+  ],
+  "updated_files": ["/app/backend/tests/test_shopify_store.py"],
+  "success_rate": {"backend": "100% (32/32)", "frontend": "100% of Shopify flows in spec"},
+  "seed_data_creation": "Two Mongo quotes created via /api/quotes with TEST_ prefix (TEST_User base + TEST_shop_necklace with shop addon). Two localStorage saved designs created in the preview session (TEST_saveflow, TEST_ring_shop). No test data touched the gadojewellers.com Shopify store itself.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Shopify sync is rate-limited — never call /api/store/sync, DELETE /api/store, or /api/store/connect with gadojewellers.com again. Use the already-connected store. Saved designs testID is `saved-design-card-{id}` (not `saved-card-*`). Builder shop-section testID for shop products is `store-addon-option-{id}` while built-in stones use `addon-option-{id}` — tapping a built-in stone on a ring/earrings design replaces the shop stone (single-select).",
+  "rca_of_issue": "n/a — no blocking issues found."
+}

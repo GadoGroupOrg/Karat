@@ -4,6 +4,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 import os
+import re
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, BeforeValidator, ConfigDict, EmailStr
@@ -11,6 +12,7 @@ from typing import List, Optional, Annotated
 from datetime import datetime, timezone
 
 from catalog_data import TYPES, METALS, ADDONS
+from shopify_sync import normalize_domain, sync_store, product_as_addon
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -77,7 +79,10 @@ async def get_catalog() -> dict:
     types = await db.product_types.find({}, {"_id": 0}).sort("order", 1).to_list(100)
     metals = await db.metals.find({}, {"_id": 0}).sort("order", 1).to_list(100)
     addons = await db.addons.find({}, {"_id": 0}).sort("order", 1).to_list(500)
-    return {"types": types, "metals": metals, "addons": addons}
+    store_products = await db.store_products.find({"available": True}, {"_id": 0}).to_list(5000)
+    addons += [product_as_addon(p) for p in store_products]
+    store = await db.store_connection.find_one({"key": "default"}, {"_id": 0, "key": 0})
+    return {"types": types, "metals": metals, "addons": addons, "store": store}
 
 
 def compute_price(catalog: dict, d: DesignSpec) -> int:
@@ -133,6 +138,68 @@ async def list_quotes():
     return [Quote.from_mongo(d) for d in docs]
 
 
+class StoreConnect(BaseModel):
+    domain: str = Field(min_length=3, max_length=200)
+
+
+@api_router.get("/store")
+async def get_store():
+    return {"store": await db.store_connection.find_one({"key": "default"}, {"_id": 0, "key": 0})}
+
+
+@api_router.post("/store/connect")
+async def connect_store(body: StoreConnect):
+    domain = normalize_domain(body.domain)
+    if "." not in domain:
+        raise HTTPException(400, "Enter a full store domain, e.g. yourstore.myshopify.com")
+    try:
+        return {"store": await sync_store(db, domain)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("store connect failed")
+        raise HTTPException(502, f"Couldn't reach {domain}: {type(e).__name__}")
+
+
+@api_router.post("/store/sync")
+async def resync_store():
+    conn = await db.store_connection.find_one({"key": "default"})
+    if not conn:
+        raise HTTPException(404, "No store connected")
+    try:
+        return {"store": await sync_store(db, conn["domain"])}
+    except Exception as e:
+        logger.exception("store sync failed")
+        raise HTTPException(502, f"Sync failed: {e}")
+
+
+@api_router.delete("/store")
+async def disconnect_store():
+    await db.store_connection.delete_many({})
+    await db.store_products.delete_many({})
+    return {"store": None}
+
+
+@api_router.get("/store/products")
+async def store_products(q: str = "", product_type: str = ""):
+    filt: dict = {}
+    if q.strip():
+        filt["title"] = {"$regex": re.escape(q.strip()), "$options": "i"}
+    if product_type:
+        filt["product_type"] = product_type
+    items = await db.store_products.find(filt, {"_id": 0}).sort("title", 1).to_list(5000)
+    types = sorted(await db.store_products.distinct("product_type"))
+    return {"products": items, "product_types": types}
+
+
+@api_router.get("/store/products/{pid}")
+async def store_product(pid: str):
+    p = await db.store_products.find_one({"id": pid}, {"_id": 0})
+    if not p:
+        raise HTTPException(404, "Product not found")
+    return p
+
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -153,6 +220,13 @@ async def seed_catalog():
         for i, item in enumerate(items):
             await db[coll].update_one({"id": item["id"]}, {"$set": {**item, "order": i}}, upsert=True)
     logger.info("Catalog seeded")
+    default_domain = os.environ.get("SHOPIFY_STORE_DOMAIN")
+    if default_domain and not await db.store_connection.find_one({"key": "default"}):
+        try:
+            conn = await sync_store(db, normalize_domain(default_domain))
+            logger.info("Synced %s products from %s", conn["product_count"], conn["domain"])
+        except Exception:
+            logger.exception("Initial store sync failed")
 
 
 @app.on_event("shutdown")

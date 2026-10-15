@@ -19,6 +19,14 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - Saved gallery, design detail with breakdown, quote request form, edit, delete, Try-On coming soon
 - Tested: backend 16/16, frontend all flows pass
 
+## Store Sync (2026-06)
+- Shopify connection via public /products.json (no API key), default store gadojewellers.com (SHOPIFY_STORE_DOMAIN in backend .env), auto-synced on startup if none connected; 429 backoff
+- Endpoints: GET/DELETE /api/store, POST /api/store/connect, POST /api/store/sync, GET /api/store/products(?q,&product_type), GET /api/store/products/{id}
+- Store products merged into /api/catalog addons (id prefix shop-), usable as charms (necklace/bracelet) or centre stone (ring/earrings); priced server-side
+- New Shop tab (search + type chips), product modal (add to design, view in store), store-connect modal (connect/sync/disconnect)
+- Tested: backend 32/32, frontend all flows pass
+- Note: store prices are CAD while builder base prices are USD-style "$"
+
 ## Backlog
 - P0: Virtual try-on (AI photo try-on with Gemini Nano Banana; camera capture)
 - P1: Store connector (Shopify/WooCommerce product sync), embeddable web builder widget, add to bag/checkout

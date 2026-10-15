@@ -1,5 +1,6 @@
 import Feather from "@react-native-vector-icons/feather";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
@@ -53,7 +54,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ type?: string; designId?: string }>();
+  const params = useLocalSearchParams<{ type?: string; designId?: string; addId?: string; nonce?: string }>();
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
 
   const [design, setDesign] = useState<DesignSpec>(() => defaults(catalog, params.type ?? "necklace"));
@@ -71,15 +72,18 @@ function Builder({ catalog }: { catalog: Catalog }) {
         }
       });
     } else if (params.type) {
-      setDesign(defaults(catalog, params.type));
+      const base = defaults(catalog, params.type);
+      const valid = params.addId && catalog.addons.some((a) => a.id === params.addId);
+      setDesign(valid ? { ...base, addonIds: [params.addId as string] } : base);
       setEditingId(null);
     }
-  }, [params.type, params.designId, catalog]);
+  }, [params.type, params.designId, params.addId, params.nonce, catalog]);
 
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
   const t = catalog.types.find((x) => x.id === design.type)!;
-  const addons = useMemo(() => catalog.addons.filter((a) => a.types.includes(design.type)), [catalog, design.type]);
+  const addons = useMemo(() => catalog.addons.filter((a) => a.types.includes(design.type) && a.source !== "shopify"), [catalog, design.type]);
+  const storeAddons = useMemo(() => catalog.addons.filter((a) => a.source === "shopify"), [catalog]);
   const price = computePrice(catalog, design);
   const metal = catalog.metals.find((m) => m.id === design.metalId)!;
   const style = t.styles.find((s) => s.id === design.styleId)!;
@@ -216,6 +220,32 @@ function Builder({ catalog }: { catalog: Catalog }) {
           </View>
         </Section>
 
+        {catalog.store && storeAddons.length > 0 && (
+          <Section label={`From ${catalog.store.name}`} value={t.addon_kind === "charm" ? "Add as charm" : "Use as centre"}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }} testID="store-addon-row">
+              {storeAddons.map((a) => {
+                const sel = design.addonIds.includes(a.id);
+                return (
+                  <Pressable key={a.id} testID={`store-addon-option-${a.id}`} onPress={() => toggleAddon(a.id)} style={[styles.storeTile, sel && styles.optionSel]}>
+                    <Image source={{ uri: a.image ?? undefined }} style={styles.storeImg} contentFit="cover" transition={200} />
+                    <Text style={styles.addonName} numberOfLines={2}>{a.name}</Text>
+                    <Text style={styles.optionPrice}>+{formatPrice(a.price)}</Text>
+                    {sel && (
+                      <View style={styles.check}>
+                        <Feather name="check" size={10} color={colors.onBrandPrimary} />
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Pressable testID="builder-browse-shop-button" onPress={() => router.push("/shop")} style={styles.linkRow} hitSlop={8}>
+              <Text style={styles.linkText}>Browse the full shop</Text>
+              <Feather name="arrow-right" size={14} color={colors.brandPrimary} />
+            </Pressable>
+          </Section>
+        )}
+
         {t.engraving_max > 0 && (
           <Section label="05  Engraving" value={`+${formatPrice(t.engraving_price)}`}>
             <TextInput
@@ -293,7 +323,7 @@ const useStyles = makeStyles((c) => ({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingBottom: spacing.xs },
   title: { fontFamily: fonts.display, fontSize: 28, color: c.onSurface },
   iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  chipRow: { flexGrow: 0, height: 56 },
+  chipRow: { flexGrow: 0, flexShrink: 0, height: 56, minHeight: 56 },
   chipRowContent: { gap: spacing.sm, paddingHorizontal: spacing.xl, alignItems: "center" },
   chip: {
     height: 36, flexShrink: 0, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1,
@@ -324,6 +354,10 @@ const useStyles = makeStyles((c) => ({
   },
   addonName: { fontFamily: fonts.medium, fontSize: 12, color: c.onSurface, marginTop: spacing.xs },
   check: { position: "absolute", top: 6, right: 6, width: 16, height: 16, borderRadius: 8, backgroundColor: c.brandPrimary, alignItems: "center", justifyContent: "center" },
+  storeTile: { width: 120, flexShrink: 0, padding: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary },
+  storeImg: { width: "100%", aspectRatio: 1, borderRadius: radius.sm, backgroundColor: c.surfaceTertiary },
+  linkRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.md, minHeight: 32 },
+  linkText: { fontFamily: fonts.bold, fontSize: 13, color: c.brandPrimary },
   input: {
     height: 48, borderRadius: radius.md, backgroundColor: c.surfaceSecondary, paddingHorizontal: spacing.lg,
     fontFamily: fonts.text, fontSize: 15, color: c.onSurface, borderWidth: 1, borderColor: c.border,
