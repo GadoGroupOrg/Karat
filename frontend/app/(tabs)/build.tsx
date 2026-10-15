@@ -1,0 +1,345 @@
+import Feather from "@react-native-vector-icons/feather";
+import * as Haptics from "expo-haptics";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import Animated, { FadeIn, FadeInUp, FadeOutDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg from "react-native-svg";
+
+import { Catalog, DesignSpec, computePrice, formatPrice, useCatalog } from "@/src/api";
+import { Charm, JewelryPreview } from "@/src/components/jewelry-preview";
+import { getDesign, newId, upsertDesign } from "@/src/designs";
+import { usesNativeTabs } from "@/src/navigation";
+import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
+
+function defaults(c: Catalog, type: string): DesignSpec {
+  const t = c.types.find((x) => x.id === type) ?? c.types[0];
+  return { type: t.id, styleId: t.styles[0].id, metalId: c.metals[0].id, sizeId: t.sizes[0].id, addonIds: [], engraving: "", name: "" };
+}
+
+const tap = () => {
+  if (Platform.OS !== "web") Haptics.selectionAsync();
+};
+
+export default function Build() {
+  const { data: catalog, isLoading, isError, refetch } = useCatalog();
+  const styles = useStyles();
+  const { colors } = useTheme();
+
+  if (isLoading) {
+    return (
+      <View style={[styles.root, styles.center]} testID="builder-loading">
+        <ActivityIndicator color={colors.brand} />
+      </View>
+    );
+  }
+  if (isError || !catalog) {
+    return (
+      <View style={[styles.root, styles.center]} testID="builder-error">
+        <Text style={styles.errorText}>Unable to load the atelier.</Text>
+        <Pressable testID="builder-retry-button" onPress={() => refetch()} style={styles.outlineBtn}>
+          <Text style={styles.outlineBtnText}>Retry</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  return <Builder catalog={catalog} />;
+}
+
+function Builder({ catalog }: { catalog: Catalog }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ type?: string; designId?: string }>();
+  const bottomChrome = usesNativeTabs ? insets.bottom : 0;
+
+  const [design, setDesign] = useState<DesignSpec>(() => defaults(catalog, params.type ?? "necklace"));
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (params.designId) {
+      getDesign(params.designId).then((d) => {
+        if (d) {
+          const { id, price, createdAt, ...spec } = d;
+          setDesign(spec);
+          setEditingId(id);
+        }
+      });
+    } else if (params.type) {
+      setDesign(defaults(catalog, params.type));
+      setEditingId(null);
+    }
+  }, [params.type, params.designId, catalog]);
+
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
+
+  const t = catalog.types.find((x) => x.id === design.type)!;
+  const addons = useMemo(() => catalog.addons.filter((a) => a.types.includes(design.type)), [catalog, design.type]);
+  const price = computePrice(catalog, design);
+  const metal = catalog.metals.find((m) => m.id === design.metalId)!;
+  const style = t.styles.find((s) => s.id === design.styleId)!;
+
+  const update = (patch: Partial<DesignSpec>) => {
+    tap();
+    setDesign((d) => ({ ...d, ...patch }));
+  };
+
+  const switchType = (type: string) => {
+    tap();
+    setDesign(defaults(catalog, type));
+    setEditingId(null);
+  };
+
+  const toggleAddon = (id: string) => {
+    tap();
+    setDesign((d) => {
+      if (d.addonIds.includes(id)) return { ...d, addonIds: d.addonIds.filter((x) => x !== id) };
+      if (t.max_addons === 1) return { ...d, addonIds: [id] };
+      if (d.addonIds.length >= t.max_addons) {
+        showToast(`Up to ${t.max_addons} ${t.addon_label.toLowerCase()}`);
+        return d;
+      }
+      return { ...d, addonIds: [...d.addonIds, id] };
+    });
+  };
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2200);
+  };
+
+  const save = async () => {
+    const id = editingId ?? newId();
+    const name = design.name.trim() || `The ${style.name} ${t.name}`;
+    await upsertDesign({ ...design, name, id, price, createdAt: new Date().toISOString() });
+    setEditingId(id);
+    setDesign((d) => ({ ...d, name }));
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showToast(editingId ? "Design updated" : "Saved to your collection");
+  };
+
+  return (
+    <View style={styles.root} testID="builder-screen">
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+        <Text style={styles.title}>Atelier</Text>
+        <Pressable testID="builder-reset-button" hitSlop={10} onPress={() => switchType(design.type)} style={styles.iconBtn}>
+          <Feather name="rotate-ccw" size={18} color={colors.onSurface} />
+        </Pressable>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chipRowContent}>
+        {catalog.types.map((x) => {
+          const sel = x.id === design.type;
+          return (
+            <Pressable key={x.id} testID={`type-chip-${x.id}`} onPress={() => switchType(x.id)} style={[styles.chip, sel && styles.chipSel]}>
+              <Text style={[styles.chipText, sel && styles.chipTextSel]}>{x.name}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      <View style={styles.canvas} testID="builder-preview-canvas">
+        <Animated.View key={`${design.type}-${design.styleId}`} entering={FadeIn.duration(350)} style={{ flex: 1 }}>
+          <JewelryPreview catalog={catalog} design={design} />
+        </Animated.View>
+        <Text style={styles.canvasCaption} testID="builder-preview-caption">
+          {style.name} {t.name} · {metal.name}
+        </Text>
+      </View>
+
+      <KeyboardAwareScrollView bottomOffset={24} style={{ flex: 1 }} contentContainerStyle={styles.controls} showsVerticalScrollIndicator={false}>
+        <Section label="01  Style">
+          <View style={styles.rowWrap}>
+            {t.styles.map((s) => {
+              const sel = s.id === design.styleId;
+              return (
+                <Pressable key={s.id} testID={`style-option-${s.id}`} onPress={() => update({ styleId: s.id })} style={[styles.styleCard, sel && styles.optionSel]}>
+                  <Text style={styles.optionTitle}>{s.name}</Text>
+                  <Text style={styles.optionPrice}>{s.price ? `+${formatPrice(s.price)}` : "Included"}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Section>
+
+        <Section label="02  Metal" value={metal.name}>
+          <View style={styles.metalRow}>
+            {catalog.metals.map((m) => {
+              const sel = m.id === design.metalId;
+              return (
+                <Pressable key={m.id} testID={`metal-option-${m.id}`} onPress={() => update({ metalId: m.id })} style={[styles.swatchRing, sel && { borderColor: colors.onSurface }]}>
+                  <View style={[styles.swatch, { backgroundColor: m.color }]} />
+                </Pressable>
+              );
+            })}
+          </View>
+        </Section>
+
+        <Section label={`03  ${t.id === "ring" ? "Ring size" : t.id === "earrings" ? "Size" : "Length"}`}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+            {t.sizes.map((s) => {
+              const sel = s.id === design.sizeId;
+              return (
+                <Pressable key={s.id} testID={`size-option-${s.id}`} onPress={() => update({ sizeId: s.id })} style={[styles.chip, sel && styles.chipSel]}>
+                  <Text style={[styles.chipText, sel && styles.chipTextSel]}>{s.label}{s.price ? `  +$${s.price}` : ""}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </Section>
+
+        <Section label={`04  ${t.addon_label}`} value={t.max_addons > 1 ? `${design.addonIds.length}/${t.max_addons}` : undefined}>
+          <View style={styles.addonGrid}>
+            {addons.map((a) => {
+              const sel = design.addonIds.includes(a.id);
+              return (
+                <Pressable key={a.id} testID={`addon-option-${a.id}`} onPress={() => toggleAddon(a.id)} style={[styles.addonTile, sel && styles.optionSel]}>
+                  <Svg width={36} height={36} viewBox="0 0 36 36">
+                    <Charm addon={a} cx={18} cy={18} s={12} metal={metal.color} canvas={sel ? colors.brandTertiary : colors.surfaceSecondary} letter={(design.engraving.trim()[0] ?? "A").toUpperCase()} />
+                  </Svg>
+                  <Text style={styles.addonName} numberOfLines={1}>{a.name}</Text>
+                  <Text style={styles.optionPrice}>+{formatPrice(a.price)}</Text>
+                  {sel && (
+                    <View style={styles.check}>
+                      <Feather name="check" size={10} color={colors.onBrandPrimary} />
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </Section>
+
+        {t.engraving_max > 0 && (
+          <Section label="05  Engraving" value={`+${formatPrice(t.engraving_price)}`}>
+            <TextInput
+              testID="engraving-input"
+              value={design.engraving}
+              onChangeText={(v) => setDesign((d) => ({ ...d, engraving: v }))}
+              maxLength={t.engraving_max}
+              placeholder={`Up to ${t.engraving_max} characters`}
+              placeholderTextColor={colors.muted}
+              style={styles.input}
+              returnKeyType="done"
+            />
+          </Section>
+        )}
+
+        <Section label="Name your piece">
+          <TextInput
+            testID="design-name-input"
+            value={design.name}
+            onChangeText={(v) => setDesign((d) => ({ ...d, name: v }))}
+            maxLength={40}
+            placeholder={`The ${style.name} ${t.name}`}
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+            returnKeyType="done"
+          />
+        </Section>
+      </KeyboardAwareScrollView>
+
+      <View style={[styles.bottomBar, { paddingBottom: bottomChrome + spacing.md }]}>
+        <View>
+          <Text style={styles.totalLabel}>Estimated total</Text>
+          <Text style={styles.total} testID="builder-total-price">{formatPrice(price)}</Text>
+        </View>
+        <Pressable testID="save-design-button" onPress={save} style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.85 }]}>
+          <Feather name="heart" size={16} color={colors.onSurfaceInverse} />
+          <Text style={styles.saveText}>{editingId ? "Update design" : "Save design"}</Text>
+        </Pressable>
+      </View>
+
+      {toast && (
+        <Animated.View entering={FadeInUp} exiting={FadeOutDown} style={[styles.toast, { bottom: bottomChrome + 96 }]} testID="builder-toast">
+          <Feather name="check-circle" size={16} color={colors.brandSecondary} />
+          <Text style={styles.toastText}>{toast}</Text>
+          {toast !== "Design updated" && !toast.startsWith("Up to") && (
+            <Pressable testID="toast-view-saved-button" onPress={() => router.push("/saved")} hitSlop={10}>
+              <Text style={styles.toastAction}>View</Text>
+            </Pressable>
+          )}
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+function Section({ label, value, children }: { label: string; value?: string; children: React.ReactNode }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionLabel}>{label.toUpperCase()}</Text>
+        {value ? <Text style={styles.sectionValue}>{value}</Text> : null}
+      </View>
+      {children}
+    </View>
+  );
+}
+
+const useStyles = makeStyles((c) => ({
+  root: { flex: 1, backgroundColor: c.surface },
+  center: { alignItems: "center", justifyContent: "center", gap: spacing.lg },
+  errorText: { fontFamily: fonts.display, fontSize: 18, color: c.onSurface },
+  outlineBtn: { borderWidth: 1, borderColor: c.borderStrong, paddingHorizontal: spacing.xl, height: 44, justifyContent: "center", borderRadius: radius.pill },
+  outlineBtnText: { fontFamily: fonts.medium, color: c.onSurface },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingBottom: spacing.xs },
+  title: { fontFamily: fonts.display, fontSize: 28, color: c.onSurface },
+  iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  chipRow: { flexGrow: 0, height: 56 },
+  chipRowContent: { gap: spacing.sm, paddingHorizontal: spacing.xl, alignItems: "center" },
+  chip: {
+    height: 36, flexShrink: 0, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1,
+    borderColor: c.border, backgroundColor: c.surface, justifyContent: "center",
+  },
+  chipSel: { backgroundColor: c.surfaceInverse, borderColor: c.surfaceInverse },
+  chipText: { fontFamily: fonts.medium, fontSize: 13, color: c.onSurface },
+  chipTextSel: { color: c.onSurfaceInverse },
+  canvas: { height: 250, marginHorizontal: spacing.xl, borderRadius: radius.lg, backgroundColor: c.surfaceSecondary, paddingTop: spacing.md, paddingBottom: spacing.sm, overflow: "hidden" },
+  canvasCaption: { textAlign: "center", fontFamily: fonts.medium, fontSize: 12, color: c.muted, letterSpacing: 0.5 },
+  controls: { paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing.xl },
+  section: { marginTop: spacing.xl },
+  sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: spacing.md },
+  sectionLabel: { fontFamily: fonts.bold, fontSize: 11, letterSpacing: 2, color: c.onSurface },
+  sectionValue: { fontFamily: fonts.text, fontSize: 12, color: c.muted },
+  rowWrap: { flexDirection: "row", gap: spacing.sm },
+  styleCard: { flex: 1, paddingVertical: spacing.md, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface },
+  optionSel: { borderColor: c.brandPrimary, backgroundColor: c.brandTertiary },
+  optionTitle: { fontFamily: fonts.display, fontSize: 16, color: c.onSurface },
+  optionPrice: { fontFamily: fonts.text, fontSize: 11, color: c.muted, marginTop: 2 },
+  metalRow: { flexDirection: "row", gap: spacing.lg },
+  swatchRing: { width: 48, height: 48, borderRadius: 24, borderWidth: 1.5, borderColor: "transparent", alignItems: "center", justifyContent: "center" },
+  swatch: { width: 36, height: 36, borderRadius: 18 },
+  addonGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  addonTile: {
+    width: "31.5%", alignItems: "center", paddingVertical: spacing.md, borderRadius: radius.md, borderWidth: 1,
+    borderColor: c.border, backgroundColor: c.surfaceSecondary,
+  },
+  addonName: { fontFamily: fonts.medium, fontSize: 12, color: c.onSurface, marginTop: spacing.xs },
+  check: { position: "absolute", top: 6, right: 6, width: 16, height: 16, borderRadius: 8, backgroundColor: c.brandPrimary, alignItems: "center", justifyContent: "center" },
+  input: {
+    height: 48, borderRadius: radius.md, backgroundColor: c.surfaceSecondary, paddingHorizontal: spacing.lg,
+    fontFamily: fonts.text, fontSize: 15, color: c.onSurface, borderWidth: 1, borderColor: c.border,
+  },
+  bottomBar: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.surface,
+  },
+  totalLabel: { fontFamily: fonts.text, fontSize: 12, color: c.muted },
+  total: { fontFamily: fonts.display, fontSize: 24, color: c.onSurface },
+  saveBtn: { flexDirection: "row", alignItems: "center", gap: spacing.sm, height: 50, paddingHorizontal: spacing.xl, borderRadius: radius.pill, backgroundColor: c.surfaceInverse },
+  saveText: { fontFamily: fonts.bold, fontSize: 15, color: c.onSurfaceInverse },
+  toast: {
+    position: "absolute", left: spacing.xl, right: spacing.xl, flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    backgroundColor: c.surfaceInverse, paddingHorizontal: spacing.lg, height: 48, borderRadius: radius.md,
+  },
+  toastText: { flex: 1, fontFamily: fonts.medium, fontSize: 14, color: c.onSurfaceInverse },
+  toastAction: { fontFamily: fonts.bold, fontSize: 14, color: c.brandSecondary },
+}));

@@ -1,0 +1,164 @@
+{
+  "app_name": "Virtual Jewelry Builder",
+  "personality": "3 Editorial Mobile LIGHT",
+  "personality_one_liner": "A calm, luxury editorial experience where generous space and elegant typography frame the intricate details of custom jewelry.",
+  "color": {
+    "surface": "#FCFCFA",
+    "onSurface": "#1A1A18",
+    "surfaceSecondary": "#F5F4EE",
+    "onSurfaceSecondary": "#1A1A18",
+    "surfaceTertiary": "#EAE9E2",
+    "onSurfaceTertiary": "#1A1A18",
+    "surfaceInverse": "#1A1A18",
+    "onSurfaceInverse": "#FCFCFA",
+    "brand": "#C5A059",
+    "onBrand": "#FFFFFF",
+    "brandPrimary": "#B08D43",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#E0C88D",
+    "onBrandSecondary": "#1A1A18",
+    "brandTertiary": "#F2E8D0",
+    "onBrandTertiary": "#8C6A21",
+    "success": "#3B5C45",
+    "onSuccess": "#FFFFFF",
+    "warning": "#C7862E",
+    "onWarning": "#FFFFFF",
+    "error": "#8A3333",
+    "onError": "#FFFFFF",
+    "info": "#4A6B7C",
+    "onInfo": "#FFFFFF",
+    "border": "#EAE9E2",
+    "borderStrong": "#D1CFC2",
+    "divider": "#EAE9E2",
+    "muted": "#7A7973"
+  },
+  "typography": {
+    "displayFontFamily": "Playfair Display",
+    "textFontFamily": "Satoshi",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical breathing room. Treat the interface like a luxury magazine. Ensure intentional padding around content, leaving empty areas to spotlight the jewelry.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 0,
+  "navigation": "bottom_tabs",
+  "icon_set": "Feather",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Use frosted glass over photo backdrops for featured category cards.",
+      "Use for sticky bottom CTAs (Add to Bag / Save Design) when scrolling content underneath."
+    ],
+    "dont's": [
+      "Do not use on form inputs or small list rows.",
+      "Do not over-blur; maintain a calm editorial feel."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home",
+      "purpose": "Introduce the luxury aesthetic and guide the user to select a jewelry type to start building.",
+      "states": {
+        "loading": "Centered minimalist spinner in Antique Gold.",
+        "empty": "N/A",
+        "error": "Elegant text message 'Unable to load collections' with a thin outlined 'Retry' button."
+      },
+      "layout": "Full-bleed hero banner at the top with a vertical gradient scrim and large Playfair Display title. Below, a 2-column elegant grid for categories (Necklace, Bracelet, Ring, Earrings). Each category card uses a high-quality image with a soft gradient overlay and serif title."
+    },
+    {
+      "name": "Build",
+      "purpose": "Allow users to configure their jewelry piece with a live SVG preview and running price.",
+      "states": {
+        "loading": "Fading skeleton layout for the canvas and configuration chips.",
+        "empty": "N/A",
+        "error": "Error loading configurator. Display retry button."
+      },
+      "layout": "Top 45% of screen is a fixed canvas showing the react-native-svg preview. Bottom 55% is a scrollable area for step-by-step selectors (Base style, metal color chips, size sliders, charms, engraving input). Includes a sticky bottom CTA at the root containing the running price and a 'Save Design' button."
+    },
+    {
+      "name": "Saved",
+      "purpose": "A beautifully spaced archive of the user's bespoke designs stored locally.",
+      "states": {
+        "loading": "Spinner in the center.",
+        "empty": "Luxury lifestyle image with 'Your collection is empty' and a 'Start Designing' primary CTA.",
+        "error": "Error loading saved items with a retry button."
+      },
+      "layout": "Grid or list of saved designs using generous spacing. Each item displays the piece's name, configured metal, and estimated price. Tapping an item opens a Detail view sheet."
+    },
+    {
+      "name": "Design Detail (Sheet/Modal)",
+      "purpose": "Display saved design specifics, providing options to add to bag, request quote, or tease Try-On.",
+      "states": {
+        "loading": "Loading skeleton.",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Pops up over the Saved screen. Shows a large rendering of the design, a breakdown of components and cost, a primary 'Add to Bag' button, and a secondary banner teasing 'Try On (Coming Soon)' with a subtle icon."
+    }
+  ],
+  "images": {
+    "hero_home": {
+      "url": "https://images.unsplash.com/photo-1549439602-43ebca2327af?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBtaW5pbWFsaXN0JTIwamV3ZWxyeSUyMGxpZmVzdHlsZXxlbnwwfHx8fDE3OTIwNzcwMTV8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Luxury minimalist jewelry lifestyle with earrings and dark contrast elements"
+    },
+    "category_necklace": {
+      "url": "https://images.unsplash.com/photo-1680690653166-1618c3bcdf51?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTV8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwZ29sZCUyMG5lY2tsYWNlJTIwb24lMjBjcmVhbSUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzkyMDc3MDE1fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Minimalist gold necklace on cream background"
+    },
+    "category_ring": {
+      "url": "https://images.unsplash.com/photo-1626122780071-c09d403b8e32?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwZ29sZCUyMHJpbmclMjBsdXh1cnl8ZW58MHx8fHwxNzkyMDc3MDE1fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Minimalist gold ring luxury"
+    },
+    "category_bracelet": {
+      "url": "https://images.unsplash.com/photo-1633810543462-77c4a3b13f07?crop=entropy&cs=srgb&fm=jpg&ixid=M3w8NjA1NTN8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwZ29sZCUyMGJyYWNlbGV0fGVufDB8fHx8MTc5MjA3NzAxNXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Minimalist gold bracelet"
+    },
+    "category_earrings": {
+      "url": "https://images.unsplash.com/photo-1671644730555-916aa8d8157f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwZ29sZCUyMGVhcnJpbmdzfGVufDB8fHx8MTc5MjA3NzAxNXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Minimalist gold earrings"
+    },
+    "saved_empty_state": {
+      "url": "https://images.unsplash.com/photo-1615540732322-4ae8deb97091?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwyfHxsdXh1cnklMjBtaW5pbWFsaXN0JTIwamV3ZWxyeSUyMGxpZmVzdHlsZXxlbnwwfHx8fDE3OTIwNzcwMTV8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Clean minimalist paper and luxury lighting"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly adhere to the '3 Editorial Mobile LIGHT' layout rules. No thick borders, no heavy shadows. Use generous margins and padding to create a calm, luxury feel.",
+    "The color palette revolves around cream and gold. Never use indigo, blue, or purple anywhere in the UI.",
+    "For the 'Build' screen, the upper portion should be a react-native-svg canvas that dynamically redraws as the user updates configuration state. The lower portion will house all controls (metal color, size, charms, engraving).",
+    "Ensure that when rendering text over image cards (like Home categories), a vertical top-to-bottom gradient scrim is applied to guarantee readable contrast.",
+    "Implement a sticky 'Save Design' CTA with the running total at the bottom of the Builder screen, ensuring safe-area clearance and floating above the scrollable configuration options.",
+    "Include a 'Try On (Coming soon)' teaser prominently but elegantly within the saved design detail modal/sheet."
+  ]
+}
