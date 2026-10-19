@@ -1,0 +1,36 @@
+{
+  "summary": "Full backend + frontend regression for the luxury ring builder refresh (18k-only, moval/old-mine/accent-shape, new bands, hidden-halo, Colombian Emerald default stone, canvas default = Photo, material_request). 20/20 pytest backend tests PASS (new /app/backend/tests/test_ring_builder.py rewritten against the new catalog). Frontend /build on 390x844 verified: canvas defaults to Photo (canvas-mode-photo selected, builder-render-photo visible from cache), all new testIDs present (style-option-hidden-halo, option-shape-moval, option-shape-old-mine, option-band-polished, option-band-three-quarter-pave, option-band-infinity, option-accent_shape-round, option-accent_shape-pear), default addon-option-ring-colombian-emerald present, request-other-material-button reveals material-request-input, switching to canvas-mode-live mounts ring-3d-viewer with all 5 controls (zoom-in/out, spin-toggle, reset-view, fullscreen). The exact spec example from the review request (ring/halo/rose-gold/size 7/ring-colombian-emerald + {carat:1.5, band:three-quarter-pave, shape:moval, accent_shape:pear}) was reproduced in the UI and the builder-total-price read **$12,145** — matches the review target exactly, and the backend /api/price returns total=12145 with lines 18k gold 4.0 g=386, Setting & craftsmanship=1170, Accent diamonds 0.62 ct=964, Colombian Emerald=9625. Earrings regression PASS: default addon-option-ear-colombian-emerald present. Only pre-existing benign WebGL 'ReadPixels GPU stall' warning observed; no pageerrors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "three.js (benign)", "issue": "Pre-existing Chrome 'GPU stall due to ReadPixels' warning on first canvas mount (web-only software GL). Non-blocking, carried from iter_4. Reference: /app/frontend/src/components/ring3d/ring-viewer.tsx (snapshot path)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_5.json",
+    "/app/backend/tests/test_ring_builder.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "catalog_data.py:102 — KARAT is an intentionally empty list. The server never exposes a 'karat' option group (confirmed by test_ring_option_groups). Consider deleting the dead KARAT variable to keep the module tidy.",
+    "server.py:65 — DesignSpec.options is Dict[str,str], so options.material_request = free-text 'Platinum please' is accepted as-is and simply ignored by compute_breakdown (no karat/material_request group lookup). This matches the review request ('extra key options.material_request is accepted'). Confirmed by test_price_accepts_material_request_extra.",
+    "server.py:92-104 — attach() populates .image URLs for setting/shape/carat/band/accent_shape by looking up db.option_images; absent keys simply have no 'image' field, which is correct behaviour.",
+    "catalog_data.py:189 — ADDONS list order drives the UI order; verified ring-colombian-emerald is first for both ring-* and ear-* via test_ring_stones_order and test_earring_stones_order.",
+    "server.py:140-141 — grams label format `f\"18k gold · {grams:.1f} g\"` matches the review spec ('18k gold 4.0 g (386)'). ✓",
+    "design-canvas.tsx:35 — initial mode state is 'photo' (default canvas view = Photo), matching the review request. ✓"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ring_builder.py (rewrote for new catalog: dropped karat/silver/classic/ring-diamond asserts; added shape13/band6/accent-shape6/colombian-emerald-first/18k-only/material_request/halo-moval-TQP-pear=12145 cases)",
+    "/app/test_reports/iteration_5.json",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "100% — all 5 review bullets verified"},
+  "seed_data_creation": "One TEST_ quote (TEST_q, cathedral/white-gold/cushion/sapphire) created by test_quote_ring_with_options; harmless. 0 new /api/renders calls — the halo+rose+moval+ThreeQuarterPave+pear+1.5ct+size7 combo is already cached from a prior iteration (confirmed by instant photo swap).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend test file at /app/backend/tests/test_ring_builder.py is now aligned with the 18k-only catalog. Run with `EXPO_PUBLIC_BACKEND_URL=<url> pytest backend/tests/test_ring_builder.py -v`. The exact pricing anchor is: halo+rose-gold+size 7+ring-colombian-emerald+{carat:1.5, band:three-quarter-pave, shape:moval, accent_shape:pear} → total 12145 (lines 386+1170+964+9625). Earrings default stone is ear-colombian-emerald (and ear-pearl is still an available addon)."
+}

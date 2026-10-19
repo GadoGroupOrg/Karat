@@ -56,32 +56,14 @@ def _opt(t: dict, group: str, options: dict) -> dict | None:
     return next((o for o in g["options"] if o["id"] == oid), None)
 
 
-SETTING_DESC = {
-    "solitaire-4": "a classic four-prong solitaire head with slim claw prongs holding the centre stone high",
-    "solitaire-6": "a six-prong solitaire Tiffany-style head with six fine claw prongs",
-    "cathedral": "a cathedral setting where graceful metal arches rise from the shoulders of the band to cradle the centre stone",
-    "bezel": "a sleek bezel setting with a smooth polished metal rim fully encircling the centre stone",
-    "halo": "a halo setting with a ring of tiny micro-pavé round diamonds tightly surrounding the centre stone",
-    "three-stone": "a three-stone setting with the centre stone flanked by two smaller matching side stones, each in prongs",
-}
-BAND_DESC = {
-    "classic": "a classic polished comfort-fit band about 2mm wide",
-    "slim": "a delicate petite polished band about 1.6mm wide",
-    "knife": "a knife-edge band with a crisp central ridge",
-    "pave": "a pavé band with small round diamonds set along the top half of the shank",
-    "wide": "a bold, substantial polished band about 3mm wide",
-}
-
-
 def build_prompt(catalog: dict, d: dict, has_snapshot: bool, product_refs: int) -> str:
     t = next(x for x in catalog["types"] if x["id"] == d["type"])
     metal = next(m for m in catalog["metals"] if m["id"] == d["metalId"])
     style = next(s for s in t["styles"] if s["id"] == d["styleId"])
     size = next((s for s in t["sizes"] if s["id"] == d["sizeId"]), None)
     options = d.get("options") or {}
-    karat = _opt(t, "karat", options)
     addons = [a for a in catalog["addons"] if a["id"] in d.get("addonIds", [])]
-    gold = f"{karat['name'] if karat else '14k'} {metal['name'].lower()}"
+    gold = metal["name"].lower()
     engraving = (d.get("engraving") or "").strip()
 
     base = (
@@ -93,14 +75,19 @@ def build_prompt(catalog: dict, d: dict, has_snapshot: bool, product_refs: int) 
         shape = _opt(t, "shape", options)
         carat = _opt(t, "carat", options)
         band = _opt(t, "band", options)
-        stone = addons[0]["name"] if addons else "Natural Diamond"
+        accent = _opt(t, "accent_shape", options)
+        stone = addons[0]["name"] if addons else "Colombian Emerald"
+        has_accents = (style.get("accent_ct", 0) + (band or {}).get("accent_ct", 0)) > 0
         desc = (
             f"Subject: a single engagement ring in highly polished {gold}. "
-            f"Centre stone: a {carat['name'] if carat else '1.00 ct'} {shape['name'] if shape else 'round brilliant'} cut {stone.lower()}, "
-            "dimensional, with brilliant facets, sparkling fire and scintillation. "
-            f"Setting: {SETTING_DESC.get(style['id'], style['name'])}. Band: {BAND_DESC.get(band['id'] if band else 'classic')}. "
-            "The ring stands upright, viewed at a three-quarter angle slightly from above so the stone and setting are the focal point. "
+            f"Centre stone: a {carat['name'] if carat else '1.00 ct'} {shape['name'] if shape else 'round brilliant'} cut {stone} "
+            f"({shape.get('description', '') if shape else ''}), dimensional, with crisp facets, fire and scintillation. "
+            f"Setting: {style['name']} — {style.get('description', '')} "
+            f"Band: {band['name'] if band else 'Polished Gold'} — {band.get('description', '') if band else ''} "
         )
+        if has_accents and accent:
+            desc += f"All accent/pavé stones are small {accent['name'].lower()}-cut white diamonds. "
+        desc += "The ring stands upright, viewed at a three-quarter angle slightly from above so the stone and setting are the focal point. "
         if engraving:
             desc += f"Fine script engraving '{engraving}' visible on the inside of the band. "
     else:

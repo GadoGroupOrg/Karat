@@ -51,3 +51,11 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - Root cause: studio HDR env used Float32 textures (not filterable on OpenGL ES 3 phones) → native render loop threw every frame and froze
 - Fix: HalfFloat (RGBA16F) env, no flipY, render loop try/catch with fallback lighting; studio photo auto-shows when ready, any change returns to live 3D
 - Tested iteration_4: all pass
+
+## Ring builder v3 (2026-06)
+- 18k only (Yellow/White/Rose) + "Request other ring material" free-text (priced on request)
+- 12 settings incl. Hidden Halo, Double Halo, Vintage Milgrain, Toi et Moi, Split Shank, Bypass; 13 shapes incl. Moval, Old Mine; accent stone shape selector (6)
+- Bands: Polished, Diamond-Cut, Partial/3/4/Full Pavé, Infinity — every setting/band/shape/accent has an AI-generated illustrative preview image (backend/gen_option_images.py → object storage, /api/option-images/{key})
+- Stones order/default: Colombian Emerald, Earth Diamond, Lab Diamond, Ruby, Sapphire, Natural Zircon, Tanzanite, Aquamarine, Morganite (rings & earrings)
+- Pricing = 18k gold grams × $/g (96) × size weight factor + setting/band craftsmanship + accent diamonds (ct × $1,200 × accent-shape factor) + centre stone (per-ct price × carat size premium) + engraving; breakdown shown in builder & detail. ALL prices are illustrative placeholders in backend/catalog_data.py — merchant should supply real price sheet
+- Canvas defaults to Photo (auto render 1.2s after change, previous photo kept while updating); 3D optional

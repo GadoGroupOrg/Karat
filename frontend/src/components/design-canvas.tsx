@@ -10,7 +10,7 @@ import { JewelryPreview } from "@/src/components/jewelry-preview";
 import { RingViewer, type RingViewerHandle } from "@/src/components/ring3d/ring-viewer";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
-const RENDER_DELAY = 2800;
+const RENDER_DELAY = 1200;
 
 export const specKey = (d: DesignSpec) =>
   JSON.stringify({ ...d, name: undefined, addonIds: [...d.addonIds].sort(), options: d.options ?? {} });
@@ -32,7 +32,8 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
   const insets = useSafeAreaInsets();
   const viewer = useRef<RingViewerHandle>(null);
   const fullViewer = useRef<RingViewerHandle>(null);
-  const [mode, setMode] = useState<"live" | "photo">("live");
+  const [mode, setMode] = useState<"live" | "photo">("photo");
+  const [lastUrl, setLastUrl] = useState<string | null>(initialRenderUrl);
   const [spin, setSpin] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const key = specKey(design);
@@ -67,7 +68,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
       if (keyRef.current !== k) return;
       const url = assetUrl(r.image_url);
       setRender({ status: "ready", url, key: k });
-      if (autoRender) setMode("photo");
+      setLastUrl(url);
     } catch (e) {
       if (keyRef.current !== k) return;
       setRender({ status: "error", key: k, error: (e as Error).message });
@@ -77,7 +78,6 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
   // Auto-render once the customer pauses on a configuration; any change returns to the live view.
   useEffect(() => {
     setRender((r) => (r.key === key ? r : { status: "idle" }));
-    setMode("live");
     if (!autoRender) return;
     const h = setTimeout(() => run(false), RENDER_DELAY);
     return () => clearTimeout(h);
@@ -89,11 +89,9 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [render, key]);
 
-  useEffect(() => {
-    if (render.status !== "ready" && mode === "photo" && render.status !== "loading") setMode("live");
-  }, [render.status, mode]);
 
   const photoReady = render.status === "ready" && render.key === key;
+  const shownUrl = photoReady ? render.url ?? null : lastUrl;
 
   const toggleSpin = () => {
     const next = !spin;
@@ -115,33 +113,39 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
   return (
     <View style={[styles.canvas, { height }]} testID="builder-preview-canvas">
       <View style={styles.stage}>
-        {isRing ? (
-          <RingViewer ref={viewer} spec={ringSpec} background={colors.surfaceSecondary} testID="ring-3d-viewer" />
+        {mode === "live" ? (
+          isRing ? (
+            <RingViewer ref={viewer} spec={ringSpec} background={colors.surfaceSecondary} testID="ring-3d-viewer" />
+          ) : (
+            <Animated.View key={`${design.type}-${design.styleId}`} entering={FadeIn.duration(350)} style={styles.sketch}>
+              <JewelryPreview catalog={catalog} design={design} />
+            </Animated.View>
+          )
+        ) : shownUrl ? (
+          <View style={styles.photoLayer}>
+            <Image source={{ uri: shownUrl }} style={styles.photo} contentFit="cover" transition={400} testID="builder-render-photo" />
+            {!photoReady && <View style={styles.updatingVeil} />}
+          </View>
         ) : (
-          <Animated.View key={`${design.type}-${design.styleId}`} entering={FadeIn.duration(350)} style={styles.sketch}>
-            <JewelryPreview catalog={catalog} design={design} />
-          </Animated.View>
-        )}
-        {mode === "photo" && photoReady && (
-          <Animated.View entering={FadeIn.duration(300)} style={styles.photoLayer}>
-            <Image source={{ uri: render.url }} style={styles.photo} contentFit="cover" transition={300} testID="builder-render-photo" />
-          </Animated.View>
+          <View style={styles.placeholder} testID="photo-placeholder">
+            <ActivityIndicator color={colors.brandPrimary} />
+            <Text style={styles.placeholderTitle}>Crafting your studio photo</Text>
+            <Text style={styles.placeholderText}>Every choice you make is rendered as a real photograph.</Text>
+          </View>
         )}
       </View>
 
       <View style={styles.segment} testID="canvas-mode-toggle">
-        {(["live", "photo"] as const).map((m) => {
+        {(["photo", "live"] as const).map((m) => {
           const sel = mode === m;
-          const disabled = m === "photo" && !photoReady;
           return (
             <Pressable
               key={m}
               testID={`canvas-mode-${m}`}
-              disabled={disabled}
               onPress={() => setMode(m)}
-              style={[styles.segBtn, sel && styles.segSel, disabled && { opacity: 0.45 }]}
+              style={[styles.segBtn, sel && styles.segSel]}
             >
-              <Text style={[styles.segText, sel && styles.segTextSel]}>{m === "live" ? (isRing ? "3D" : "Live") : "Photo"}</Text>
+              <Text style={[styles.segText, sel && styles.segTextSel]}>{m === "live" ? (isRing ? "3D" : "Sketch") : "Photo"}</Text>
             </Pressable>
           );
         })}
@@ -154,7 +158,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
         </View>
       )}
       {isRing && mode === "live" && controls(viewer, false)}
-      {mode === "photo" && photoReady && (
+      {mode === "photo" && shownUrl && (
         <View style={styles.controls}>
           <CtrlBtn testID="photo-fullscreen-button" icon="maximize-2" onPress={() => setFullscreen(true)} />
         </View>
@@ -168,7 +172,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
               <Feather name="x" size={22} color={colors.onSurface} />
             </Pressable>
           </View>
-          {mode === "photo" && photoReady ? (
+          {mode === "photo" && shownUrl ? (
             <ScrollView
               style={{ flex: 1 }}
               contentContainerStyle={styles.fsPhotoWrap}
@@ -178,7 +182,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
               showsHorizontalScrollIndicator={false}
               showsVerticalScrollIndicator={false}
             >
-              <Image source={{ uri: render.url }} style={styles.fsPhoto} contentFit="contain" testID="fullscreen-photo" />
+              <Image source={{ uri: shownUrl }} style={styles.fsPhoto} contentFit="contain" testID="fullscreen-photo" />
             </ScrollView>
           ) : isRing ? (
             <View style={{ flex: 1 }}>
@@ -196,13 +200,13 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
             <Text style={styles.chipText}>Rendering studio photo…</Text>
           </View>
         ) : photoReady ? (
-          <Pressable testID="render-thumbnail" onPress={() => setMode(mode === "photo" ? "live" : "photo")} style={styles.chipInner}>
-            {mode === "live" && <Image source={{ uri: render.url }} style={styles.thumb} contentFit="cover" />}
-            <Text style={styles.chipText}>{mode === "photo" ? "Back to 3D" : "Studio photo"}</Text>
+          <View style={styles.chipInner} testID="render-thumbnail">
+            <Feather name="check-circle" size={14} color={colors.success} />
+            <Text style={styles.chipText}>Studio photo</Text>
             <Pressable testID="rerender-button" onPress={() => run(true)} hitSlop={10} style={styles.rerender}>
               <Feather name="refresh-cw" size={13} color={colors.onSurface} />
             </Pressable>
-          </Pressable>
+          </View>
         ) : render.status === "error" ? (
           <Pressable testID="render-retry-button" onPress={() => run(true)} style={styles.chipInner}>
             <Feather name="alert-circle" size={14} color={colors.error} />
@@ -245,6 +249,10 @@ const useStyles = makeStyles((c) => ({
   stage: { flex: 1 },
   sketch: { flex: 1, paddingTop: spacing["2xl"], paddingBottom: spacing["2xl"] },
   photoLayer: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  updatingVeil: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.surface, opacity: 0.35 },
+  placeholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing["2xl"] },
+  placeholderTitle: { fontFamily: fonts.display, fontSize: 18, color: c.onSurface, marginTop: spacing.sm },
+  placeholderText: { fontFamily: fonts.text, fontSize: 13, color: c.muted, textAlign: "center" },
   photo: { width: "100%", height: "100%" },
   segment: { position: "absolute", top: spacing.md, left: spacing.md, flexDirection: "row", backgroundColor: c.surface, borderRadius: radius.pill, padding: 3, borderWidth: 1, borderColor: c.border },
   segBtn: { height: 30, paddingHorizontal: spacing.md, borderRadius: radius.pill, justifyContent: "center" },
@@ -259,6 +267,5 @@ const useStyles = makeStyles((c) => ({
     borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
   },
   chipText: { fontFamily: fonts.bold, fontSize: 12, color: c.onSurface },
-  thumb: { width: 28, height: 28, borderRadius: 14, backgroundColor: c.surfaceTertiary },
   rerender: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: c.surfaceSecondary },
 }));

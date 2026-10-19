@@ -20,6 +20,24 @@ type Cut = { profile: [number, number][]; segments: number; phi: number; sx: num
 
 function cutFor(shape: string): Cut {
   switch (shape) {
+    case "moval":
+      return { profile: brilliant, segments: 20, phi: 0, sx: 0.62, sz: 1.18 };
+    case "pear":
+    case "marquise":
+      return { profile: brilliant, segments: 20, phi: 0, sx: 0.58, sz: 1.2 };
+    case "old-mine":
+      return {
+        profile: [[0.06, -0.4], [0.3, -0.2], [0.5, -0.012], [0.5, 0.012], [0.38, 0.13], [0.22, 0.2], [0.001, 0.2]],
+        segments: 8, phi: Math.PI / 8, sx: 1.0, sz: 1.0,
+      };
+    case "elongated-cushion":
+      return { profile: brilliant, segments: 8, phi: Math.PI / 8, sx: 0.8, sz: 1.1 };
+    case "radiant":
+      return { ...cutFor("emerald"), profile: brilliant, sx: 0.8, sz: 1.08 };
+    case "asscher":
+      return { ...cutFor("emerald"), sx: 1.0, sz: 1.0 };
+    case "heart":
+      return { profile: brilliant, segments: 16, phi: 0, sx: 1.05, sz: 0.95 };
     case "oval":
       return { profile: brilliant, segments: 20, phi: 0, sx: 0.74, sz: 1.1 };
     case "cushion":
@@ -119,18 +137,24 @@ function addProngs(group: THREE.Group, center: THREE.Vector3, rx: number, rz: nu
   group.add(rail);
 }
 
-const BANDS: Record<string, { tube: number; zs: number; radial: number }> = {
-  classic: { tube: 0.085, zs: 1.85, radial: 40 },
-  slim: { tube: 0.066, zs: 1.5, radial: 40 },
-  wide: { tube: 0.1, zs: 2.9, radial: 40 },
-  knife: { tube: 0.095, zs: 1.6, radial: 4 },
-  pave: { tube: 0.082, zs: 1.85, radial: 40 },
+const BANDS: Record<string, { tube: number; zs: number; radial: number; pave?: [number, number] }> = {
+  polished: { tube: 0.085, zs: 1.85, radial: 40 },
+  "diamond-cut": { tube: 0.09, zs: 1.7, radial: 6 },
+  "partial-pave": { tube: 0.082, zs: 1.85, radial: 40, pave: [40, 140] },
+  "three-quarter-pave": { tube: 0.082, zs: 1.85, radial: 40, pave: [-45, 225] },
+  "full-pave": { tube: 0.082, zs: 1.85, radial: 40, pave: [-90, 270] },
+  infinity: { tube: 0.07, zs: 1.6, radial: 40 },
+};
+const SETTING_3D: Record<string, string> = {
+  "hidden-halo": "halo", "double-halo": "halo", "vintage-milgrain": "halo", "toi-et-moi": "three-stone",
+  "split-shank": "cathedral", bypass: "solitaire-4",
 };
 
 export function buildRing(spec: RingSpec): RingBuild {
   const m = makeMaterials(spec);
   const group = new THREE.Group();
-  const b = BANDS[spec.band] ?? BANDS.classic;
+  const b = BANDS[spec.band] ?? BANDS.polished;
+  spec = { ...spec, setting: SETTING_3D[spec.setting] ?? spec.setting };
 
   // Band
   const bandGeo = new THREE.TorusGeometry(R + b.tube, b.tube, b.radial, 220);
@@ -211,10 +235,10 @@ export function buildRing(spec: RingSpec): RingBuild {
     }
   }
 
-  if (spec.band === "pave") {
+  if (b.pave) {
     const ds = 0.07;
     const angles: number[] = [];
-    for (let deg = 12; deg <= 168; deg += 5.2) if (Math.abs(deg - 90) > 16) angles.push((deg * Math.PI) / 180);
+    for (let deg = b.pave[0]; deg <= b.pave[1]; deg += 5.2) if (Math.abs(deg - 90) > 16) angles.push((deg * Math.PI) / 180);
     const pave = new THREE.InstancedMesh(gemGeometry(cutFor("round"), ds), m.melee, angles.length);
     const up = new THREE.Vector3(0, 1, 0);
     angles.forEach((a, i) => {

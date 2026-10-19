@@ -17,7 +17,7 @@ from fastapi.responses import Response
 import render_service
 from datetime import datetime, timezone
 
-from catalog_data import TYPES, METALS, ADDONS
+from catalog_data import TYPES, METALS, ADDONS, PRICING
 from shopify_sync import normalize_domain, sync_store, product_as_addon
 
 ROOT_DIR = Path(__file__).parent
@@ -89,10 +89,23 @@ async def get_catalog() -> dict:
     store_products = await db.store_products.find({"available": True}, {"_id": 0}).to_list(5000)
     addons += [product_as_addon(p) for p in store_products]
     store = await db.store_connection.find_one({"key": "default"}, {"_id": 0, "key": 0})
-    return {"types": types, "metals": metals, "addons": addons, "store": store}
+    images = {d["key"]: d["created_at"] async for d in db.option_images.find({}, {"_id": 0, "key": 1, "created_at": 1})}
+
+    def attach(group: str, opts: list):
+        for o in opts:
+            k = f"{group}:{o['id']}"
+            if k in images:
+                o["image"] = f"/api/option-images/{k}?v={images[k][:19]}"
+
+    for t in types:
+        if t["id"] == "ring":
+            attach("setting", t["styles"])
+            for g in t.get("option_groups", []):
+                attach(g["id"], g["options"])
+    return {"types": types, "metals": metals, "addons": addons, "store": store, "pricing": PRICING}
 
 
-def compute_price(catalog: dict, d: DesignSpec) -> int:
+def compute_breakdown(catalog: dict, d: DesignSpec) -> dict:
     t = next((x for x in catalog["types"] if x["id"] == d.type), None)
     if not t:
         raise HTTPException(400, "Unknown jewelry type")
@@ -104,20 +117,43 @@ def compute_price(catalog: dict, d: DesignSpec) -> int:
     addons = [a for a in catalog["addons"] if a["id"] in d.addonIds and d.type in a["types"]]
     if len(addons) > t["max_addons"]:
         raise HTTPException(400, "Too many add-ons")
-    metal_part = t["base_price"] + style["price"] + size["price"]
-    metal_factor, addon_factor = metal["multiplier"], 1.0
+    p = catalog["pricing"]
+    labor = t["base_price"] + style["price"] + size["price"]
+    grams = style.get("grams", 0)
+    accent_ct = style.get("accent_ct", 0)
+    addon_factor = accent_factor = 1.0
     for g in t.get("option_groups", []):
         oid = d.options.get(g["id"], g["default"])
         o = next((x for x in g["options"] if x["id"] == oid), None)
         if not o:
             raise HTTPException(400, f"Invalid {g['label']}")
-        metal_part += o.get("price", 0)
-        metal_factor *= o.get("metal_factor", 1.0)
+        labor += o.get("price", 0)
+        grams += o.get("grams", 0)
+        accent_ct += o.get("accent_ct", 0)
         addon_factor *= o.get("addon_factor", 1.0)
-    total = metal_part * metal_factor + sum(a["price"] for a in addons) * addon_factor
+        accent_factor *= o.get("accent_factor", 1.0)
+    wf = size.get("weight_factor", 1.0)
+    grams *= wf
+    accent_ct *= wf
+    lines = []
+    if grams:
+        lines.append({"label": f"18k gold · {grams:.1f} g", "amount": grams * p["gold_per_gram"] * metal["multiplier"]})
+        lines.append({"label": "Setting & craftsmanship", "amount": labor})
+    else:
+        lines.append({"label": "Piece", "amount": labor * metal["multiplier"]})
+    if accent_ct:
+        lines.append({"label": f"Accent diamonds · {accent_ct:.2f} ct", "amount": accent_ct * p["accent_price_per_ct"] * accent_factor})
+    for a in addons:
+        lines.append({"label": a["name"], "amount": a["price"] * addon_factor})
     if d.engraving.strip() and t["engraving_max"] > 0:
-        total += t["engraving_price"]
-    return int(round(total))
+        lines.append({"label": "Engraving", "amount": t["engraving_price"]})
+    for ln in lines:
+        ln["amount"] = int(round(ln["amount"]))
+    return {"lines": lines, "total": sum(ln["amount"] for ln in lines), "gold_grams": round(grams, 2)}
+
+
+def compute_price(catalog: dict, d: DesignSpec) -> int:
+    return compute_breakdown(catalog, d)["total"]
 
 
 @api_router.get("/")
@@ -132,7 +168,17 @@ async def catalog():
 
 @api_router.post("/price")
 async def price(design: DesignSpec):
-    return {"price": compute_price(await get_catalog(), design)}
+    b = compute_breakdown(await get_catalog(), design)
+    return {"price": b["total"], **b}
+
+
+@api_router.get("/option-images/{key}")
+async def option_image(key: str):
+    doc = await db.option_images.find_one({"key": key})
+    if not doc:
+        raise HTTPException(404, "Image not found")
+    data, ctype = await run_in_threadpool(render_service.get_object, doc["storage_path"])
+    return Response(content=data, media_type=ctype, headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 def design_hash(d: DesignSpec) -> str:

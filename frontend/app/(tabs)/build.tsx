@@ -9,7 +9,7 @@ import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg from "react-native-svg";
 
-import { Catalog, DesignSpec, OptionGroup, computePrice, formatPrice, useCatalog } from "@/src/api";
+import { Catalog, DesignSpec, OptionGroup, assetUrl, computeBreakdown, computePrice, formatPrice, useCatalog } from "@/src/api";
 import { DesignCanvas } from "@/src/components/design-canvas";
 import { Charm } from "@/src/components/jewelry-preview";
 import { getDesign, newId, upsertDesign } from "@/src/designs";
@@ -19,7 +19,7 @@ import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 function defaults(c: Catalog, type: string): DesignSpec {
   const t = c.types.find((x) => x.id === type) ?? c.types[0];
   const options = Object.fromEntries((t.option_groups ?? []).map((g) => [g.id, g.default]));
-  const stone = t.id === "ring" ? c.addons.find((a) => a.types.includes("ring")) : undefined;
+  const stone = t.addon_kind === "stone" ? c.addons.find((a) => a.types.includes(t.id) && a.source !== "shopify") : undefined;
   return {
     type: t.id, styleId: t.styles[0].id, metalId: c.metals[0].id, sizeId: t.sizes[0].id,
     addonIds: stone ? [stone.id] : [], engraving: "", name: "", options,
@@ -108,12 +108,17 @@ function Builder({ catalog }: { catalog: Catalog }) {
   };
   const renderGroup = (g: OptionGroup) => {
     const current = design.options?.[g.id] ?? g.default;
+    const visual = g.options.some((o) => o.description);
     return (
       <Section key={g.id} label={g.label} value={g.options.find((o) => o.id === current)?.name}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
           {g.options.map((o) => {
             const sel = o.id === current;
-            return (
+            const extra = o.accent_ct ? `+${o.accent_ct} ct pavé` : o.price ? `+${formatPrice(o.price)} labor` : undefined;
+            return visual ? (
+              <OptionCard key={o.id} testID={`option-${g.id}-${o.id}`} selected={sel} onPress={() => setOption(g.id, o.id)}
+                title={o.name} description={o.description} image={o.image} meta={extra} />
+            ) : (
               <Pressable key={o.id} testID={`option-${g.id}-${o.id}`} onPress={() => setOption(g.id, o.id)} style={[styles.chip, sel && styles.chipSel]}>
                 <Text style={[styles.chipText, sel && styles.chipTextSel]}>{o.name}{o.price ? `  +${formatPrice(o.price)}` : ""}</Text>
               </Pressable>
@@ -123,6 +128,8 @@ function Builder({ catalog }: { catalog: Catalog }) {
       </Section>
     );
   };
+  const breakdown = computeBreakdown(catalog, design);
+  const [showMaterial, setShowMaterial] = useState(false);
 
   const update = (patch: Partial<DesignSpec>) => {
     tap();
@@ -197,6 +204,13 @@ function Builder({ catalog }: { catalog: Catalog }) {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
             {t.styles.map((s) => {
               const sel = s.id === design.styleId;
+              if (s.description) {
+                return (
+                  <OptionCard key={s.id} testID={`style-option-${s.id}`} selected={sel} onPress={() => update({ styleId: s.id })}
+                    title={s.name ?? ""} description={s.description} image={s.image}
+                    meta={s.accent_ct ? `+${s.accent_ct} ct accents` : `${formatPrice(s.price)} craft`} />
+                );
+              }
               return (
                 <Pressable key={s.id} testID={`style-option-${s.id}`} onPress={() => update({ styleId: s.id })} style={[styles.styleCard, sel && styles.optionSel]}>
                   <Text style={styles.optionTitle}>{s.name}</Text>
@@ -247,10 +261,28 @@ function Builder({ catalog }: { catalog: Catalog }) {
               );
             })}
           </View>
+          {t.material_request && (
+            <View style={styles.materialWrap}>
+              <Pressable testID="request-other-material-button" onPress={() => setShowMaterial((v) => !v)} style={styles.linkRow} hitSlop={8}>
+                <Feather name={showMaterial ? "minus-circle" : "plus-circle"} size={14} color={colors.brandPrimary} />
+                <Text style={styles.linkText}>Request other ring material</Text>
+              </Pressable>
+              {(showMaterial || !!design.options?.material_request) && (
+                <TextInput
+                  testID="material-request-input"
+                  value={design.options?.material_request ?? ""}
+                  onChangeText={(v) => setDesign((d) => ({ ...d, options: { ...(d.options ?? {}), material_request: v } }))}
+                  placeholder="e.g. Platinum, 14k, two-tone…"
+                  placeholderTextColor={colors.muted}
+                  style={styles.input}
+                  maxLength={60}
+                />
+              )}
+            </View>
+          )}
         </Section>
 
         {groupsAfterMetal.map(renderGroup)}
-
         <Section label={t.id === "ring" ? "Ring size" : t.id === "earrings" ? "Size" : "Length"}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
             {t.sizes.map((s) => {
@@ -305,6 +337,20 @@ function Builder({ catalog }: { catalog: Catalog }) {
           </Section>
         )}
 
+        <Section label="Price breakdown" value="Estimate">
+          <View style={styles.breakdown} testID="price-breakdown">
+            {breakdown.lines.map((l) => (
+              <View key={l.label} style={styles.bdRow}>
+                <Text style={styles.bdLabel}>{l.label}</Text>
+                <Text style={styles.bdAmount}>{formatPrice(l.amount)}</Text>
+              </View>
+            ))}
+            {!!design.options?.material_request && (
+              <Text style={styles.bdNote}>Alternative material “{design.options.material_request}” priced on request.</Text>
+            )}
+          </View>
+        </Section>
+
         <Section label="Name your piece">
           <TextInput
             testID="design-name-input"
@@ -342,6 +388,34 @@ function Builder({ catalog }: { catalog: Catalog }) {
         </Animated.View>
       )}
     </View>
+  );
+}
+
+function OptionCard({ title, description, image, meta, selected, onPress, testID }: {
+  title: string; description?: string; image?: string; meta?: string; selected: boolean; onPress: () => void; testID: string;
+}) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  return (
+    <Pressable testID={testID} onPress={onPress} style={({ pressed }) => [styles.card, selected && styles.optionSel, pressed && { opacity: 0.85 }]}>
+      {image ? (
+        <Image source={{ uri: assetUrl(image) }} style={styles.cardImg} contentFit="cover" transition={250} />
+      ) : (
+        <View style={[styles.cardImg, { alignItems: "center", justifyContent: "center" }]}>
+          <Feather name="image" size={18} color={colors.muted} />
+        </View>
+      )}
+      <View style={styles.cardBody}>
+        <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
+        {!!description && <Text style={styles.cardDesc} numberOfLines={3}>{description}</Text>}
+        {!!meta && <Text style={styles.cardMeta}>{meta}</Text>}
+      </View>
+      {selected && (
+        <View style={styles.check}>
+          <Feather name="check" size={10} color={colors.onBrandPrimary} />
+        </View>
+      )}
+    </Pressable>
   );
 }
 
@@ -403,6 +477,18 @@ const useStyles = makeStyles((c) => ({
   storeImg: { width: "100%", aspectRatio: 1, borderRadius: radius.sm, backgroundColor: c.surfaceTertiary },
   linkRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.md, minHeight: 32 },
   linkText: { fontFamily: fonts.bold, fontSize: 13, color: c.brandPrimary },
+  materialWrap: { marginTop: spacing.sm, gap: spacing.sm },
+  breakdown: { borderRadius: radius.md, backgroundColor: c.surfaceSecondary, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  bdRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm, gap: spacing.md },
+  bdLabel: { flex: 1, fontFamily: fonts.text, fontSize: 13, color: c.onSurface },
+  bdAmount: { fontFamily: fonts.bold, fontSize: 13, color: c.onSurface },
+  bdNote: { fontFamily: fonts.text, fontSize: 12, color: c.muted, paddingBottom: spacing.sm },
+  card: { width: 168, flexShrink: 0, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, overflow: "hidden" },
+  cardImg: { width: "100%", height: 112, backgroundColor: c.surfaceTertiary },
+  cardBody: { padding: spacing.md },
+  cardTitle: { fontFamily: fonts.display, fontSize: 15, color: c.onSurface },
+  cardDesc: { fontFamily: fonts.text, fontSize: 11, lineHeight: 15, color: c.muted, marginTop: 2 },
+  cardMeta: { fontFamily: fonts.bold, fontSize: 11, color: c.brandPrimary, marginTop: spacing.xs },
   input: {
     height: 48, borderRadius: radius.md, backgroundColor: c.surfaceSecondary, paddingHorizontal: spacing.lg,
     fontFamily: fonts.text, fontSize: 15, color: c.onSurface, borderWidth: 1, borderColor: c.border,

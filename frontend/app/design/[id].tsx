@@ -6,7 +6,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { computePrice, createQuote, formatPrice, useCatalog } from "@/src/api";
+import { computeBreakdown, computePrice, createQuote, formatPrice, useCatalog } from "@/src/api";
 import { DesignCanvas } from "@/src/components/design-canvas";
 import { SavedDesign, deleteDesign, getDesign } from "@/src/designs";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -59,6 +59,8 @@ export default function DesignDetail() {
     const o = g.options.find((x) => x.id === (design.options?.[g.id] ?? g.default));
     if (o) rows.push([g.label, o.name]);
   }
+  if (design.options?.material_request) rows.push(["Material request", design.options.material_request]);
+  for (const l of computeBreakdown(catalog, design).lines) rows.push([l.label, formatPrice(l.amount)]);
   if (design.engraving.trim()) rows.push(["Engraving", `“${design.engraving.trim()}”`]);
 
   const submit = async () => {

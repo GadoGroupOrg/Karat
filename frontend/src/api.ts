@@ -5,7 +5,10 @@ import { uploadForm } from "@/src/utils/upload";
 const BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
 
 export type Metal = { id: string; name: string; color: string; multiplier: number };
-export type Option = { id: string; name?: string; label?: string; price: number };
+export type Option = {
+  id: string; name?: string; label?: string; price: number; description?: string; image?: string;
+  grams?: number; accent_ct?: number; weight_factor?: number;
+};
 export type JewelryType = {
   id: string;
   name: string;
@@ -20,15 +23,20 @@ export type JewelryType = {
   sizes: Option[];
   style_label: string;
   option_groups: OptionGroup[];
+  material_request?: boolean;
 };
 export type Addon = {
   id: string; name: string; shape: string; color: string | null; price: number; types: string[];
   image?: string | null; source?: "shopify"; url?: string;
 };
-export type GroupOption = { id: string; name: string; price: number; metal_factor?: number; addon_factor?: number };
+export type GroupOption = {
+  id: string; name: string; price: number; metal_factor?: number; addon_factor?: number; accent_factor?: number;
+  grams?: number; accent_ct?: number; description?: string; image?: string;
+};
 export type OptionGroup = { id: string; label: string; default: string; options: GroupOption[] };
 export type StoreInfo = { domain: string; name: string; currency: string; product_count: number; last_synced: string };
-export type Catalog = { types: JewelryType[]; metals: Metal[]; addons: Addon[]; store: StoreInfo | null };
+export type Pricing = { gold_karat: string; gold_per_gram: number; accent_price_per_ct: number; currency: string; note: string };
+export type Catalog = { types: JewelryType[]; metals: Metal[]; addons: Addon[]; store: StoreInfo | null; pricing: Pricing };
 export type StoreProduct = {
   id: string; title: string; handle: string; vendor: string; product_type: string; tags: string[];
   description: string; price: number; compare_at_price: number | null; available: boolean;
@@ -86,27 +94,48 @@ export const connectStore = (domain: string) =>
 export const syncStore = () => request<{ store: StoreInfo }>("/store/sync", { method: "POST" });
 export const disconnectStore = () => request<{ store: null }>("/store", { method: "DELETE" });
 
-export function computePrice(c: Catalog, d: DesignSpec): number {
+export type PriceLine = { label: string; amount: number };
+
+// Mirrors compute_breakdown in backend/server.py.
+export function computeBreakdown(c: Catalog, d: DesignSpec): { lines: PriceLine[]; total: number; grams: number } {
+  const empty = { lines: [], total: 0, grams: 0 };
   const t = c.types.find((x) => x.id === d.type);
-  if (!t) return 0;
+  if (!t) return empty;
   const style = t.styles.find((s) => s.id === d.styleId);
   const size = t.sizes.find((s) => s.id === d.sizeId);
   const metal = c.metals.find((m) => m.id === d.metalId);
-  if (!style || !size || !metal) return 0;
-  let metalPart = t.base_price + style.price + size.price;
-  let metalFactor = metal.multiplier, addonFactor = 1;
+  if (!style || !size || !metal) return empty;
+  let labor = t.base_price + style.price + size.price;
+  let grams = style.grams ?? 0, accentCt = style.accent_ct ?? 0, addonFactor = 1, accentFactor = 1;
   for (const g of t.option_groups ?? []) {
     const o = g.options.find((x) => x.id === (d.options?.[g.id] ?? g.default));
     if (!o) continue;
-    metalPart += o.price;
-    metalFactor *= o.metal_factor ?? 1;
+    labor += o.price;
+    grams += o.grams ?? 0;
+    accentCt += o.accent_ct ?? 0;
     addonFactor *= o.addon_factor ?? 1;
+    accentFactor *= o.accent_factor ?? 1;
   }
-  let total = metalPart * metalFactor;
-  total += c.addons.filter((a) => d.addonIds.includes(a.id) && a.types.includes(d.type)).reduce((s, a) => s + a.price, 0) * addonFactor;
-  if (d.engraving.trim() && t.engraving_max > 0) total += t.engraving_price;
-  return Math.round(total);
+  const wf = size.weight_factor ?? 1;
+  grams *= wf;
+  accentCt *= wf;
+  const lines: PriceLine[] = [];
+  if (grams) {
+    lines.push({ label: `18k gold · ${grams.toFixed(1)} g`, amount: grams * c.pricing.gold_per_gram * metal.multiplier });
+    lines.push({ label: "Setting & craftsmanship", amount: labor });
+  } else {
+    lines.push({ label: "Piece", amount: labor * metal.multiplier });
+  }
+  if (accentCt) lines.push({ label: `Accent diamonds · ${accentCt.toFixed(2)} ct`, amount: accentCt * c.pricing.accent_price_per_ct * accentFactor });
+  for (const a of c.addons.filter((x) => d.addonIds.includes(x.id) && x.types.includes(d.type))) {
+    lines.push({ label: a.name, amount: a.price * addonFactor });
+  }
+  if (d.engraving.trim() && t.engraving_max > 0) lines.push({ label: "Engraving", amount: t.engraving_price });
+  lines.forEach((l) => { l.amount = Math.round(l.amount); });
+  return { lines, total: lines.reduce((s, l) => s + l.amount, 0), grams };
 }
+
+export const computePrice = (c: Catalog, d: DesignSpec) => computeBreakdown(c, d).total;
 
 export const formatPrice = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
