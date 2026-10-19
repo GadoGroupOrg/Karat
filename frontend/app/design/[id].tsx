@@ -7,7 +7,7 @@ import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { computePrice, createQuote, formatPrice, useCatalog } from "@/src/api";
-import { JewelryPreview } from "@/src/components/jewelry-preview";
+import { DesignCanvas } from "@/src/components/design-canvas";
 import { SavedDesign, deleteDesign, getDesign } from "@/src/designs";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -50,11 +50,15 @@ export default function DesignDetail() {
   const price = computePrice(catalog, design);
 
   const rows: [string, string][] = [
-    ["Piece", `${style?.name} ${t.name}`],
+    [t.style_label ?? "Style", `${style?.name ?? ""}`],
     ["Metal", metal?.name ?? ""],
     [t.id === "ring" ? "Ring size" : t.id === "earrings" ? "Size" : "Length", size?.label ?? ""],
     [t.addon_label, addons.length ? addons.map((a) => a.name).join(", ") : "None"],
   ];
+  for (const g of t.option_groups ?? []) {
+    const o = g.options.find((x) => x.id === (design.options?.[g.id] ?? g.default));
+    if (o) rows.push([g.label, o.name]);
+  }
   if (design.engraving.trim()) rows.push(["Engraving", `“${design.engraving.trim()}”`]);
 
   const submit = async () => {
@@ -65,7 +69,7 @@ export default function DesignDetail() {
     }
     setSending(true);
     try {
-      const { id: _id, price: _p, createdAt: _c, ...spec } = design;
+      const { id: _id, price: _p, createdAt: _c, renderUrl: _r, ...spec } = design;
       await createQuote({ design: spec, name: form.name.trim(), email: form.email.trim(), note: form.note });
       setSent(true);
       setShowForm(false);
@@ -99,7 +103,7 @@ export default function DesignDetail() {
 
       <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }} showsVerticalScrollIndicator={false}>
         <View style={styles.preview}>
-          <JewelryPreview catalog={catalog} design={design} />
+          <DesignCanvas catalog={catalog} design={design} height={340} initialRenderUrl={design.renderUrl ?? null} autoRender={false} />
         </View>
         <View style={styles.body}>
           <Text style={styles.h1} testID="design-detail-name">{design.name}</Text>
@@ -173,7 +177,7 @@ const useStyles = makeStyles((c) => ({
   iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   deleteBtn: { flexDirection: "row", alignItems: "center", gap: spacing.sm, height: 40, paddingHorizontal: spacing.md, borderRadius: radius.pill },
   deleteText: { fontFamily: fonts.medium, fontSize: 13, color: c.onError },
-  preview: { height: 300, marginHorizontal: spacing.xl, borderRadius: radius.lg, backgroundColor: c.surfaceSecondary, padding: spacing.lg },
+  preview: {},
   body: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
   h1: { fontFamily: fonts.display, fontSize: 28, color: c.onSurface },
   price: { fontFamily: fonts.medium, fontSize: 18, color: c.brandPrimary, marginTop: spacing.xs },

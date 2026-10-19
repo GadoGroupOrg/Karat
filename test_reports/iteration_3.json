@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 3 — Ring-focused 3D builder + Nano Banana photoreal render + no-silver gold palette validated end-to-end on mobile viewport 390x844. Backend 18/18 pytest cases pass (/app/backend/tests/test_ring_builder.py). GET /api/catalog returns metals exactly ['yellow-gold','white-gold','rose-gold'] with no silver, ring is the first type, ring styles are ['solitaire-4','solitaire-6','cathedral','bezel','halo','three-stone'], option_groups are shape/carat/band/karat with karat {14k,18k}, and the 7 ring stones (ring-diamond, ring-lab-diamond, ring-sapphire, ring-emerald, ring-ruby, ring-morganite, ring-aquamarine) are present; no shop- addon lists 'ring' in its types. POST /api/price for the spec example (ring/halo/rose-gold/size6/ring-lab-diamond, shape oval, carat 1.5, band pave, karat 18k) returns 5018 exactly ((380+690+780)*1.0*1.35 + 1400*1.8 = 5017.5). Invalid shape 'square' -> 400, metal 'silver' -> 400, karat '24k' -> 400. Default solitaire-4 ring with lab diamond = 1780. Necklace regression (cable/yellow-gold/16) still = 180. POST /api/renders for the cached spec combo returned {cached:true, image_url:/api/renders/<hash>/image?...}; GET on image_url returned >1KB of image/* bytes; a second identical call returned in <5s with cached:true. Invalid design body -> 400. No new (uncached) renders were requested (0 of 2 credits consumed). POST /api/quotes still accepts a design with options and computes price 2597 for ring/cathedral/white-gold/size7/ring-sapphire(shape cushion, carat 0.75, band classic, karat 18k). /api/store returns the already-synced gadojewellers.com (117 products); /api/store/products still lists products; we did NOT call /api/store/sync or DELETE /api/store. Frontend: Home shows hero 'Design your forever ring.' and category-card-ring is the first category card. /build default screen shows builder-preview-canvas, ring-3d-viewer, 3D controls (zoom-in-button, zoom-out-button, spin-toggle-button, reset-view-button, fullscreen-button), canvas-mode-live/canvas-mode-photo toggle (photo disabled until render ready), render-status chip ('Rendering studio photo…' observed) and after it resolves, render-thumbnail + rerender-button render in the live viewer. Switching to Photo renders builder-render-photo with photo-fullscreen-button. fullscreen-button opens fullscreen-viewer containing fullscreen-ring-3d, fs-zoom-in-button, fs-zoom-out-button, fs-spin-toggle-button, fs-reset-view-button and fullscreen-close-button. All configurator testIDs present and functional: style-option-{solitaire-4,solitaire-6,cathedral,bezel,halo,three-stone}, option-shape-*, option-carat-*, option-band-*, option-karat-14k/18k, metal-option-{yellow-gold|white-gold|rose-gold} (no silver), size-option-{4-9}, addon-option-ring-* (single-select, cannot be deselected), engraving-input. builder-total-price updates live and matches the backend: setting halo + rose-gold + size6 + lab-diamond + oval + 1.5 + pave + 18k showed exactly $5,018 in the UI (matches backend formula). Save flow: save-design-button persists; Saved tab shows saved-design-card-{id} with saved-design-photo-{id} when a render exists ('The Halo Ring / Rose Gold / $11,858' entry was created from an earlier combo). Shop regression: product detail modal no longer offers 'Ring centre' — product-add-to-ring-button is correctly absent, while product-add-to-necklace-button, product-add-to-bracelet-button, product-add-to-earrings-button, product-view-in-store-button, product-detail-close-button, product-detail-title and product-detail-price are present on an Angelina Engagement Ring at $3,000 CAD.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "three.js", "issue": "Console warns 'THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.' repeatedly on every frame of the WebGL ring viewer. Non-blocking (three@>=0.167) but noisy — update to THREE.Timer in ring-viewer.tsx when convenient. Reference: /app/frontend/src/components/ring3d/ring-viewer.tsx"},
+      {"component": "react-native-web", "issue": "Console warns 'props.pointerEvents is deprecated. Use style.pointerEvents' from an upstream RN primitive. Non-blocking; mention here per Expo pointer guidelines."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ring_builder.py",
+    "/app/backend/tests/test_jewelry_api.py",
+    "/app/backend/tests/test_shopify_store.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: migrate ring-viewer.tsx from THREE.Clock to THREE.Timer to silence per-frame deprecation warnings (not blocking).",
+    "Optional: suppress or update the react-native-web pointerEvents warning (upstream fix in style.pointerEvents)."
+  ],
+  "critical_code_review_comments": [
+    "catalog_data.py: METALS array contains only {yellow-gold, white-gold, rose-gold} — silver is fully removed; matches 'no silver' spec.",
+    "compute_price iterates option_groups and multiplies metal_factor into the metal-side total and addon_factor into the stone-side total exactly as the review-request formula (verified numerically: 5018 for the spec example).",
+    "server.py /api/renders uses a 32-char sha256 hash of the design (name excluded, addonIds sorted) via design_hash, so identical specs always collide into a cache hit — second call returned cached:true in <5s.",
+    "render_image returns bytes with Cache-Control: public, max-age=31536000, immutable — correct for the hashed/immutable URL pattern.",
+    "server.py filters store_products by {available: true} before adding them as addons but product_as_addon lists all 4 types; new catalog shows 0 shop- addons scoped to 'ring' (via a separate check), confirming shop centre-stone removal was done on the API side, not just the UI.",
+    "build.tsx uses canvas-mode-photo disabled state until a render is available — observed aria-disabled=true while 'Rendering studio photo…' then enabled after resolve. Correct UX guard.",
+    "DesignCanvas on design/[id].tsx renders a 3D viewer for ring type and keeps the 2D sketch for necklace/bracelet/earrings — matches spec row ('Other types still work with 2D live sketch + AI photo').",
+    "frontend/src/api.ts uses process.env.EXPO_PUBLIC_BACKEND_URL throughout — no hardcoded URLs."
+  ],
+  "updated_files": ["/app/backend/tests/test_ring_builder.py", "/app/test_reports/iteration_3.json", "/app/test_reports/pytest/pytest_results.xml"],
+  "success_rate": {"backend": "100% (18/18 ring-focused + prior 32 regression suites still green)", "frontend": "100% of ring-builder, 3D controls, fullscreen, Photo/Live toggle, Save → Saved, Shop no-ring-centre flows"},
+  "seed_data_creation": "Created 1 TEST_User ring quote via /api/quotes (TEST_ring_options, cathedral/white-gold/sapphire, $2,597). Created 1 saved design in the preview localStorage ('The Halo Ring', Rose Gold, $11,858 from an early combo). No new (uncached) /api/renders were requested — render credit usage: 0.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Default /build state is a 4-Prong Solitaire with Yellow Gold and ring-diamond (natural). The spec-example 5018 total requires explicitly tapping style-option-halo, metal-option-rose-gold, size-option-6, addon-option-ring-lab-diamond, option-shape-oval, option-carat-1.5, option-band-pave, option-karat-18k — then builder-total-price = $5,018 (verified). The halo+rose+natural-diamond combo (if you forget to switch stone to ring-lab-diamond) gives $11,858 because natural diamond is $5,200 vs lab $1,400. Only one /api/renders combo is pre-cached (the spec example above); any other render combo will cost ~15s and credits. canvas-mode-photo starts aria-disabled=true and becomes enabled when the render resolves — selector-based testing must wait on render-status to clear or on render-thumbnail to appear.",
+  "rca_of_issue": "n/a — no blocking issues found."
+}

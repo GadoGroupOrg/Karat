@@ -5,20 +5,29 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import Animated, { FadeIn, FadeInUp, FadeOutDown } from "react-native-reanimated";
+import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg from "react-native-svg";
 
-import { Catalog, DesignSpec, computePrice, formatPrice, useCatalog } from "@/src/api";
-import { Charm, JewelryPreview } from "@/src/components/jewelry-preview";
+import { Catalog, DesignSpec, OptionGroup, computePrice, formatPrice, useCatalog } from "@/src/api";
+import { DesignCanvas } from "@/src/components/design-canvas";
+import { Charm } from "@/src/components/jewelry-preview";
 import { getDesign, newId, upsertDesign } from "@/src/designs";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 function defaults(c: Catalog, type: string): DesignSpec {
   const t = c.types.find((x) => x.id === type) ?? c.types[0];
-  return { type: t.id, styleId: t.styles[0].id, metalId: c.metals[0].id, sizeId: t.sizes[0].id, addonIds: [], engraving: "", name: "" };
+  const options = Object.fromEntries((t.option_groups ?? []).map((g) => [g.id, g.default]));
+  const stone = t.id === "ring" ? c.addons.find((a) => a.types.includes("ring")) : undefined;
+  return {
+    type: t.id, styleId: t.styles[0].id, metalId: c.metals[0].id, sizeId: t.sizes[0].id,
+    addonIds: stone ? [stone.id] : [], engraving: "", name: "", options,
+  };
 }
+
+const BEFORE_ADDONS = ["shape"];
+const AFTER_METAL = ["karat"];
 
 const tap = () => {
   if (Platform.OS !== "web") Haptics.selectionAsync();
@@ -57,17 +66,19 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const params = useLocalSearchParams<{ type?: string; designId?: string; addId?: string; nonce?: string }>();
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
 
-  const [design, setDesign] = useState<DesignSpec>(() => defaults(catalog, params.type ?? "necklace"));
+  const [design, setDesign] = useState<DesignSpec>(() => defaults(catalog, params.type ?? "ring"));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [renderUrl, setRenderUrl] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (params.designId) {
       getDesign(params.designId).then((d) => {
         if (d) {
-          const { id, price, createdAt, ...spec } = d;
-          setDesign(spec);
+          const { id, price, createdAt, renderUrl: _r, ...spec } = d;
+          const base = defaults(catalog, spec.type);
+          setDesign({ ...spec, options: { ...base.options, ...(spec.options ?? {}) } });
           setEditingId(id);
         }
       });
@@ -83,10 +94,35 @@ function Builder({ catalog }: { catalog: Catalog }) {
 
   const t = catalog.types.find((x) => x.id === design.type)!;
   const addons = useMemo(() => catalog.addons.filter((a) => a.types.includes(design.type) && a.source !== "shopify"), [catalog, design.type]);
-  const storeAddons = useMemo(() => catalog.addons.filter((a) => a.source === "shopify"), [catalog]);
+  const storeAddons = useMemo(() => catalog.addons.filter((a) => a.source === "shopify" && a.types.includes(design.type)), [catalog, design.type]);
   const price = computePrice(catalog, design);
   const metal = catalog.metals.find((m) => m.id === design.metalId)!;
   const style = t.styles.find((s) => s.id === design.styleId)!;
+  const groups = t.option_groups ?? [];
+  const groupsBefore = groups.filter((g) => BEFORE_ADDONS.includes(g.id));
+  const groupsAfterMetal = groups.filter((g) => AFTER_METAL.includes(g.id));
+  const groupsMiddle = groups.filter((g) => !BEFORE_ADDONS.includes(g.id) && !AFTER_METAL.includes(g.id));
+  const setOption = (gid: string, oid: string) => {
+    tap();
+    setDesign((d) => ({ ...d, options: { ...(d.options ?? {}), [gid]: oid } }));
+  };
+  const renderGroup = (g: OptionGroup) => {
+    const current = design.options?.[g.id] ?? g.default;
+    return (
+      <Section key={g.id} label={g.label} value={g.options.find((o) => o.id === current)?.name}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+          {g.options.map((o) => {
+            const sel = o.id === current;
+            return (
+              <Pressable key={o.id} testID={`option-${g.id}-${o.id}`} onPress={() => setOption(g.id, o.id)} style={[styles.chip, sel && styles.chipSel]}>
+                <Text style={[styles.chipText, sel && styles.chipTextSel]}>{o.name}{o.price ? `  +${formatPrice(o.price)}` : ""}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </Section>
+    );
+  };
 
   const update = (patch: Partial<DesignSpec>) => {
     tap();
@@ -102,7 +138,10 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const toggleAddon = (id: string) => {
     tap();
     setDesign((d) => {
-      if (d.addonIds.includes(id)) return { ...d, addonIds: d.addonIds.filter((x) => x !== id) };
+      if (d.addonIds.includes(id)) {
+        if (d.type === "ring") return d; // a ring always keeps its centre stone
+        return { ...d, addonIds: d.addonIds.filter((x) => x !== id) };
+      }
       if (t.max_addons === 1) return { ...d, addonIds: [id] };
       if (d.addonIds.length >= t.max_addons) {
         showToast(`Up to ${t.max_addons} ${t.addon_label.toLowerCase()}`);
@@ -121,7 +160,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const save = async () => {
     const id = editingId ?? newId();
     const name = design.name.trim() || `The ${style.name} ${t.name}`;
-    await upsertDesign({ ...design, name, id, price, createdAt: new Date().toISOString() });
+    await upsertDesign({ ...design, name, id, price, renderUrl, createdAt: new Date().toISOString() });
     setEditingId(id);
     setDesign((d) => ({ ...d, name }));
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -148,18 +187,14 @@ function Builder({ catalog }: { catalog: Catalog }) {
         })}
       </ScrollView>
 
-      <View style={styles.canvas} testID="builder-preview-canvas">
-        <Animated.View key={`${design.type}-${design.styleId}`} entering={FadeIn.duration(350)} style={{ flex: 1 }}>
-          <JewelryPreview catalog={catalog} design={design} />
-        </Animated.View>
-        <Text style={styles.canvasCaption} testID="builder-preview-caption">
-          {style.name} {t.name} · {metal.name}
-        </Text>
-      </View>
+      <DesignCanvas catalog={catalog} design={design} height={design.type === "ring" ? 330 : 270} onRenderChange={setRenderUrl} />
+      <Text style={styles.canvasCaption} testID="builder-preview-caption" numberOfLines={1}>
+        {style.name} {t.name} · {metal.name}
+      </Text>
 
       <KeyboardAwareScrollView bottomOffset={24} style={{ flex: 1 }} contentContainerStyle={styles.controls} showsVerticalScrollIndicator={false}>
-        <Section label="01  Style">
-          <View style={styles.rowWrap}>
+        <Section label={t.style_label ?? "Style"} value={style.name}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
             {t.styles.map((s) => {
               const sel = s.id === design.styleId;
               return (
@@ -169,23 +204,54 @@ function Builder({ catalog }: { catalog: Catalog }) {
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
         </Section>
 
-        <Section label="02  Metal" value={metal.name}>
-          <View style={styles.metalRow}>
-            {catalog.metals.map((m) => {
-              const sel = m.id === design.metalId;
+        {groupsBefore.map(renderGroup)}
+
+        <Section label={t.addon_label} value={t.max_addons > 1 ? `${design.addonIds.length}/${t.max_addons}` : undefined}>
+          <View style={styles.addonGrid}>
+            {addons.map((a) => {
+              const sel = design.addonIds.includes(a.id);
               return (
-                <Pressable key={m.id} testID={`metal-option-${m.id}`} onPress={() => update({ metalId: m.id })} style={[styles.swatchRing, sel && { borderColor: colors.onSurface }]}>
-                  <View style={[styles.swatch, { backgroundColor: m.color }]} />
+                <Pressable key={a.id} testID={`addon-option-${a.id}`} onPress={() => toggleAddon(a.id)} style={[styles.addonTile, sel && styles.optionSel]}>
+                  <Svg width={36} height={36} viewBox="0 0 36 36">
+                    <Charm addon={a} cx={18} cy={18} s={12} metal={metal.color} canvas={sel ? colors.brandTertiary : colors.surfaceSecondary} letter={(design.engraving.trim()[0] ?? "A").toUpperCase()} />
+                  </Svg>
+                  <Text style={styles.addonName} numberOfLines={1}>{a.name}</Text>
+                  <Text style={styles.optionPrice}>{t.id === "ring" ? `${formatPrice(a.price)}/ct` : `+${formatPrice(a.price)}`}</Text>
+                  {sel && (
+                    <View style={styles.check}>
+                      <Feather name="check" size={10} color={colors.onBrandPrimary} />
+                    </View>
+                  )}
                 </Pressable>
               );
             })}
           </View>
         </Section>
 
-        <Section label={`03  ${t.id === "ring" ? "Ring size" : t.id === "earrings" ? "Size" : "Length"}`}>
+        {groupsMiddle.map(renderGroup)}
+
+        <Section label="Metal" value={metal.name}>
+          <View style={styles.metalRow}>
+            {catalog.metals.map((m) => {
+              const sel = m.id === design.metalId;
+              return (
+                <Pressable key={m.id} testID={`metal-option-${m.id}`} onPress={() => update({ metalId: m.id })} style={styles.metalItem}>
+                  <View style={[styles.swatchRing, sel && { borderColor: colors.onSurface }]}>
+                    <View style={[styles.swatch, { backgroundColor: m.color }]} />
+                  </View>
+                  <Text style={[styles.metalName, sel && { color: colors.onSurface }]}>{m.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Section>
+
+        {groupsAfterMetal.map(renderGroup)}
+
+        <Section label={t.id === "ring" ? "Ring size" : t.id === "earrings" ? "Size" : "Length"}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
             {t.sizes.map((s) => {
               const sel = s.id === design.sizeId;
@@ -196,28 +262,6 @@ function Builder({ catalog }: { catalog: Catalog }) {
               );
             })}
           </ScrollView>
-        </Section>
-
-        <Section label={`04  ${t.addon_label}`} value={t.max_addons > 1 ? `${design.addonIds.length}/${t.max_addons}` : undefined}>
-          <View style={styles.addonGrid}>
-            {addons.map((a) => {
-              const sel = design.addonIds.includes(a.id);
-              return (
-                <Pressable key={a.id} testID={`addon-option-${a.id}`} onPress={() => toggleAddon(a.id)} style={[styles.addonTile, sel && styles.optionSel]}>
-                  <Svg width={36} height={36} viewBox="0 0 36 36">
-                    <Charm addon={a} cx={18} cy={18} s={12} metal={metal.color} canvas={sel ? colors.brandTertiary : colors.surfaceSecondary} letter={(design.engraving.trim()[0] ?? "A").toUpperCase()} />
-                  </Svg>
-                  <Text style={styles.addonName} numberOfLines={1}>{a.name}</Text>
-                  <Text style={styles.optionPrice}>+{formatPrice(a.price)}</Text>
-                  {sel && (
-                    <View style={styles.check}>
-                      <Feather name="check" size={10} color={colors.onBrandPrimary} />
-                    </View>
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
         </Section>
 
         {catalog.store && storeAddons.length > 0 && (
@@ -247,7 +291,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
         )}
 
         {t.engraving_max > 0 && (
-          <Section label="05  Engraving" value={`+${formatPrice(t.engraving_price)}`}>
+          <Section label="Engraving" value={`+${formatPrice(t.engraving_price)}`}>
             <TextInput
               testID="engraving-input"
               value={design.engraving}
@@ -332,19 +376,20 @@ const useStyles = makeStyles((c) => ({
   chipSel: { backgroundColor: c.surfaceInverse, borderColor: c.surfaceInverse },
   chipText: { fontFamily: fonts.medium, fontSize: 13, color: c.onSurface },
   chipTextSel: { color: c.onSurfaceInverse },
-  canvas: { height: 250, marginHorizontal: spacing.xl, borderRadius: radius.lg, backgroundColor: c.surfaceSecondary, paddingTop: spacing.md, paddingBottom: spacing.sm, overflow: "hidden" },
-  canvasCaption: { textAlign: "center", fontFamily: fonts.medium, fontSize: 12, color: c.muted, letterSpacing: 0.5 },
+  canvasCaption: { textAlign: "center", fontFamily: fonts.medium, fontSize: 12, color: c.muted, letterSpacing: 0.5, marginTop: spacing.sm },
   controls: { paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing.xl },
   section: { marginTop: spacing.xl },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: spacing.md },
   sectionLabel: { fontFamily: fonts.bold, fontSize: 11, letterSpacing: 2, color: c.onSurface },
   sectionValue: { fontFamily: fonts.text, fontSize: 12, color: c.muted },
   rowWrap: { flexDirection: "row", gap: spacing.sm },
-  styleCard: { flex: 1, paddingVertical: spacing.md, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface },
+  styleCard: { width: 148, flexShrink: 0, paddingVertical: spacing.md, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface },
   optionSel: { borderColor: c.brandPrimary, backgroundColor: c.brandTertiary },
   optionTitle: { fontFamily: fonts.display, fontSize: 16, color: c.onSurface },
   optionPrice: { fontFamily: fonts.text, fontSize: 11, color: c.muted, marginTop: 2 },
-  metalRow: { flexDirection: "row", gap: spacing.lg },
+  metalRow: { flexDirection: "row", gap: spacing.xl },
+  metalItem: { alignItems: "center", gap: spacing.xs },
+  metalName: { fontFamily: fonts.medium, fontSize: 11, color: c.muted },
   swatchRing: { width: 48, height: 48, borderRadius: 24, borderWidth: 1.5, borderColor: "transparent", alignItems: "center", justifyContent: "center" },
   swatch: { width: 36, height: 36, borderRadius: 18 },
   addonGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },

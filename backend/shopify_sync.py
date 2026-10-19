@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import httpx
 
 UA = {"User-Agent": "Mozilla/5.0 (AtelierBuilder/1.0)", "Accept": "application/json"}
-ALL_TYPES = ["necklace", "bracelet", "ring", "earrings"]
+ALL_TYPES = ["necklace", "bracelet", "earrings"]
 MAX_PAGES = 20
 
 

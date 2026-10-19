@@ -1,7 +1,7 @@
 import { storage } from "@/src/utils/storage";
 import type { DesignSpec } from "@/src/api";
 
-export type SavedDesign = DesignSpec & { id: string; price: number; createdAt: string };
+export type SavedDesign = DesignSpec & { id: string; price: number; createdAt: string; renderUrl?: string | null };
 
 const KEY = "saved_designs";
 

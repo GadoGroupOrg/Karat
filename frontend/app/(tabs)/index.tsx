@@ -11,15 +11,15 @@ import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 const HERO = "https://images.unsplash.com/photo-1549439602-43ebca2327af?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200";
 const CATEGORIES = [
+  { id: "ring", name: "Ring", line: "Engagement & heirloom", img: "https://images.unsplash.com/photo-1626122780071-c09d403b8e32?crop=entropy&cs=srgb&fm=jpg&q=80&w=800" },
   { id: "necklace", name: "Necklace", line: "Charms on fine chain", img: "https://images.unsplash.com/photo-1680690653166-1618c3bcdf51?crop=entropy&cs=srgb&fm=jpg&q=80&w=800" },
   { id: "bracelet", name: "Bracelet", line: "Stack your story", img: "https://images.unsplash.com/photo-1633810543462-77c4a3b13f07?crop=entropy&cs=srgb&fm=jpg&q=80&w=800" },
-  { id: "ring", name: "Ring", line: "One stone, yours", img: "https://images.unsplash.com/photo-1626122780071-c09d403b8e32?crop=entropy&cs=srgb&fm=jpg&q=80&w=800" },
   { id: "earrings", name: "Earrings", line: "Quiet light", img: "https://images.unsplash.com/photo-1671644730555-916aa8d8157f?crop=entropy&cs=srgb&fm=jpg&q=80&w=800" },
 ];
 const STEPS = [
-  { icon: "layers", title: "Choose a base", text: "Pick a piece, chain style and length." },
-  { icon: "droplet", title: "Select your metal", text: "Yellow, rose, white gold or silver." },
-  { icon: "star", title: "Make it personal", text: "Add charms, stones and engraving." },
+  { icon: "layers", title: "Choose a setting", text: "Solitaire, cathedral, bezel, halo or three-stone." },
+  { icon: "droplet", title: "Select your stone & gold", text: "Five cuts, seven gems, yellow, white or rose gold." },
+  { icon: "rotate-cw", title: "See it in 3D, then in a photo", text: "Spin and zoom live, then get a studio-quality render." },
 ] as const;
 
 export default function Home() {
@@ -40,11 +40,11 @@ export default function Home() {
           <View style={[styles.heroContent, { paddingTop: insets.top + spacing.lg }]}>
             <Text style={styles.brandMark}>ATELIER</Text>
             <View>
-              <Text style={styles.heroTitle}>Design your{"\n"}own heirloom.</Text>
-              <Text style={styles.heroSub}>Fine jewelry, composed by you, piece by piece.</Text>
+              <Text style={styles.heroTitle}>Design your{"\n"}forever ring.</Text>
+              <Text style={styles.heroSub}>Build it in 3D, stone by stone, then see it in a studio photo.</Text>
               <Pressable
                 testID="hero-start-designing-button"
-                onPress={() => start("necklace")}
+                onPress={() => start("ring")}
                 style={({ pressed }) => [styles.heroBtn, pressed && { opacity: 0.85 }]}
               >
                 <Text style={styles.heroBtnText}>Start designing</Text>

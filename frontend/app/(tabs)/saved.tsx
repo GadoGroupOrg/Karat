@@ -64,7 +64,11 @@ export default function Saved() {
               <Animated.View entering={FadeInDown.delay(60 * index).duration(350)} style={{ flex: 1, maxWidth: "50%" }}>
                 <Pressable testID={`saved-design-card-${item.id}`} onPress={() => router.push(`/design/${item.id}`)} style={({ pressed }) => [pressed && { opacity: 0.8 }]}>
                   <View style={styles.thumb}>
-                    <JewelryPreview catalog={catalog} design={item} />
+                    {item.renderUrl ? (
+                      <Image source={{ uri: item.renderUrl }} style={styles.thumbPhoto} contentFit="cover" transition={250} testID={`saved-design-photo-${item.id}`} />
+                    ) : (
+                      <JewelryPreview catalog={catalog} design={item} />
+                    )}
                   </View>
                   <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
                   <Text style={styles.meta} numberOfLines={1}>{metal?.name}</Text>
@@ -92,6 +96,7 @@ const useStyles = makeStyles((c) => ({
   primaryBtn: { marginTop: spacing.xl, height: 50, paddingHorizontal: spacing["2xl"], borderRadius: radius.pill, backgroundColor: c.surfaceInverse, justifyContent: "center" },
   primaryBtnText: { fontFamily: fonts.bold, fontSize: 15, color: c.onSurfaceInverse },
   thumb: { aspectRatio: 1, borderRadius: radius.md, backgroundColor: c.surfaceSecondary, padding: spacing.sm, overflow: "hidden" },
+  thumbPhoto: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   name: { fontFamily: fonts.display, fontSize: 16, color: c.onSurface, marginTop: spacing.md },
   meta: { fontFamily: fonts.text, fontSize: 12, color: c.muted, marginTop: 2 },
   price: { fontFamily: fonts.bold, fontSize: 14, color: c.onSurface, marginTop: spacing.xs },

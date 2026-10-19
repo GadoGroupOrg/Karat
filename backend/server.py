@@ -8,7 +8,13 @@ import re
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, BeforeValidator, ConfigDict, EmailStr
-from typing import List, Optional, Annotated
+from typing import Dict, List, Optional, Annotated
+import hashlib
+import json
+from fastapi import File, Form, UploadFile
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import Response
+import render_service
 from datetime import datetime, timezone
 
 from catalog_data import TYPES, METALS, ADDONS
@@ -56,6 +62,7 @@ class DesignSpec(BaseModel):
     addonIds: List[str] = []
     engraving: str = ""
     name: str = ""
+    options: Dict[str, str] = {}
 
 
 class QuoteCreate(BaseModel):
@@ -97,8 +104,17 @@ def compute_price(catalog: dict, d: DesignSpec) -> int:
     addons = [a for a in catalog["addons"] if a["id"] in d.addonIds and d.type in a["types"]]
     if len(addons) > t["max_addons"]:
         raise HTTPException(400, "Too many add-ons")
-    total = (t["base_price"] + style["price"] + size["price"]) * metal["multiplier"]
-    total += sum(a["price"] for a in addons)
+    metal_part = t["base_price"] + style["price"] + size["price"]
+    metal_factor, addon_factor = metal["multiplier"], 1.0
+    for g in t.get("option_groups", []):
+        oid = d.options.get(g["id"], g["default"])
+        o = next((x for x in g["options"] if x["id"] == oid), None)
+        if not o:
+            raise HTTPException(400, f"Invalid {g['label']}")
+        metal_part += o.get("price", 0)
+        metal_factor *= o.get("metal_factor", 1.0)
+        addon_factor *= o.get("addon_factor", 1.0)
+    total = metal_part * metal_factor + sum(a["price"] for a in addons) * addon_factor
     if d.engraving.strip() and t["engraving_max"] > 0:
         total += t["engraving_price"]
     return int(round(total))
@@ -117,6 +133,58 @@ async def catalog():
 @api_router.post("/price")
 async def price(design: DesignSpec):
     return {"price": compute_price(await get_catalog(), design)}
+
+
+def design_hash(d: DesignSpec) -> str:
+    spec = d.model_dump(exclude={"name"})
+    spec["addonIds"] = sorted(spec["addonIds"])
+    return hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:32]
+
+
+class Render(BaseDocument):
+    hash: str
+    design: DesignSpec
+    storage_path: str
+    created_at: str
+
+
+@api_router.post("/renders")
+async def create_render(design: str = Form(...), force: str = Form("false"), snapshot: Optional[UploadFile] = File(None)):
+    try:
+        spec = DesignSpec.model_validate_json(design)
+    except Exception:
+        raise HTTPException(400, "Invalid design")
+    catalog = await get_catalog()
+    compute_price(catalog, spec)  # validates the spec
+    h = design_hash(spec)
+    cached = await db.renders.find_one({"hash": h})
+    if cached and force != "true":
+        return {"id": h, "image_url": f"/api/renders/{h}/image?v={cached['created_at'][:19]}", "cached": True}
+    snap = await snapshot.read() if snapshot else None
+    if snap and len(snap) > 6_000_000:
+        snap = None
+    try:
+        png, mime = await render_service.generate_render(catalog, spec.model_dump(), snap)
+        path = render_service.storage_path()
+        await run_in_threadpool(render_service.put_object, path, png, mime)
+    except Exception as e:
+        logger.exception("render failed")
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        if status == 402:
+            raise HTTPException(402, "Render credits exhausted. Please top up your balance.")
+        raise HTTPException(502, "Couldn't create the studio render. Please try again.")
+    doc = Render(hash=h, design=spec, storage_path=path, created_at=datetime.now(timezone.utc).isoformat())
+    await db.renders.update_one({"hash": h}, {"$set": doc.to_mongo()}, upsert=True)
+    return {"id": h, "image_url": f"/api/renders/{h}/image?v={doc.created_at[:19]}", "cached": False}
+
+
+@api_router.get("/renders/{h}/image")
+async def render_image(h: str):
+    doc = await db.renders.find_one({"hash": h})
+    if not doc:
+        raise HTTPException(404, "Render not found")
+    data, ctype = await run_in_threadpool(render_service.get_object, doc["storage_path"])
+    return Response(content=data, media_type=ctype, headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @api_router.post("/quotes", response_model=Quote, response_model_by_alias=False)
@@ -219,6 +287,11 @@ async def seed_catalog():
     for coll, items in (("product_types", TYPES), ("metals", METALS), ("addons", ADDONS)):
         for i, item in enumerate(items):
             await db[coll].update_one({"id": item["id"]}, {"$set": {**item, "order": i}}, upsert=True)
+        await db[coll].delete_many({"id": {"$nin": [x["id"] for x in items]}})
+    try:
+        await run_in_threadpool(render_service.init_storage)
+    except Exception:
+        logger.exception("Object storage init failed")
     logger.info("Catalog seeded")
     default_domain = os.environ.get("SHOPIFY_STORE_DOMAIN")
     if default_domain and not await db.store_connection.find_one({"key": "default"}):

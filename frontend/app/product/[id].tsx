@@ -11,7 +11,6 @@ import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 const USES = [
   { type: "necklace", label: "Necklace charm", icon: "link" },
   { type: "bracelet", label: "Bracelet charm", icon: "circle" },
-  { type: "ring", label: "Ring centre", icon: "disc" },
   { type: "earrings", label: "Earring drop", icon: "droplet" },
 ] as const;
 
