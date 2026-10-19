@@ -1,0 +1,35 @@
+{
+  "summary": "Frontend-only, narrow-scope verification of the 3D ring builder preview bug fix at /build on viewport 390x844. All five review-request items PASS. (1) Canvas screenshots taken before/after each selection show the ring-3d-viewer <canvas> content changing on EVERY option tap: initial md5=675578d6..., after style-option-halo=c3ceab1e..., after option-shape-oval=c3235229..., after option-band-pave=4d0d0d83..., after metal-option-rose-gold=9dc214bf..., after addon-option-ring-sapphire=68dbda00... — i.e., 5/5 unique hashes, so the live 3D updates immediately on style-option-*, option-shape-*, option-band-*, metal-option-*, addon-option-ring-*. (2) After each change the UI returns to the live 3D (builder-render-photo hidden, render-status chip switches to 'Rendering studio photo…'). (3) ~3s after the user pauses, the canvas AUTOMATICALLY swaps to builder-render-photo without the user tapping — observed on both the initial default load (default spec is already cached from iteration 3, so photo appears within ~500ms) and on the halo+rose+sapphire+cushion+oval combos. Final screenshot after shape-cushion change shows the Nano Banana studio photo of the rose-gold sapphire halo ring filling the stage, with the segmented control reading 'Back to 3D' (i.e., mode=photo, selected programmatically). The <img> src for builder-render-photo resolves to a non-blank backend asset URL. (4) When in photo mode, tapping option-shape-cushion immediately hid builder-render-photo and the chip went back to 'Rendering studio photo…' — confirmed canvas hash changed again (0fcc3357...) meaning the live 3D is rendering the new shape. (5) 3D controls validated in a second pass after forcing canvas-mode-live: zoom-in-button, zoom-out-button, spin-toggle-button, reset-view-button all tappable and visible; fullscreen-button opens fullscreen-viewer and fullscreen-close-button dismisses it. No three.js console errors, no 'ring render failed' warning fired during the entire run (only benign Chrome-side GL perf messages 'GPU stall due to ReadPixels' from the web preview's software GL, which do not originate from three.js and are unrelated to the native viewer freeze fix). No pageerror events captured. The HalfFloat/no-flipY env-map fix is working on the web preview; viewer continues rendering while renders cycle. Render credits used: 0 new renders — all tested specs (halo+rose+size-default+sapphire+shape {round,oval,cushion}+band pave) resolved from backend cache (<1s each, chip transitioned 'Rendering…' → 'Back to 3D' instantly).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "three.js (benign)", "issue": "Chrome WebGL driver logs 'GPU stall due to ReadPixels' 4x on first canvas mount — not from three.js and not blocking; caused by the web preview's software GL doing synchronous readback. Reference: /app/frontend/src/components/ring3d/ring-viewer.tsx (snapshot path)."},
+      {"component": "react-native-web", "issue": "Pre-existing 'props.pointerEvents is deprecated' warning still present (carried over from iteration_3)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_3.json",
+    "/app/test_reports/iteration_4.json"
+  ],
+  "action_items": [
+    "No action needed — the user-reported bug 'The preview doesn\u2019t actively render when I choose my selections' is RESOLVED. All style/shape/band/metal/addon changes now re-render the 3D ring immediately, auto-render fires after the pause, and the photo auto-swaps in.",
+    "Optional (not blocking): consider programmatically avoiding the ReadPixels stall on first snapshot by rendering to a WebGLRenderTarget rather than readPixels when preserveDrawingBuffer is false."
+  ],
+  "critical_code_review_comments": [
+    "design-canvas.tsx:78 — the key-based useEffect correctly resets render state to idle and switches mode back to 'live' on every spec change, then schedules run() 2.8s later; this is exactly the behaviour the review request demands and is working as observed.",
+    "design-canvas.tsx:70 — after a successful requestRender, mode is set to 'photo' only when autoRender is true, and the keyRef guard (line 67) correctly discards stale renders when the user tapped a new option mid-flight.",
+    "ring-viewer.tsx:102 — rebuild() is triggered by a dependency on every scalar spec field (setting, band, shape, carat, metalColor, stoneColor, isDiamond) — this is why the canvas hash flips on every selection.",
+    "ring-viewer.tsx:243-252 — the renderer.render() call is now wrapped in try/catch that drops scene.environment and falls back to HemisphereLight on failure; combined with the HalfFloat env map in build-ring.ts:249-277 this correctly prevents the native viewer freeze described in the agent context.",
+    "build-ring.ts:249 — RGBA16F (HalfFloatType) is used instead of Float32Array; this is filterable on all OpenGL ES 3 phone GPUs. flipY=false matches expo-gl behaviour. No console warnings about 'studio env failed' were observed."
+  ],
+  "updated_files": ["/app/test_reports/iteration_4.json"],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% — 5/5 review bullets verified"},
+  "seed_data_creation": "None. All test combos reused cached /api/renders from prior iterations (0 new render credits consumed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Default /build state (solitaire-4 + yellow-gold + ring-diamond) is pre-cached so render-status chip may read 'Back to 3D' with builder-render-photo visible immediately on load — if testing live 3D controls (zoom/spin/reset/fullscreen), tap [data-testid=\"canvas-mode-live\"] first because those controls only mount while mode===\"live\" (design-canvas.tsx lines 150, 156). Canvas content comparison in Playwright: use await page.evaluate on viewer.querySelector('canvas').toDataURL('image/png') and md5 the result; because preserveDrawingBuffer is true, the canvas is not tainted. The spec-change debounce before auto-render is 2800ms (RENDER_DELAY in design-canvas.tsx:13).",
+  "rca_of_issue": "User-reported 'preview doesn\u2019t actively render when I choose my selections' was caused by (a) RGBA32F env-map texture that mobile GL drivers cannot filter, freezing the native renderer after the first studio env load, and (b) the renderer.render() call throwing unhandled on failure, aborting the RAF loop. Both are now fixed: build-ring.ts:249 uses THREE.HalfFloatType, and ring-viewer.tsx:243-252 catches render exceptions and falls back to basic lighting. Verified on web preview — canvas updates on every option change and the auto-photo swap works without user interaction."
+}

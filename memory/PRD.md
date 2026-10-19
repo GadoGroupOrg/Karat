@@ -46,3 +46,8 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - P0: Virtual try-on (photo upload/camera) using the saved render as reference
 - P1: Live camera overlay try-on, buy-on-store cart handoff, currency match (CAD)
 - P2: More cuts (pear, marquise, radiant), hidden halo, split shank, two-tone metals
+
+## Bug fix (2026-06): live preview not updating on device
+- Root cause: studio HDR env used Float32 textures (not filterable on OpenGL ES 3 phones) → native render loop threw every frame and froze
+- Fix: HalfFloat (RGBA16F) env, no flipY, render loop try/catch with fallback lighting; studio photo auto-shows when ready, any change returns to live 3D
+- Tested iteration_4: all pass

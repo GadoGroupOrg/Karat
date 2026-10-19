@@ -244,7 +244,9 @@ export function disposeGroup(g: THREE.Object3D) {
 export function studioEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture | null {
   try {
     const W = 512, H = 256;
-    const data = new Float32Array(W * H * 4);
+    // Half-float: RGBA16F is filterable on every OpenGL ES 3 phone GPU (RGBA32F is not).
+    const data = new Uint16Array(W * H * 4);
+    const hf = THREE.DataUtils.toHalfFloat;
     const rand = (n: number) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
     const spots = Array.from({ length: 22 }, (_, i) => ({ u: rand(i + 1), v: 0.18 + rand(i + 50) * 0.55, r: 0.004 + rand(i + 90) * 0.004 }));
     const strips = [
@@ -252,7 +254,7 @@ export function studioEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture 
       { u: 0.86, w: 0.01, i: 9 }, { u: 0.7, w: 0.006, i: 14 },
     ];
     for (let y = 0; y < H; y++) {
-      const v = y / (H - 1);
+      const v = 1 - y / (H - 1); // row 0 is the bottom of the sphere (no flipY: expo-gl ignores it)
       for (let x = 0; x < W; x++) {
         const u = x / (W - 1);
         let r = 0.02, g = 0.017, b = 0.014; // dark warm walls
@@ -269,13 +271,13 @@ export function studioEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture 
           if (d2 < sp.r * sp.r) { r += 60; g += 60; b += 58; }
         }
         const k = (y * W + x) * 4;
-        data[k] = r; data[k + 1] = g; data[k + 2] = b; data[k + 3] = 1;
+        data[k] = hf(r); data[k + 1] = hf(g); data[k + 2] = hf(b); data[k + 3] = hf(1);
       }
     }
-    const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.FloatType);
+    const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.HalfFloatType);
     tex.mapping = THREE.EquirectangularReflectionMapping;
     tex.colorSpace = THREE.LinearSRGBColorSpace;
-    tex.flipY = true;
+    tex.flipY = false;
     tex.needsUpdate = true;
     const pmrem = new THREE.PMREMGenerator(renderer);
     const env = pmrem.fromEquirectangular(tex).texture;

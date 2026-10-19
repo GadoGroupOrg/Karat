@@ -240,7 +240,16 @@ export const RingViewer = forwardRef<RingViewerHandle, Props>(function RingViewe
         s.sprite.scale.setScalar(Math.max(0.0001, scale));
         s.sprite.material.opacity = flash;
       });
-      e.renderer.render(e.scene, e.camera);
+      try {
+        e.renderer.render(e.scene, e.camera);
+      } catch (err) {
+        // Never freeze the viewer: drop the HDR environment and fall back to direct lights.
+        if (e.scene.environment) {
+          console.warn("ring render failed, falling back to basic lighting", err);
+          e.scene.environment = null;
+          e.scene.add(new THREE.HemisphereLight(0xfff6ea, 0x3a3029, 1.3));
+        }
+      }
       gl.endFrameEXP();
     };
     loop();

@@ -67,15 +67,17 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
       if (keyRef.current !== k) return;
       const url = assetUrl(r.image_url);
       setRender({ status: "ready", url, key: k });
+      if (autoRender) setMode("photo");
     } catch (e) {
       if (keyRef.current !== k) return;
       setRender({ status: "error", key: k, error: (e as Error).message });
     }
   };
 
-  // Auto-render once the customer pauses on a configuration.
+  // Auto-render once the customer pauses on a configuration; any change returns to the live view.
   useEffect(() => {
     setRender((r) => (r.key === key ? r : { status: "idle" }));
+    setMode("live");
     if (!autoRender) return;
     const h = setTimeout(() => run(false), RENDER_DELAY);
     return () => clearTimeout(h);
@@ -242,7 +244,7 @@ const useStyles = makeStyles((c) => ({
   canvas: { marginHorizontal: spacing.xl, borderRadius: radius.lg, backgroundColor: c.surfaceSecondary, overflow: "hidden" },
   stage: { flex: 1 },
   sketch: { flex: 1, paddingTop: spacing["2xl"], paddingBottom: spacing["2xl"] },
-  photoLayer: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.surfaceSecondary },
+  photoLayer: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   photo: { width: "100%", height: "100%" },
   segment: { position: "absolute", top: spacing.md, left: spacing.md, flexDirection: "row", backgroundColor: c.surface, borderRadius: radius.pill, padding: 3, borderWidth: 1, borderColor: c.border },
   segBtn: { height: 30, paddingHorizontal: spacing.md, borderRadius: radius.pill, justifyContent: "center" },
