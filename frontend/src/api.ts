@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import { isEmbedded } from "@/src/embed";
 import { uploadForm } from "@/src/utils/upload";
 
 const BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
@@ -62,7 +63,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const detail = typeof body.detail === "string" ? body.detail : "Something went wrong";
-    throw new Error(detail);
+    const err = new Error(detail) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 }
@@ -71,9 +74,63 @@ export function useCatalog() {
   return useQuery({ queryKey: ["catalog"], queryFn: () => request<Catalog>("/catalog"), staleTime: 1000 * 60 * 10 });
 }
 
-export function createQuote(body: { design: DesignSpec; name: string; email: string; note: string }) {
-  return request<{ id: string; price: number }>("/quotes", { method: "POST", body: JSON.stringify(body) });
+export type QuoteBody = {
+  design?: DesignSpec; product_id?: string; tryon_id?: string; render_url?: string | null; source?: "app" | "embed";
+  name: string; email: string; phone?: string; note: string;
+};
+export function createQuote(body: QuoteBody) {
+  return request<{ id: string; price: number }>("/quotes", { method: "POST", body: JSON.stringify({ source: isEmbedded ? "embed" : "app", ...body }) });
 }
+
+// ---------- Branding & desktop admin ----------
+export type Branding = {
+  store_name: string; tagline: string; logo_url: string | null;
+  colors: { brand: string; ink: string; surface: string }; display_font: string; text_font: string; updated_at: string | null;
+};
+export async function fetchBranding(timeoutMs = 4000): Promise<Branding | null> {
+  const ctrl = new AbortController();
+  const h = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await request<Branding>("/branding", { signal: ctrl.signal });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(h);
+  }
+}
+
+export type LeadStatus = "new" | "contacted" | "quoted" | "won" | "lost";
+export type LeadNote = { id: string; text: string; system: boolean; author: string; created_at: string };
+export type Lead = {
+  id: string; kind: "design" | "product"; design: DesignSpec | null;
+  product: { id: string; title: string; price: number; image: string | null; url: string; product_type: string } | null;
+  name: string; email: string; phone: string; note: string; price: number; image_url: string | null;
+  source: "app" | "embed"; status: LeadStatus; notes: LeadNote[]; created_at: string;
+};
+export type LeadList = { leads: Lead[]; counts: Record<LeadStatus, number>; total: number; open_value: number };
+
+export function dashRequest<T>(token: string, path: string, init?: RequestInit) {
+  return request<T>(`/dashboard${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init?.headers || {}) } });
+}
+export async function uploadLogo(token: string, file: { uri: string; mimeType?: string; name?: string }) {
+  const res = await uploadForm(`${BASE}/dashboard/branding/logo`, {
+    files: { logo: { uri: file.uri, mimeType: file.mimeType || "image/png", name: file.name || "logo.png" } },
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Upload failed");
+  return body as Branding;
+}
+export function login(email: string, password: string) {
+  return request<{ access_token: string; admin: { id: string; email: string; name: string } }>("/auth/login", {
+    method: "POST", body: JSON.stringify({ email, password }),
+  });
+}
+export function fetchMe(token: string) {
+  return request<{ id: string; email: string; name: string }>("/auth/me", { headers: { Authorization: `Bearer ${token}` } });
+}
+export const leadImage = (l: Lead) => (l.image_url ? assetUrl(l.image_url) : l.product?.image ?? null);
+export const BACKEND_ORIGIN = process.env.EXPO_PUBLIC_BACKEND_URL ?? "";
 
 export function useStoreProducts(q: string, productType: string) {
   return useQuery({
@@ -110,11 +167,13 @@ export function usePrice(design: DesignSpec | null | undefined) {
 }
 
 // ---------- Merchant admin ----------
+// `pin` is either the merchant PIN or "Bearer <token>" from the desktop admin login.
+const merchantAuth = (pin: string): Record<string, string> => (pin.startsWith("Bearer ") ? { Authorization: pin } : { "X-Merchant-Pin": pin });
 export function adminRequest<T>(pin: string, path: string, init?: RequestInit) {
-  return request<T>(`/admin${path}`, { ...init, headers: { "X-Merchant-Pin": pin, ...(init?.headers || {}) } });
+  return request<T>(`/admin${path}`, { ...init, headers: { ...merchantAuth(pin), ...(init?.headers || {}) } });
 }
 export async function adminCsv(pin: string) {
-  const res = await fetch(`${BASE}/admin/price-sheet.csv`, { headers: { "X-Merchant-Pin": pin } });
+  const res = await fetch(`${BASE}/admin/price-sheet.csv`, { headers: merchantAuth(pin) });
   if (!res.ok) throw new Error("Export failed");
   return res.text();
 }

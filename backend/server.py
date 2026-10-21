@@ -8,7 +8,9 @@ import re
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, BeforeValidator, ConfigDict, EmailStr
-from typing import Dict, List, Optional, Annotated
+from typing import Dict, List, Literal, Optional, Annotated
+import auth
+import dashboard
 import hashlib
 import json
 from fastapi import File, Form, UploadFile
@@ -32,6 +34,8 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+auth.init(db)
+dashboard.init(db)
 
 app = FastAPI()
 
@@ -72,19 +76,30 @@ class DesignSpec(BaseModel):
 
 
 class QuoteCreate(BaseModel):
-    design: DesignSpec
+    design: Optional[DesignSpec] = None
+    product_id: Optional[str] = None
+    tryon_id: Optional[str] = None
+    render_url: Optional[str] = Field(default=None, max_length=300)
+    source: Literal["app", "embed"] = "app"
     name: str = Field(min_length=1, max_length=80)
     email: EmailStr
+    phone: str = Field(default="", max_length=40)
     note: str = Field(default="", max_length=500)
 
 
 class Quote(BaseDocument):
-    design: DesignSpec
+    kind: str = "design"
+    design: Optional[DesignSpec] = None
+    product: Optional[dict] = None
     name: str
     email: str
+    phone: str = ""
     note: str = ""
     price: int
+    image_url: Optional[str] = None
+    source: str = "app"
     status: str = "new"
+    notes: List[dict] = []
     created_at: str
 
 
@@ -177,7 +192,10 @@ _failed: dict = defaultdict(deque)
 PIN_WINDOW, PIN_MAX_FAILURES = 300, 5
 
 
-def merchant_pin(request: Request, x_merchant_pin: Optional[str] = Header(default=None)):
+async def merchant_pin(request: Request, x_merchant_pin: Optional[str] = Header(default=None),
+                       authorization: Optional[str] = Header(default=None)):
+    if authorization and authorization.lower().startswith("bearer ") and await auth.admin_from_token(authorization[7:]):
+        return True
     ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "?")
     now, q = time.monotonic(), _failed[ip]
     while q and now - q[0] >= PIN_WINDOW:
@@ -377,21 +395,31 @@ async def tryon_image(tid: str):
 
 @api_router.post("/quotes", response_model=Quote, response_model_by_alias=False)
 async def create_quote(payload: QuoteCreate):
-    p = compute_price(await get_catalog(), payload.design)
+    product = None
+    if payload.design:
+        p = compute_price(await get_catalog(), payload.design)
+    elif payload.product_id:
+        sp = await db.store_products.find_one({"id": payload.product_id}, {"_id": 0})
+        if not sp:
+            raise HTTPException(404, "Product not found")
+        product = {k: sp.get(k) for k in ("id", "title", "price", "image", "url", "product_type")}
+        p = int(round(sp.get("price") or 0))
+    else:
+        raise HTTPException(400, "A design or product is required")
+    image_url = None
+    if payload.render_url and re.match(r"^/api/renders/[a-f0-9]{32}/image", payload.render_url):
+        image_url = payload.render_url
+    if payload.tryon_id and await db.tryons.find_one({"id": payload.tryon_id, "product_id": payload.product_id}):
+        image_url = f"/api/tryons/{payload.tryon_id}/image"
     quote = Quote(
-        design=payload.design, name=payload.name.strip(), email=payload.email,
-        note=payload.note.strip(), price=p,
+        design=payload.design, product=product, kind="design" if payload.design else "product",
+        name=payload.name.strip(), email=payload.email, phone=payload.phone.strip(),
+        note=payload.note.strip(), price=p, image_url=image_url, source=payload.source,
         created_at=datetime.now(timezone.utc).isoformat(),
     )
     res = await db.quotes.insert_one(quote.to_mongo())
     quote.id = str(res.inserted_id)
     return quote
-
-
-@api_router.get("/quotes", response_model=List[Quote], response_model_by_alias=False)
-async def list_quotes():
-    docs = await db.quotes.find().sort("created_at", -1).to_list(500)
-    return [Quote.from_mongo(d) for d in docs]
 
 
 class StoreConnect(BaseModel):
@@ -458,6 +486,9 @@ async def store_product(pid: str):
 
 app.include_router(api_router)
 app.include_router(admin)
+app.include_router(auth.router)
+app.include_router(dashboard.public)
+app.include_router(dashboard.dash)
 
 app.add_middleware(
     CORSMiddleware,
@@ -482,6 +513,7 @@ async def seed_catalog():
     except Exception:
         logger.exception("Object storage init failed")
     logger.info("Catalog seeded")
+    await auth.seed_admin()
     if not await db.price_sheet.find_one({"key": "default"}):
         await db.price_sheet.insert_one(pricing.default_sheet())
     asyncio.create_task(gold_refresh_loop())

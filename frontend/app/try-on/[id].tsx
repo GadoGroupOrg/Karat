@@ -5,11 +5,12 @@ import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useState } from "react";
-import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { assetUrl, requestTryOn, useStoreProduct } from "@/src/api";
+import { assetUrl, createQuote, requestTryOn, useStoreProduct } from "@/src/api";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 type Photo = { uri: string; mimeType?: string; name?: string };
@@ -43,6 +44,25 @@ export default function TryOn() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cam, setCam] = useState<CamState>("idle");
+  const [tryonId, setTryonId] = useState<string | null>(null);
+  const [enquire, setEnquire] = useState<"closed" | "open" | "sent">("closed");
+  const [form, setForm] = useState({ name: "", email: "", phone: "", note: "" });
+  const [sending, setSending] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const sendEnquiry = async () => {
+    setFormError(null);
+    if (!form.name.trim() || !/^\S+@\S+\.\S+$/.test(form.email.trim())) return setFormError("Please enter your name and a valid email.");
+    setSending(true);
+    try {
+      await createQuote({ product_id: id, tryon_id: tryonId ?? undefined, name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), note: form.note });
+      setEnquire("sent");
+    } catch (e) {
+      setFormError((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
 
   const close = () => (router.canGoBack() ? router.back() : router.replace("/shop"));
 
@@ -84,6 +104,7 @@ export default function TryOn() {
     try {
       const r = await requestTryOn(id, photo);
       setResult(assetUrl(r.image_url));
+      setTryonId(r.id);
       setShowOriginal(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Try-on failed");
@@ -114,7 +135,7 @@ export default function TryOn() {
         {!!product?.image && <Image source={{ uri: product.image }} style={styles.thumb} contentFit="cover" />}
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: insets.bottom + spacing.xl }} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: insets.bottom + spacing.xl }} showsVerticalScrollIndicator={false}>
         <View style={styles.stage} testID="try-on-stage">
           {shown ? (
             <Animated.View key={shown} entering={FadeIn.duration(350)} style={StyleSheetFill}>
@@ -196,8 +217,38 @@ export default function TryOn() {
             <Text style={styles.secondaryText}>Save or share</Text>
           </Pressable>
         )}
+        {result && !busy && enquire === "closed" && (
+          <Pressable testID="try-on-enquire-button" onPress={() => setEnquire("open")} style={styles.outlineBtn}>
+            <Feather name="message-circle" size={16} color={colors.onSurface} />
+            <Text style={styles.secondaryText}>Enquire about this piece</Text>
+          </Pressable>
+        )}
+        {enquire === "open" && (
+          <View style={styles.form} testID="try-on-enquiry-form">
+            <Text style={styles.permTitle}>Talk to our jewelers</Text>
+            <TextInput testID="try-on-enquiry-name-input" placeholder="Full name" placeholderTextColor={colors.muted} style={styles.input}
+              value={form.name} onChangeText={(v) => setForm((f) => ({ ...f, name: v }))} />
+            <TextInput testID="try-on-enquiry-email-input" placeholder="Email" placeholderTextColor={colors.muted} style={styles.input}
+              autoCapitalize="none" keyboardType="email-address" value={form.email} onChangeText={(v) => setForm((f) => ({ ...f, email: v }))} />
+            <TextInput testID="try-on-enquiry-phone-input" placeholder="Phone (optional)" placeholderTextColor={colors.muted} style={styles.input}
+              keyboardType="phone-pad" value={form.phone} onChangeText={(v) => setForm((f) => ({ ...f, phone: v }))} />
+            <TextInput testID="try-on-enquiry-note-input" placeholder="Size, questions… (optional)" placeholderTextColor={colors.muted}
+              style={[styles.input, { height: 80, paddingTop: spacing.md, textAlignVertical: "top" }]} multiline
+              value={form.note} onChangeText={(v) => setForm((f) => ({ ...f, note: v }))} />
+            {!!formError && <Text style={styles.error}>{formError}</Text>}
+            <Pressable testID="try-on-enquiry-submit-button" onPress={sendEnquiry} disabled={sending} style={[styles.primaryBtn, sending && { opacity: 0.6 }]}>
+              {sending ? <ActivityIndicator color={colors.onSurfaceInverse} /> : <Text style={styles.primaryText}>Send enquiry</Text>}
+            </Pressable>
+          </View>
+        )}
+        {enquire === "sent" && (
+          <View style={styles.sent} testID="try-on-enquiry-success">
+            <Feather name="check-circle" size={18} color={colors.onSuccess} />
+            <Text style={styles.sentText}>Thanks! Our jewelers will be in touch soon, and your try-on photo is attached.</Text>
+          </View>
+        )}
         <Text style={styles.note}>AI-generated preview. Your photo is only used to create this image.</Text>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
@@ -236,4 +287,9 @@ const useStyles = makeStyles((c) => ({
   smallBtnDarkText: { fontFamily: fonts.bold, fontSize: 13, color: c.onSurfaceInverse },
   error: { fontFamily: fonts.medium, fontSize: 13, color: c.error, marginTop: spacing.md, textAlign: "center" },
   note: { fontFamily: fonts.text, fontSize: 11, color: c.muted, textAlign: "center", marginTop: spacing.lg },
+  outlineBtn: { marginTop: spacing.md, height: 50, borderRadius: radius.pill, borderWidth: 1, borderColor: c.borderStrong, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  form: { marginTop: spacing.lg, gap: spacing.md },
+  input: { height: 48, borderRadius: radius.md, backgroundColor: c.surfaceSecondary, paddingHorizontal: spacing.lg, fontFamily: fonts.text, fontSize: 15, color: c.onSurface, borderWidth: 1, borderColor: c.border },
+  sent: { marginTop: spacing.lg, flexDirection: "row", gap: spacing.md, alignItems: "center", backgroundColor: c.success, padding: spacing.lg, borderRadius: radius.md },
+  sentText: { flex: 1, fontFamily: fonts.medium, fontSize: 14, color: c.onSuccess },
 }));

@@ -10,6 +10,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { adminCsv, adminRequest, formatPrice } from "@/src/api";
+import { useAuth } from "@/src/auth";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 type Num = Record<string, number>;
@@ -116,6 +117,20 @@ export default function Merchant() {
 
   useEffect(() => () => setPin(""), []);
 
+  // Signed in to the desktop admin → unlock automatically with the session.
+  const { token } = useAuth();
+  useEffect(() => {
+    if (!token) return;
+    const p = `Bearer ${token}`;
+    setPin(p);
+    act("login", async () => {
+      await load(p);
+      setAuthed(true);
+      return "Signed in as store admin";
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   const set = (fn: (s: Sheet) => void) => setSheet((s) => {
     if (!s) return s;
     const c = JSON.parse(JSON.stringify(s)) as Sheet;
@@ -123,7 +138,7 @@ export default function Merchant() {
     return c;
   });
 
-  const close = () => (router.canGoBack() ? router.back() : router.replace("/"));
+  const close = () => (router.canGoBack() ? router.back() : router.replace(token ? "/admin" : "/"));
 
   return (
     <View style={styles.root} testID="merchant-screen">

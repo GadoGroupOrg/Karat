@@ -73,3 +73,12 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - /try-on/[id] modal: take photo (camera w/ pre-permission + Open Settings fallback) or upload from library, loading overlay, before/after toggle, save/share; entry via "Try it on" on product detail; Home teaser links to Shop
 - Tested iteration_7: all pass
 - Next: try-on for custom builder designs (use saved studio render as reference), live AR overlay
+
+## Desktop Store Admin + White-label + Embed (2026-06)
+- Email/password admin auth (bcrypt + JWT 12h, per-email lockout 5 fails/15 min); admin seeded from backend .env ADMIN_EMAIL/ADMIN_PASSWORD; /api/auth/login, /api/auth/me
+- /admin (responsive web: sidebar ≥900px, chips on mobile): Leads inbox (KPIs, status filters, search), lead detail (render/try-on/product image, spec breakdown, contact email/call, status New→Contacted→Quoted→Won/Lost, notes timeline), Branding (store name, tagline, logo upload to object storage, colour presets + hex, 4 heading + 4 body fonts, live preview), Website & Shopify (embed snippet popup/inline, page choice, direct link, platform install steps), Pricing (/merchant auto-unlocks with admin session)
+- Branding applied app-wide at startup (theme.applyBranding) — home shows store name/logo
+- Leads = `quotes` collection: design OR product (try-on enquiry with try-on image), phone, source app|embed; public GET /api/quotes removed
+- /api/embed.js: floating button + modal iframe or inline iframe (camera allowed); ?embed=1 tags leads as Website
+- Tested iteration_8: backend 24/24, frontend all pass
+- Backlog: native Shopify App (theme app extension + app proxy + add-to-cart), multi-store tenancy, email alerts for new leads, try-on for custom designs

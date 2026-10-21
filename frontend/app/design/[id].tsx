@@ -6,8 +6,9 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { createQuote, formatPrice, useCatalog, usePrice } from "@/src/api";
+import { BACKEND_ORIGIN, createQuote, formatPrice, useCatalog, usePrice } from "@/src/api";
 import { DesignCanvas } from "@/src/components/design-canvas";
+import { designRows } from "@/src/design-rows";
 import { SavedDesign, deleteDesign, getDesign } from "@/src/designs";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -20,7 +21,7 @@ export default function DesignDetail() {
   const { data: catalog } = useCatalog();
   const [design, setDesign] = useState<SavedDesign | null | undefined>(undefined);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", note: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", note: "" });
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -44,25 +45,8 @@ export default function DesignDetail() {
   }
 
   const t = catalog.types.find((x) => x.id === design.type)!;
-  const style = t.styles.find((s) => s.id === design.styleId);
-  const size = t.sizes.find((s) => s.id === design.sizeId);
-  const metal = catalog.metals.find((m) => m.id === design.metalId);
-  const addons = catalog.addons.filter((a) => design.addonIds.includes(a.id));
   const price = quote.data?.total ?? design.price;
-
-  const rows: [string, string][] = [
-    [t.style_label ?? "Style", `${style?.name ?? ""}`],
-    ["Metal", metal?.name ?? ""],
-    [t.id === "ring" ? "Ring size" : t.id === "earrings" ? "Size" : "Length", size?.label ?? ""],
-    [t.addon_label, addons.length ? addons.map((a) => a.name).join(", ") : "None"],
-  ];
-  for (const g of t.option_groups ?? []) {
-    const o = g.options.find((x) => x.id === (design.options?.[g.id] ?? g.default));
-    if (o) rows.push([g.label, o.name]);
-  }
-  if (design.options?.material_request) rows.push(["Material request", design.options.material_request]);
-  for (const l of quote.data?.lines ?? []) rows.push([l.label, formatPrice(l.amount)]);
-  if (design.engraving.trim()) rows.push(["Engraving", `“${design.engraving.trim()}”`]);
+  const { rows } = designRows(catalog, design, quote.data?.lines ?? []);
 
   const submit = async () => {
     setError(null);
@@ -72,8 +56,11 @@ export default function DesignDetail() {
     }
     setSending(true);
     try {
-      const { id: _id, price: _p, createdAt: _c, renderUrl: _r, ...spec } = design;
-      await createQuote({ design: spec, name: form.name.trim(), email: form.email.trim(), note: form.note });
+      const { id: _id, price: _p, createdAt: _c, renderUrl, ...spec } = design;
+      await createQuote({
+        design: spec, name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), note: form.note,
+        render_url: renderUrl ? renderUrl.replace(BACKEND_ORIGIN, "") : null,
+      });
       setSent(true);
       setShowForm(false);
     } catch (e) {
@@ -133,6 +120,8 @@ export default function DesignDetail() {
                 value={form.name} onChangeText={(v) => setForm((f) => ({ ...f, name: v }))} />
               <TextInput testID="quote-email-input" placeholder="Email" placeholderTextColor={colors.muted} style={styles.input}
                 autoCapitalize="none" keyboardType="email-address" value={form.email} onChangeText={(v) => setForm((f) => ({ ...f, email: v }))} />
+              <TextInput testID="quote-phone-input" placeholder="Phone (optional)" placeholderTextColor={colors.muted} style={styles.input}
+                keyboardType="phone-pad" value={form.phone} onChangeText={(v) => setForm((f) => ({ ...f, phone: v }))} />
               <TextInput testID="quote-note-input" placeholder="Notes for our jewelers (optional)" placeholderTextColor={colors.muted}
                 style={[styles.input, { height: 88, paddingTop: spacing.md, textAlignVertical: "top" }]} multiline
                 value={form.note} onChangeText={(v) => setForm((f) => ({ ...f, note: v }))} />

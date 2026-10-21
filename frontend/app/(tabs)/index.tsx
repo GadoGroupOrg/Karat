@@ -6,6 +6,9 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { assetUrl } from "@/src/api";
+import { getBranding } from "@/src/branding";
+import { isEmbedded } from "@/src/embed";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -38,7 +41,11 @@ export default function Home() {
           <Image source={{ uri: HERO }} style={styles.heroImg} contentFit="cover" transition={300} />
           <LinearGradient colors={["transparent", colors.scrim]} style={styles.heroScrim} />
           <View style={[styles.heroContent, { paddingTop: insets.top + spacing.lg }]}>
-            <Text style={styles.brandMark}>ATELIER</Text>
+            {getBranding()?.logo_url ? (
+              <Image source={{ uri: assetUrl(getBranding()!.logo_url!) }} style={styles.heroLogo} contentFit="contain" contentPosition="left" testID="home-brand-logo" />
+            ) : (
+              <Text style={styles.brandMark} testID="home-brand-name">{(getBranding()?.store_name ?? "Atelier").toUpperCase()}</Text>
+            )}
             <View>
               <Text style={styles.heroTitle}>Design your{"\n"}forever ring.</Text>
               <Text style={styles.heroSub}>Build it in 3D, stone by stone, then see it in a studio photo.</Text>
@@ -101,6 +108,12 @@ export default function Home() {
           </View>
           <Feather name="chevron-right" size={18} color={colors.onSurface} />
         </Pressable>
+        {!isEmbedded && (
+          <Pressable testID="home-store-admin-link" onPress={() => router.push("/admin")} style={styles.adminLink}>
+            <Feather name="briefcase" size={14} color={colors.muted} />
+            <Text style={styles.adminLinkText}>For jewelers · Store admin</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </View>
   );
@@ -113,6 +126,9 @@ const useStyles = makeStyles((c) => ({
   heroScrim: { position: "absolute", left: 0, right: 0, bottom: 0, height: 320 },
   heroContent: { flex: 1, justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingBottom: spacing["2xl"] },
   brandMark: { fontFamily: fonts.bold, fontSize: 13, letterSpacing: 4, color: c.onSurfaceInverse },
+  heroLogo: { width: 160, height: 40 },
+  adminLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, height: 48, marginTop: spacing["2xl"] },
+  adminLinkText: { fontFamily: fonts.medium, fontSize: 13, color: c.muted },
   heroTitle: { fontFamily: fonts.display, fontSize: 40, lineHeight: 46, color: c.onSurfaceInverse },
   heroSub: { fontFamily: fonts.text, fontSize: 15, color: c.onSurfaceInverse, opacity: 0.85, marginTop: spacing.sm },
   heroBtn: {
