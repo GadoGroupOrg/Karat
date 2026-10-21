@@ -59,3 +59,17 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - Stones order/default: Colombian Emerald, Earth Diamond, Lab Diamond, Ruby, Sapphire, Natural Zircon, Tanzanite, Aquamarine, Morganite (rings & earrings)
 - Pricing = 18k gold grams × $/g (96) × size weight factor + setting/band craftsmanship + accent diamonds (ct × $1,200 × accent-shape factor) + centre stone (per-ct price × carat size premium) + engraving; breakdown shown in builder & detail. ALL prices are illustrative placeholders in backend/catalog_data.py — merchant should supply real price sheet
 - Canvas defaults to Photo (auto render 1.2s after change, previous photo kept while updating); 3D optional
+
+## Merchant Price Sheet (2026-06)
+- backend/pricing.py: supplier price sheet in Mongo `price_sheet` (seeded defaults), costs never exposed publicly (/api/catalog stripped, /api/price retail only)
+- Ring quote = gold (net g × (1+casting loss) × 18k $/g) + labor (base + setting + band + fancy-shape) + accents (pavé ct × cost/ct × accent-shape factor) + centre (carat × bracket $/ct × grade) + engraving; per-category markups; store-wide minimum margin floor
+- Gold weight: setting grams × head factor (0.6+0.4√ct) + band grams × size factor (US size inner-diameter circumference ratio); sizes 3–10 in halves
+- Gold: live spot from api.gold-api.com (no key) every 3h + manual override mode
+- Admin API /api/admin/* gated by X-Merchant-Pin (MERCHANT_PIN in backend .env), rate-limited 5 fails / 5 min
+- /merchant screen: PIN unlock, sample quote cost/retail/margin, editable groups, CSV export/import (expo-sharing / document-picker)
+
+## Virtual Try-On — store products (2026-06)
+- POST /api/tryons (multipart product_id + photo, ≤12MB image) → Gemini Nano Banana edits the customer photo to wear the exact Shopify product (placement by product type: ring finger / neck / ear / wrist); result in object storage, `tryons` collection; GET /api/tryons/{id}/image
+- /try-on/[id] modal: take photo (camera w/ pre-permission + Open Settings fallback) or upload from library, loading overlay, before/after toggle, save/share; entry via "Try it on" on product detail; Home teaser links to Shop
+- Tested iteration_7: all pass
+- Next: try-on for custom builder designs (use saved studio render as reference), live AR overlay

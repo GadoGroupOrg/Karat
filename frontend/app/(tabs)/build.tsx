@@ -9,7 +9,7 @@ import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg from "react-native-svg";
 
-import { Catalog, DesignSpec, OptionGroup, assetUrl, computeBreakdown, computePrice, formatPrice, useCatalog } from "@/src/api";
+import { Catalog, DesignSpec, OptionGroup, assetUrl, formatPrice, useCatalog, usePrice } from "@/src/api";
 import { DesignCanvas } from "@/src/components/design-canvas";
 import { Charm } from "@/src/components/jewelry-preview";
 import { getDesign, newId, upsertDesign } from "@/src/designs";
@@ -95,7 +95,8 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const t = catalog.types.find((x) => x.id === design.type)!;
   const addons = useMemo(() => catalog.addons.filter((a) => a.types.includes(design.type) && a.source !== "shopify"), [catalog, design.type]);
   const storeAddons = useMemo(() => catalog.addons.filter((a) => a.source === "shopify" && a.types.includes(design.type)), [catalog, design.type]);
-  const price = computePrice(catalog, design);
+  const quote = usePrice(design);
+  const price = quote.data?.total ?? 0;
   const metal = catalog.metals.find((m) => m.id === design.metalId)!;
   const style = t.styles.find((s) => s.id === design.styleId)!;
   const groups = t.option_groups ?? [];
@@ -114,7 +115,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
           {g.options.map((o) => {
             const sel = o.id === current;
-            const extra = o.accent_ct ? `+${o.accent_ct} ct pavé` : o.price ? `+${formatPrice(o.price)} labor` : undefined;
+            const extra = o.accent_ct ? `+${o.accent_ct} ct pavé` : undefined;
             return visual ? (
               <OptionCard key={o.id} testID={`option-${g.id}-${o.id}`} selected={sel} onPress={() => setOption(g.id, o.id)}
                 title={o.name} description={o.description} image={o.image} meta={extra} />
@@ -128,7 +129,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
       </Section>
     );
   };
-  const breakdown = computeBreakdown(catalog, design);
+  const breakdown = quote.data ?? { lines: [], total: 0, gold_grams: 0 };
   const [showMaterial, setShowMaterial] = useState(false);
 
   const update = (patch: Partial<DesignSpec>) => {
@@ -208,7 +209,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
                 return (
                   <OptionCard key={s.id} testID={`style-option-${s.id}`} selected={sel} onPress={() => update({ styleId: s.id })}
                     title={s.name ?? ""} description={s.description} image={s.image}
-                    meta={s.accent_ct ? `+${s.accent_ct} ct accents` : `${formatPrice(s.price)} craft`} />
+                    meta={s.accent_ct ? `+${s.accent_ct} ct accents` : undefined} />
                 );
               }
               return (
@@ -233,7 +234,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
                     <Charm addon={a} cx={18} cy={18} s={12} metal={metal.color} canvas={sel ? colors.brandTertiary : colors.surfaceSecondary} letter={(design.engraving.trim()[0] ?? "A").toUpperCase()} />
                   </Svg>
                   <Text style={styles.addonName} numberOfLines={1}>{a.name}</Text>
-                  <Text style={styles.optionPrice}>{t.id === "ring" ? `${formatPrice(a.price)}/ct` : `+${formatPrice(a.price)}`}</Text>
+                  {t.id !== "ring" && <Text style={styles.optionPrice}>+{formatPrice(a.price)}</Text>}
                   {sel && (
                     <View style={styles.check}>
                       <Feather name="check" size={10} color={colors.onBrandPrimary} />
@@ -368,7 +369,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
       <View style={[styles.bottomBar, { paddingBottom: bottomChrome + spacing.md }]}>
         <View>
           <Text style={styles.totalLabel}>Estimated total</Text>
-          <Text style={styles.total} testID="builder-total-price">{formatPrice(price)}</Text>
+          <Text style={[styles.total, quote.isFetching && { opacity: 0.5 }]} testID="builder-total-price">{quote.data ? formatPrice(price) : "…"}</Text>
         </View>
         <Pressable testID="save-design-button" onPress={save} style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.85 }]}>
           <Feather name="heart" size={16} color={colors.onSurfaceInverse} />

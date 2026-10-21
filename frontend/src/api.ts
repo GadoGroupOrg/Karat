@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { uploadForm } from "@/src/utils/upload";
 
@@ -35,7 +35,7 @@ export type GroupOption = {
 };
 export type OptionGroup = { id: string; label: string; default: string; options: GroupOption[] };
 export type StoreInfo = { domain: string; name: string; currency: string; product_count: number; last_synced: string };
-export type Pricing = { gold_karat: string; gold_per_gram: number; accent_price_per_ct: number; currency: string; note: string };
+export type Pricing = { gold_karat: string; currency: string };
 export type Catalog = { types: JewelryType[]; metals: Metal[]; addons: Addon[]; store: StoreInfo | null; pricing: Pricing };
 export type StoreProduct = {
   id: string; title: string; handle: string; vendor: string; product_type: string; tags: string[];
@@ -95,51 +95,43 @@ export const syncStore = () => request<{ store: StoreInfo }>("/store/sync", { me
 export const disconnectStore = () => request<{ store: null }>("/store", { method: "DELETE" });
 
 export type PriceLine = { label: string; amount: number };
+export type Quote = { lines: PriceLine[]; total: number; gold_grams: number };
 
-// Mirrors compute_breakdown in backend/server.py.
-export function computeBreakdown(c: Catalog, d: DesignSpec): { lines: PriceLine[]; total: number; grams: number } {
-  const empty = { lines: [], total: 0, grams: 0 };
-  const t = c.types.find((x) => x.id === d.type);
-  if (!t) return empty;
-  const style = t.styles.find((s) => s.id === d.styleId);
-  const size = t.sizes.find((s) => s.id === d.sizeId);
-  const metal = c.metals.find((m) => m.id === d.metalId);
-  if (!style || !size || !metal) return empty;
-  let labor = t.base_price + style.price + size.price;
-  let grams = style.grams ?? 0, accentCt = style.accent_ct ?? 0, addonFactor = 1, accentFactor = 1;
-  for (const g of t.option_groups ?? []) {
-    const o = g.options.find((x) => x.id === (d.options?.[g.id] ?? g.default));
-    if (!o) continue;
-    labor += o.price;
-    grams += o.grams ?? 0;
-    accentCt += o.accent_ct ?? 0;
-    addonFactor *= o.addon_factor ?? 1;
-    accentFactor *= o.accent_factor ?? 1;
-  }
-  const wf = size.weight_factor ?? 1;
-  grams *= wf;
-  accentCt *= wf;
-  const lines: PriceLine[] = [];
-  if (grams) {
-    lines.push({ label: `18k gold · ${grams.toFixed(1)} g`, amount: grams * c.pricing.gold_per_gram * metal.multiplier });
-    lines.push({ label: "Setting & craftsmanship", amount: labor });
-  } else {
-    lines.push({ label: "Piece", amount: labor * metal.multiplier });
-  }
-  if (accentCt) lines.push({ label: `Accent diamonds · ${accentCt.toFixed(2)} ct`, amount: accentCt * c.pricing.accent_price_per_ct * accentFactor });
-  for (const a of c.addons.filter((x) => d.addonIds.includes(x.id) && x.types.includes(d.type))) {
-    lines.push({ label: a.name, amount: a.price * addonFactor });
-  }
-  if (d.engraving.trim() && t.engraving_max > 0) lines.push({ label: "Engraving", amount: t.engraving_price });
-  lines.forEach((l) => { l.amount = Math.round(l.amount); });
-  return { lines, total: lines.reduce((s, l) => s + l.amount, 0), grams };
+const priceKey = (d: DesignSpec) => JSON.stringify({ ...d, name: "", addonIds: [...d.addonIds].sort() });
+
+// Live retail quote from the merchant price sheet (costs & margins never reach the client).
+export function usePrice(design: DesignSpec | null | undefined) {
+  return useQuery({
+    queryKey: ["price", design ? priceKey(design) : ""],
+    enabled: !!design,
+    placeholderData: keepPreviousData,
+    queryFn: () => request<Quote>("/price", { method: "POST", body: JSON.stringify(design) }),
+  });
 }
 
-export const computePrice = (c: Catalog, d: DesignSpec) => computeBreakdown(c, d).total;
+// ---------- Merchant admin ----------
+export function adminRequest<T>(pin: string, path: string, init?: RequestInit) {
+  return request<T>(`/admin${path}`, { ...init, headers: { "X-Merchant-Pin": pin, ...(init?.headers || {}) } });
+}
+export async function adminCsv(pin: string) {
+  const res = await fetch(`${BASE}/admin/price-sheet.csv`, { headers: { "X-Merchant-Pin": pin } });
+  if (!res.ok) throw new Error("Export failed");
+  return res.text();
+}
 
 export const formatPrice = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
 export const assetUrl = (path: string) => `${process.env.EXPO_PUBLIC_BACKEND_URL}${path}`;
+
+export async function requestTryOn(productId: string, photo: { uri: string; mimeType?: string; name?: string }) {
+  const res = await uploadForm(`${BASE}/tryons`, {
+    fields: { product_id: productId },
+    files: { photo: { uri: photo.uri, name: photo.name || "photo.jpg", mimeType: photo.mimeType || "image/jpeg" } },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Try-on failed");
+  return body as { id: string; image_url: string; product_id: string };
+}
 
 export async function requestRender(design: DesignSpec, snapshotUri: string | null, force = false) {
   const res = await uploadForm(`${BASE}/renders`, {

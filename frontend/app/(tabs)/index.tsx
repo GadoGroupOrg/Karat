@@ -91,15 +91,16 @@ export default function Home() {
           ))}
         </View>
 
-        <View style={[styles.section, styles.teaser]} testID="try-on-teaser">
+        <Pressable style={({ pressed }) => [styles.section, styles.teaser, pressed && { opacity: 0.85 }]} testID="try-on-teaser" onPress={() => router.push("/shop")}>
           <View style={styles.teaserIcon}>
             <Feather name="camera" size={20} color={colors.onBrandTertiary} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.teaserTitle}>Virtual Try-On</Text>
-            <Text style={styles.teaserText}>See your designs on you with a photo or your camera. Coming soon.</Text>
+            <Text style={styles.teaserText}>Pick any piece in the Shop and see it on you with a photo or your camera.</Text>
           </View>
-        </View>
+          <Feather name="chevron-right" size={18} color={colors.onSurface} />
+        </Pressable>
       </ScrollView>
     </View>
   );

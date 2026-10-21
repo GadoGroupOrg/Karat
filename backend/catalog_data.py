@@ -125,10 +125,14 @@ TYPES = [
             {"id": "band", "label": "Band", "default": "polished", "options": RING_BANDS},
             {"id": "accent_shape", "label": "Accent stone shape", "default": "round",
              "options": [{"id": i, "name": n, "price": 0, "accent_factor": f, "description": d} for i, n, f, d in ACCENT_SHAPES]},
+            {"id": "quality", "label": "Stone quality", "default": "fine",
+             "options": [
+                 {"id": "good", "name": "Good", "price": 0},
+                 {"id": "fine", "name": "Fine", "price": 0},
+                 {"id": "exceptional", "name": "Exceptional", "price": 0},
+             ]},
         ],
-        # weight_factor scales gold & pavé with finger size (size 6 = reference)
-        "sizes": [{"id": s, "label": s, "price": 0, "weight_factor": w}
-                  for s, w in [("4", 0.94), ("5", 0.97), ("6", 1.0), ("7", 1.03), ("8", 1.06), ("9", 1.09)]],
+        "sizes": [{"id": f"{s:g}", "label": f"{s:g}", "price": 0} for s in [x / 2 for x in range(6, 22)]],
     },
     {
         "id": "necklace", "name": "Necklace", "tagline": "Layered stories on a fine chain", "style_label": "Chain",

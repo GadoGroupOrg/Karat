@@ -24,6 +24,7 @@ export default function ProductDetail() {
   const { data: catalog } = useCatalog();
   const { width } = useWindowDimensions();
 
+  const close = () => (router.canGoBack() ? router.back() : router.replace("/shop"));
   const addTo = (type: string) => {
     if (router.canGoBack()) router.back();
     router.navigate({ pathname: "/build", params: { type, addId: id, nonce: String(Date.now()) } });
@@ -55,6 +56,11 @@ export default function ProductDetail() {
               {p.compare_at_price && p.compare_at_price > p.price ? <Text style={styles.compare}>  {formatPrice(p.compare_at_price)}</Text> : null}
             </Text>
             {!p.available && <Text style={styles.soldOut}>Currently sold out</Text>}
+
+            {!!p.image && <Pressable testID="product-try-on-button" onPress={() => router.push(`/try-on/${p.id}`)} style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.85 }]}>
+              <Feather name="camera" size={18} color={colors.onSurfaceInverse} />
+              <Text style={styles.primaryText}>Try it on</Text>
+            </Pressable>}
 
             <Text style={styles.sectionLabel}>ADD TO A DESIGN</Text>
             <View style={styles.useGrid}>
@@ -96,6 +102,8 @@ const useStyles = makeStyles((c) => ({
   useGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   useTile: { width: "48.5%", flexDirection: "row", alignItems: "center", gap: spacing.sm, height: 52, paddingHorizontal: spacing.lg, borderRadius: radius.md, backgroundColor: c.brandTertiary },
   useText: { fontFamily: fonts.medium, fontSize: 14, color: c.onSurface },
+  primaryBtn: { marginTop: spacing.xl, height: 54, borderRadius: radius.pill, backgroundColor: c.surfaceInverse, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  primaryText: { fontFamily: fonts.bold, fontSize: 15, color: c.onSurfaceInverse },
   secondaryBtn: { marginTop: spacing.lg, height: 52, borderRadius: radius.pill, borderWidth: 1, borderColor: c.borderStrong, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
   secondaryText: { fontFamily: fonts.bold, fontSize: 15, color: c.onSurface },
   desc: { fontFamily: fonts.text, fontSize: 14, lineHeight: 22, color: c.muted, marginTop: spacing.xl },

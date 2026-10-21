@@ -6,7 +6,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { computeBreakdown, computePrice, createQuote, formatPrice, useCatalog } from "@/src/api";
+import { createQuote, formatPrice, useCatalog, usePrice } from "@/src/api";
 import { DesignCanvas } from "@/src/components/design-canvas";
 import { SavedDesign, deleteDesign, getDesign } from "@/src/designs";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -27,6 +27,7 @@ export default function DesignDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => { getDesign(id).then(setDesign); }, [id]);
+  const quote = usePrice(design ? (({ id: _i, price: _p, createdAt: _c, renderUrl: _r, ...spec }) => spec)(design) : null);
 
   const close = () => (router.canGoBack() ? router.back() : router.replace("/saved"));
 
@@ -47,7 +48,7 @@ export default function DesignDetail() {
   const size = t.sizes.find((s) => s.id === design.sizeId);
   const metal = catalog.metals.find((m) => m.id === design.metalId);
   const addons = catalog.addons.filter((a) => design.addonIds.includes(a.id));
-  const price = computePrice(catalog, design);
+  const price = quote.data?.total ?? design.price;
 
   const rows: [string, string][] = [
     [t.style_label ?? "Style", `${style?.name ?? ""}`],
@@ -60,7 +61,7 @@ export default function DesignDetail() {
     if (o) rows.push([g.label, o.name]);
   }
   if (design.options?.material_request) rows.push(["Material request", design.options.material_request]);
-  for (const l of computeBreakdown(catalog, design).lines) rows.push([l.label, formatPrice(l.amount)]);
+  for (const l of quote.data?.lines ?? []) rows.push([l.label, formatPrice(l.amount)]);
   if (design.engraving.trim()) rows.push(["Engraving", `“${design.engraving.trim()}”`]);
 
   const submit = async () => {

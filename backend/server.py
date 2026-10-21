@@ -17,7 +17,13 @@ from fastapi.responses import Response
 import render_service
 from datetime import datetime, timezone
 
-from catalog_data import TYPES, METALS, ADDONS, PRICING
+from catalog_data import TYPES, METALS, ADDONS, STONES, RING_SETTINGS, RING_BANDS, RING_SHAPES, ACCENT_SHAPES
+import pricing
+import asyncio
+import secrets
+import time
+from collections import defaultdict, deque
+from fastapi import Depends, Header, Request
 from shopify_sync import normalize_domain, sync_store, product_as_addon
 
 ROOT_DIR = Path(__file__).parent
@@ -102,7 +108,26 @@ async def get_catalog() -> dict:
             attach("setting", t["styles"])
             for g in t.get("option_groups", []):
                 attach(g["id"], g["options"])
-    return {"types": types, "metals": metals, "addons": addons, "store": store, "pricing": PRICING}
+    sheet = pricing.merge_defaults(await db.price_sheet.find_one({"key": "default"}, {"_id": 0}))
+    return {"types": types, "metals": metals, "addons": addons, "store": store,
+            "pricing": {"gold_karat": "18k", "currency": "USD"}, "sheet": sheet}
+
+
+def public_catalog(c: dict) -> dict:
+    """Strip supplier costs: the ring is priced only through /api/price."""
+    c = {k: v for k, v in c.items() if k != "sheet"}
+    for t in c["types"]:
+        if t["id"] == "ring":
+            for s in t["styles"]:
+                s.pop("price", None); s.pop("grams", None)
+            for g in t["option_groups"]:
+                for o in g["options"]:
+                    for k in ("price", "grams", "addon_factor", "accent_factor"):
+                        o.pop(k, None)
+    for a in c["addons"]:
+        if "ring" in a["types"]:
+            a.pop("price", None)
+    return c
 
 
 def compute_breakdown(catalog: dict, d: DesignSpec) -> dict:
@@ -117,39 +142,20 @@ def compute_breakdown(catalog: dict, d: DesignSpec) -> dict:
     addons = [a for a in catalog["addons"] if a["id"] in d.addonIds and d.type in a["types"]]
     if len(addons) > t["max_addons"]:
         raise HTTPException(400, "Too many add-ons")
-    p = catalog["pricing"]
-    labor = t["base_price"] + style["price"] + size["price"]
-    grams = style.get("grams", 0)
-    accent_ct = style.get("accent_ct", 0)
-    addon_factor = accent_factor = 1.0
     for g in t.get("option_groups", []):
-        oid = d.options.get(g["id"], g["default"])
-        o = next((x for x in g["options"] if x["id"] == oid), None)
-        if not o:
+        if not any(x["id"] == d.options.get(g["id"], g["default"]) for x in g["options"]):
             raise HTTPException(400, f"Invalid {g['label']}")
-        labor += o.get("price", 0)
-        grams += o.get("grams", 0)
-        accent_ct += o.get("accent_ct", 0)
-        addon_factor *= o.get("addon_factor", 1.0)
-        accent_factor *= o.get("accent_factor", 1.0)
-    wf = size.get("weight_factor", 1.0)
-    grams *= wf
-    accent_ct *= wf
-    lines = []
-    if grams:
-        lines.append({"label": f"18k gold · {grams:.1f} g", "amount": grams * p["gold_per_gram"] * metal["multiplier"]})
-        lines.append({"label": "Setting & craftsmanship", "amount": labor})
-    else:
-        lines.append({"label": "Piece", "amount": labor * metal["multiplier"]})
-    if accent_ct:
-        lines.append({"label": f"Accent diamonds · {accent_ct:.2f} ct", "amount": accent_ct * p["accent_price_per_ct"] * accent_factor})
+    if t["id"] == "ring":
+        return pricing.ring_quote(catalog["sheet"], catalog, d, t, style, size, addons)
+    labor = t["base_price"] + style["price"] + size["price"]
+    lines = [{"label": "Piece", "amount": labor * metal["multiplier"]}]
     for a in addons:
-        lines.append({"label": a["name"], "amount": a["price"] * addon_factor})
+        lines.append({"label": a["name"], "amount": a["price"]})
     if d.engraving.strip() and t["engraving_max"] > 0:
         lines.append({"label": "Engraving", "amount": t["engraving_price"]})
     for ln in lines:
         ln["amount"] = int(round(ln["amount"]))
-    return {"lines": lines, "total": sum(ln["amount"] for ln in lines), "gold_grams": round(grams, 2)}
+    return {"lines": lines, "total": sum(ln["amount"] for ln in lines), "gold_grams": 0}
 
 
 def compute_price(catalog: dict, d: DesignSpec) -> int:
@@ -163,12 +169,112 @@ async def root():
 
 @api_router.get("/catalog")
 async def catalog():
-    return await get_catalog()
+    return public_catalog(await get_catalog())
+
+
+# ---------- Merchant admin (PIN-gated) ----------
+_failed: dict = defaultdict(deque)
+PIN_WINDOW, PIN_MAX_FAILURES = 300, 5
+
+
+def merchant_pin(request: Request, x_merchant_pin: Optional[str] = Header(default=None)):
+    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "?")
+    now, q = time.monotonic(), _failed[ip]
+    while q and now - q[0] >= PIN_WINDOW:
+        q.popleft()
+    if len(q) >= PIN_MAX_FAILURES:
+        raise HTTPException(429, "Too many attempts. Try again in a few minutes.")
+    if not x_merchant_pin or not secrets.compare_digest(x_merchant_pin, os.environ["MERCHANT_PIN"]):
+        q.append(now)
+        raise HTTPException(401, "Invalid merchant PIN")
+    return True
+
+
+class SheetText(BaseModel):
+    csv: str = Field(min_length=1, max_length=500_000)
+
+
+admin = APIRouter(prefix="/api/admin", dependencies=[Depends(merchant_pin)])
+
+
+@admin.get("/verify")
+async def admin_verify():
+    return {"ok": True}
+
+
+@admin.get("/price-sheet")
+async def admin_sheet():
+    c = await get_catalog()
+    s = c["sheet"]
+    s.pop("_id", None)
+    return {"sheet": s, "bracket_labels": pricing.BRACKET_LABELS,
+            "gold_cost_per_gram": round(pricing.gold_cost_per_gram(s), 2),
+            "names": {
+                "stones": {i: n for i, n, _, _ in STONES},
+                "setting": {x["id"]: x["name"] for x in RING_SETTINGS},
+                "band": {x["id"]: x["name"] for x in RING_BANDS},
+                "shape": {i: n for i, n, _ in RING_SHAPES},
+                "accent_shape": {i: n for i, n, _, _ in ACCENT_SHAPES},
+            }}
+
+
+@admin.put("/price-sheet")
+async def admin_save_sheet(body: dict):
+    sheet = pricing.merge_defaults(body.get("sheet"))
+    sheet["key"] = "default"
+    sheet["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.price_sheet.replace_one({"key": "default"}, sheet, upsert=True)
+    return {"ok": True, "updated_at": sheet["updated_at"]}
+
+
+@admin.post("/gold/refresh")
+async def admin_gold_refresh():
+    try:
+        return await pricing.refresh_gold(db)
+    except Exception:
+        raise HTTPException(502, "Gold price feed unavailable. Use manual mode.")
+
+
+@admin.get("/price-sheet.csv")
+async def admin_sheet_csv():
+    c = await get_catalog()
+    return Response(pricing.to_csv(c["sheet"]), media_type="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=atelier-price-sheet.csv"})
+
+
+@admin.post("/price-sheet/csv")
+async def admin_import_csv(body: SheetText):
+    c = await get_catalog()
+    try:
+        sheet, n = pricing.from_csv(body.csv, c["sheet"])
+    except Exception:
+        raise HTTPException(400, "Couldn't read that CSV. Use the exported template.")
+    if n == 0:
+        raise HTTPException(400, "No price rows found in the CSV.")
+    sheet["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.price_sheet.replace_one({"key": "default"}, sheet, upsert=True)
+    return {"ok": True, "rows": n}
+
+
+@admin.post("/quote-preview")
+async def admin_quote_preview(design: DesignSpec):
+    return compute_breakdown(await get_catalog(), design)
+
+
+async def gold_refresh_loop():
+    while True:
+        try:
+            await pricing.refresh_gold(db)
+            logger.info("Gold spot refreshed")
+        except Exception:
+            logger.warning("Gold spot refresh failed")
+        await asyncio.sleep(3 * 3600)
 
 
 @api_router.post("/price")
 async def price(design: DesignSpec):
     b = compute_breakdown(await get_catalog(), design)
+    b.pop("admin", None)  # costs & margins are merchant-only
     return {"price": b["total"], **b}
 
 
@@ -229,6 +335,42 @@ async def render_image(h: str):
     doc = await db.renders.find_one({"hash": h})
     if not doc:
         raise HTTPException(404, "Render not found")
+    data, ctype = await run_in_threadpool(render_service.get_object, doc["storage_path"])
+    return Response(content=data, media_type=ctype, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
+@api_router.post("/tryons")
+async def create_tryon(product_id: str = Form(...), photo: UploadFile = File(...)):
+    product = await db.store_products.find_one({"id": product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(404, "Product not found")
+    data = await photo.read()
+    if not data:
+        raise HTTPException(400, "Photo is empty")
+    if len(data) > 12_000_000:
+        raise HTTPException(413, "Photo is too large (max 12 MB)")
+    if not (photo.content_type or "").startswith("image/"):
+        raise HTTPException(400, "Please upload an image")
+    try:
+        img, mime = await render_service.generate_tryon(data, product)
+        path = render_service.tryon_path()
+        await run_in_threadpool(render_service.put_object, path, img, mime)
+    except Exception as e:
+        logger.exception("try-on failed")
+        if getattr(getattr(e, "response", None), "status_code", None) == 402:
+            raise HTTPException(402, "Try-on credits exhausted. Please top up your balance.")
+        raise HTTPException(502, "Couldn't create the try-on. Please try another photo.")
+    tid = secrets.token_hex(16)
+    await db.tryons.insert_one({"id": tid, "product_id": product_id, "storage_path": path,
+                                "created_at": datetime.now(timezone.utc).isoformat()})
+    return {"id": tid, "image_url": f"/api/tryons/{tid}/image", "product_id": product_id}
+
+
+@api_router.get("/tryons/{tid}/image")
+async def tryon_image(tid: str):
+    doc = await db.tryons.find_one({"id": tid})
+    if not doc:
+        raise HTTPException(404, "Try-on not found")
     data, ctype = await run_in_threadpool(render_service.get_object, doc["storage_path"])
     return Response(content=data, media_type=ctype, headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
@@ -315,6 +457,7 @@ async def store_product(pid: str):
 
 
 app.include_router(api_router)
+app.include_router(admin)
 
 app.add_middleware(
     CORSMiddleware,
@@ -339,6 +482,9 @@ async def seed_catalog():
     except Exception:
         logger.exception("Object storage init failed")
     logger.info("Catalog seeded")
+    if not await db.price_sheet.find_one({"key": "default"}):
+        await db.price_sheet.insert_one(pricing.default_sheet())
+    asyncio.create_task(gold_refresh_loop())
     default_domain = os.environ.get("SHOPIFY_STORE_DOMAIN")
     if default_domain and not await db.store_connection.find_one({"key": "default"}):
         try:

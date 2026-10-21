@@ -1,0 +1,35 @@
+{
+  "summary": "Full regression for the new 'Real Price Sheet' feature. Backend: 25/25 pytest PASS in /app/backend/tests/test_price_sheet.py (replaced obsolete test_ring_builder.py whose 12145 anchor is no longer valid — totals now come from the editable sheet). Verified: public /api/catalog no longer leaks 'sheet' and ring styles/options/addons no longer expose price/grams/addon_factor/accent_factor; ring sizes are 3..10 in half sizes (3, 3.5, ..., 10.5); new 'quality' option group has good/fine/exceptional with default fine. /api/price returns {lines,total,gold_grams} and has NO 'admin' key; larger size → more grams & higher price; carat 3.0 > 0.5 (bracket per-ct scaling); exceptional > fine > good. Admin PIN gate (X-Merchant-Pin: 482916): wrong/missing PIN → 401; after 5 wrong attempts the IP gets 429 (ran LAST as instructed). All 6 admin endpoints verified: GET /verify, GET /price-sheet (returns sheet/bracket_labels/gold_cost_per_gram/names), PUT /price-sheet (edit markup.gold=300 → /api/price total immediately higher), POST /gold/refresh (returns spot+updated_at), GET /price-sheet.csv (section,key,subkey,value header), POST /price-sheet/csv with 'markup,gold,,40' row persists & flows through to /api/price, POST /quote-preview returns admin{cost,margin_pct,min_margin_applied,lines[cost+markup_pct]}. Min margin 90 → min_margin_applied=true and margin ~90%. Original sheet restored via class-scoped fixture (verified).\n\nFrontend /build (390x844): builder-total-price shows '…' then '$6,464'; price-breakdown lines include '18k gold · 3.5 g', 'Setting & craftsmanship', 'Colombian Emerald · 1.00 ct'; option-quality-good/fine/exceptional chips all present; size-option-4 vs size-option-9 flips gold line 3.7g → 4.5g (verified after 2.5s settling); ring stone addon tiles do NOT render any '$' price (confirmed by inner_text scan).\n\nFrontend /merchant: PIN unlock succeeded (after 5-min rate-limit cleared from the pytest run); merchant-sample-quote shows Cost $4,883 / Retail $7,860 / Margin 37.9% / 3.9g 18k / $100 gold/g; all 6 groups present (merchant-group-{gold,markups,stones,grades,labor,weights}); gold-mode-live/manual, gold-refresh-button visible; editing markup-centre_stone-input 60→95 + merchant-save-button produced 'Saved: customer quotes updated live' and retail jumped $7,860→$9,063; restored 95→60 and retail returned exactly to $7,860. merchant-export-csv-button visible. open-merchant-price-sheet navigation testID present in /shop → store-connect route.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_6.json",
+    "/app/backend/tests/test_price_sheet.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "pricing.py:28 default_sheet() is called on every /api/catalog hit via merge_defaults. For a hot endpoint consider memoising the catalog-derived defaults (STONES, RING_SETTINGS iterate every time).",
+    "server.py:197 admin router is attached AFTER api_router but shares the /api prefix; order is fine but the 429 rate-limit state (_failed dict) is in-process. If multiple backend workers are added later, each worker holds its own counter — document or move to Redis if horizontally scaled.",
+    "pricing.py:67 merge_defaults deep() has an operator-precedence subtlety: `k not in a or a[k] is None and v is not None and k not in (...)`. Current result is correct but worth parenthesising for clarity.",
+    "server.py:277 /api/price strips admin via b.pop('admin', None) — defence-in-depth confirmed. Good.",
+    "catalog_data.py:135 ring sizes now expose half-sizes 3..10.5 (16 options). Review request said '3..10 in half sizes' and 10.5 is included — minor; acceptable (half-size above 10 is still useful for US sizing)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_price_sheet.py (new; 25 tests)",
+    "/app/backend/tests/test_ring_builder.py (DELETED — obsolete 12145 anchor)",
+    "/app/test_reports/iteration_6.json",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "100% — build & merchant screens, all review bullets verified"},
+  "seed_data_creation": "One TEST_PriceSheet quote created by test_ring_quote_persists (benign). Sheet mutated 4 times during tests and fully restored at the end of each test (per-test restore + class-scoped fixture teardown). Live gold spot was refreshed once via /admin/gold/refresh. 0 new render calls.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Price-sheet regression lives in /app/backend/tests/test_price_sheet.py. Run via `EXPO_PUBLIC_BACKEND_URL=<url> pytest backend/tests/test_price_sheet.py -v`. IMPORTANT: TestZZZRateLimit::test_rate_limit_triggers_429 locks the running IP for 5 minutes (300s window, 5-strike cap, in-process). If you want to test /merchant UI unlock right after pytest, wait ~5 minutes. MERCHANT_PIN=482916 (also in /app/memory/test_credentials.md). The old 12145 pricing anchor is obsolete — totals are now a function of db.price_sheet which the admin can edit at runtime. Expected default sample (ring/halo/yellow-gold/size6/colombian-emerald/{carat:1,band:partial-pave,shape:oval,accent_shape:round,quality:fine}) → cost ≈ $4,883, retail = $7,860, margin 37.9%, 3.9g 18k. Default solitaire-4/round/1ct/size6/polished/round/fine → retail ≈ $6,464.",
+  "rca_of_issue": "N/A — no bugs found. Note on the one false-negative mid-test: build-screen size-swap grams appeared unchanged on the first measurement because react-query's keepPreviousData renders the stale breakdown during the in-flight /api/price refetch. Re-measuring after 2.5s (one full React Query debounce + response round-trip) correctly reported 3.7g → 4.5g. This is expected UX, not a bug."
+}

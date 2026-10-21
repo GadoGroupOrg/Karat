@@ -138,5 +138,51 @@ async def generate_render(catalog: dict, design: dict, snapshot: bytes | None) -
     return base64.b64decode(images[0]["data"]), images[0].get("mime_type") or "image/png"
 
 
+TRYON_PLACEMENT = {
+    "ring": "on the most visible finger (ring finger if a hand is shown), sized to the real finger width, sitting naturally around it",
+    "engagement": "on the ring finger, sized to the real finger width, sitting naturally around it",
+    "wedding band": "on the ring finger, sized to the real finger width, sitting naturally around it",
+    "necklace": "around the neck, resting naturally on the collarbone and following the neckline and gravity",
+    "pendant": "on a fine chain around the neck, the pendant resting naturally on the upper chest",
+    "chain": "around the neck, draping naturally on the collarbone",
+    "bracelet": "around the wrist, sized to the real wrist and following its curve",
+    "earrings": "on the visible earlobe(s), as a matching pair if both ears are visible, sized to real ear proportions",
+}
+
+
+def tryon_placement(product: dict) -> str:
+    text = f"{product.get('product_type', '')} {product.get('title', '')}".lower()
+    for key in ("engagement", "wedding band", "earrings", "bracelet", "pendant", "necklace", "chain", "ring"):
+        if key in text or key.rstrip("s") in text:
+            return TRYON_PLACEMENT[key]
+    return "where this kind of jewelry is naturally worn"
+
+
+async def generate_tryon(photo: bytes, product: dict) -> tuple[bytes, str]:
+    product_b64 = await _fetch_b64(product["image"]) if product.get("image") else None
+    if not product_b64:
+        raise RuntimeError("Product image unavailable")
+    prompt = (
+        "Virtual jewelry try-on. The FIRST image is a real photo of a customer. The SECOND image is a product photo of "
+        f"a fine-jewelry piece: '{product.get('title', 'jewelry')}'. Edit the customer photo so the person is wearing this exact piece "
+        f"{tryon_placement(product)}. Reproduce the jewelry faithfully — same metal colour, stones, shape, design details and proportions as "
+        "in the product photo. Match the photo's lighting, perspective, skin contact, shadows and reflections so it looks like a real photograph. "
+        "Keep the person, pose, face, skin, clothing, background, framing and image resolution exactly as in the original — only add the jewelry. "
+        "If the relevant body part is not visible, place it as plausibly as possible. No text, no watermark."
+    )
+    chat = LlmChat(api_key=os.environ["EMERGENT_LLM_KEY"], session_id=f"tryon-{uuid.uuid4()}",
+                   system_message="You are an expert jewelry retoucher creating photoreal virtual try-ons.")
+    chat.with_model("gemini", MODEL).with_params(modalities=["image", "text"])
+    refs = [ImageContent(base64.b64encode(photo).decode()), ImageContent(product_b64)]
+    _, images = await chat.send_message_multimodal_response(UserMessage(text=prompt, file_contents=refs))
+    if not images:
+        raise RuntimeError("The try-on returned no image")
+    return base64.b64decode(images[0]["data"]), images[0].get("mime_type") or "image/png"
+
+
+def tryon_path() -> str:
+    return f"{APP_NAME}/tryons/{uuid.uuid4()}.png"
+
+
 def storage_path() -> str:
     return f"{APP_NAME}/renders/{uuid.uuid4()}.png"

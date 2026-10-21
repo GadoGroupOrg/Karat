@@ -103,6 +103,10 @@ export default function StoreConnect() {
         </Pressable>
         {error && <Text style={styles.error} testID="store-connect-error">{error}</Text>}
         {message && <Text style={styles.success} testID="store-connect-message">{message}</Text>}
+        <Pressable testID="open-merchant-price-sheet" onPress={() => router.push("/merchant")} style={[styles.smallBtn, { marginTop: spacing["2xl"], alignSelf: "flex-start" }]}>
+          <Feather name="sliders" size={14} color={colors.onSurface} />
+          <Text style={styles.outlineLabel}>Merchant price sheet</Text>
+        </Pressable>
       </KeyboardAwareScrollView>
     </View>
   );
@@ -126,6 +130,7 @@ const useStyles = makeStyles((c) => ({
   smallPrimary: { backgroundColor: c.surfaceInverse, borderColor: c.surfaceInverse },
   smallPrimaryText: { fontFamily: fonts.bold, fontSize: 13, color: c.onSurfaceInverse },
   disconnectText: { fontFamily: fonts.bold, fontSize: 13, color: c.error },
+  outlineLabel: { fontFamily: fonts.bold, fontSize: 13, color: c.onSurface },
   label: { fontFamily: fonts.bold, fontSize: 11, letterSpacing: 2, color: c.onSurface, marginTop: spacing["2xl"], marginBottom: spacing.md },
   input: { height: 48, borderRadius: radius.md, backgroundColor: c.surfaceSecondary, paddingHorizontal: spacing.lg, fontFamily: fonts.text, fontSize: 15, color: c.onSurface, borderWidth: 1, borderColor: c.border },
   primaryBtn: { marginTop: spacing.md, height: 52, borderRadius: radius.pill, backgroundColor: c.surfaceInverse, alignItems: "center", justifyContent: "center" },
