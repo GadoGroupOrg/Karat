@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 16 (both backend+frontend) validated clean /s/<slug> hosted storefront links + store-connect auth gating. BACKEND (/app/backend/tests/test_iter16_slug_routes.py — 13/13 pass, JUnit /app/test_reports/pytest/iter16_results.xml): POST /api/auth/signup with {business_name,name,email,password} creates a new tenant+owner and returns a token plus tenant.slug. /api/branding is correctly scoped by both X-Tenant header AND ?store=<slug> query (new business returns its own 'TEST Luna Links …' name; default returns Gado; unknown slug returns 404). POST /api/store/connect, POST /api/store/sync, DELETE /api/store all return 401 without credentials (bad/missing bearer + no merchant PIN); with a valid jeweller bearer, sync on a brand-new tenant with no connected store returns 404 (auth passed), DELETE returns 200 with {store: null}, and connect with a bad domain returns 400 (auth passed). GET /api/shopify/package.zip?store=<slug> ships a liquid package that embeds the slug (verified by unzipping the archive and grepping files). GET /api/embed.js still ships (regression for ?store= fallback). FRONTEND (mobile 390x844 storefront + desktop 1440x900 admin): /s/gado and /s/<new-slug> both redirect to /, sessionStorage records the slug, and the home screen shows the correct business branding ('TEST LUNA LINKS A7D36633' for the new business; Gado for /s/gado and default). /s/<slug>/build redirects to /build and loads the builder (header still shows generic 'Atelier' brand — see note below). /s/<slug>/shop (anonymous) renders the empty state with testID='shop-not-connected', copy 'The collection is coming soon' + 'In the meantime, design your own piece in the builder.' and primary button 'Start designing' (shop-connect-store-button). shop-store-settings-button is HIDDEN for anonymous shoppers but VISIBLE for the signed-in jeweller on /shop. /admin/embed as Gado admin: setup-store-link on the dashboard = https://gemfit-studio.preview.emergentagent.com/s/gado; embed-link-text updates per page selection (build → /s/gado/build, shop → /s/gado/shop, home → /s/gado). embed snippet (regression) still contains data-store='gado'. shopify-sync-products button is present and navigates to /store-connect (store-connect-screen rendered). Signed in as the newly-created Luna owner (TEST_luna_ui_a7d36633@example.com / LunaPw1234!): setup-store-link = /s/test-luna-links-a7d36633, embed-link-text = /s/test-luna-links-a7d36633/build, snippet data-store='test-luna-links-a7d36633'. All 6 review-request items pass end-to-end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/build (after /s/<slug>/build)", "issues": ["Builder top-bar still shows the generic 'Atelier' wordmark; not strictly in the review scope but inconsistent with the per-tenant branding shown on /s/<slug>/home. Consider swapping to store_name (same source as the home header 'TEST LUNA LINKS …'). Reference: /app/frontend/app/build.tsx (or wherever the builder shell renders the 'Atelier' title)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter16_slug_routes.py",
+    "/app/test_reports/pytest/iter16_results.xml"
+  ],
+  "action_items": [
+    "Optional polish only: in the builder shell, replace the hard-coded 'Atelier' brand text with the current store_name (same hook used by /s/<slug> home) so the builder header matches the per-business storefront branding."
+  ],
+  "critical_code_review_comments": [
+    "src/tenant.ts reads the slug from /s/<slug> path first, then falls back to ?store= query — this keeps the old ?store= embed snippet working (data-store='…' in /api/embed.js) while giving customers clean /s/<slug> links. Verified both work.",
+    "app/s/[slug]/index.tsx + [...rest].tsx re-export the same screen, which lets /s/<slug>/<anything> (e.g. /s/luna/build, /s/luna/shop) hit the same handler that stores the slug in sessionStorage and reloads at the deep path. Clean and consistent.",
+    "server.py store/connect|sync|delete now depend on merchant_pin, which short-circuits to the admin's tenant when a valid admin bearer is present and otherwise requires the merchant PIN (with IP-based rate limiting at 5/5min). Unauthenticated requests get a clean 401 with the expected text 'Invalid merchant PIN'. The old PIN path is intact for backwards compatibility.",
+    "shop.tsx correctly gates shop-store-settings-button behind !!token so anonymous shoppers do not see 'Connect your Shopify store' settings, and swaps the empty-state copy/CTA based on token (anonymous → 'The collection is coming soon' + 'Start designing'; jeweller → 'Connect your Shopify store' + 'Connect store'). Both branches verified in-browser.",
+    "ShopifyAppPanel's shopify-sync-products uses router.push('/store-connect') — reusing the existing merchant screen rather than duplicating logic; verified it reaches store-connect-screen when invoked from /admin/embed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter16_slug_routes.py (new)",
+    "/app/test_reports/pytest/iter16_results.xml (new)",
+    "/app/test_reports/iteration_16.json (new)"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "100% on review flows (/s/<slug> home + build, admin embed clean-link + snippet-data-store regression, setup-store-link per tenant, anonymous Shop empty-state copy, jeweller Shop settings button, shopify-sync-products → /store-connect)"},
+  "seed_data_creation": "Created one new tenant via API signup for the UI tests: owner TEST_luna_ui_a7d36633@example.com / LunaPw1234! (business 'TEST Luna Links a7d36633', slug test-luna-links-a7d36633). The pytest fixtures also create one short-lived TEST Luna Links tenant per module run (left in Mongo; cleanup is optional per iteration-15 note). Gado's connected store was NOT touched — the only DELETE /api/store call in the pytest suite uses the newly-created Luna tenant's own bearer token, not Gado's.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Review-request items for iteration 16 all pass. Backend tests live at /app/backend/tests/test_iter16_slug_routes.py and must be run with EXPO_PUBLIC_BACKEND_URL exported (fixtures assert it is set). SignupIn schema fields are {business_name, name, email, password} — NOT owner_name. Signup response shape: {access_token, admin:{id,email,name,role}, tenant:{id,slug,name,status,plan}, impersonating}. For /s/<slug>/<rest> deep links the frontend relies on tenant.ts initial() reading the slug from the pathname before sessionStorage, so a fresh browser context on /s/<slug>/build correctly branded even though the final URL after reload is /build. One minor polish item open: the builder header still says 'Atelier' instead of the tenant's store_name — not in the review scope but may be worth a sweep in the next iteration.",
+  "rca_of_issue": "N/A — all review-request items pass."
+}

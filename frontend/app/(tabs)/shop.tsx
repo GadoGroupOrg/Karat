@@ -7,6 +7,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { formatPrice, useCatalog, useStoreProducts } from "@/src/api";
+import { useAuth } from "@/src/auth";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -15,6 +16,7 @@ export default function Shop() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { token } = useAuth();
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
   const { data: catalog } = useCatalog();
   const [query, setQuery] = useState("");
@@ -40,18 +42,22 @@ export default function Shop() {
           <Text style={styles.eyebrow} numberOfLines={1}>{store ? store.name.toUpperCase() : "NO STORE CONNECTED"}</Text>
           <Text style={styles.title}>Shop</Text>
         </View>
-        <Pressable testID="shop-store-settings-button" onPress={() => router.push("/store-connect")} style={styles.iconBtn} hitSlop={8}>
-          <Feather name="settings" size={20} color={colors.onSurface} />
-        </Pressable>
+        {!!token && (
+          <Pressable testID="shop-store-settings-button" onPress={() => router.push("/store-connect")} style={styles.iconBtn} hitSlop={8}>
+            <Feather name="settings" size={20} color={colors.onSurface} />
+          </Pressable>
+        )}
       </View>
 
       {!store ? (
         <View style={[styles.center, { paddingBottom: bottomChrome + spacing.xl }]} testID="shop-not-connected">
           <Feather name="shopping-bag" size={32} color={colors.brandPrimary} />
-          <Text style={styles.emptyTitle}>Connect your Shopify store</Text>
-          <Text style={styles.emptyText}>Products from your store become charms and centre stones in the builder.</Text>
-          <Pressable testID="shop-connect-store-button" onPress={() => router.push("/store-connect")} style={styles.primaryBtn}>
-            <Text style={styles.primaryBtnText}>Connect store</Text>
+          <Text style={styles.emptyTitle}>{token ? "Connect your Shopify store" : "The collection is coming soon"}</Text>
+          <Text style={styles.emptyText}>
+            {token ? "Products from your store become charms and centre stones in the builder." : "In the meantime, design your own piece in the builder."}
+          </Text>
+          <Pressable testID="shop-connect-store-button" onPress={() => router.push(token ? "/store-connect" : "/build")} style={styles.primaryBtn}>
+            <Text style={styles.primaryBtnText}>{token ? "Connect store" : "Start designing"}</Text>
           </Pressable>
         </View>
       ) : (

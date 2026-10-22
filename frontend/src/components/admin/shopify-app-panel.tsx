@@ -1,5 +1,6 @@
 import Feather from "@react-native-vector-icons/feather";
 import * as Clipboard from "expo-clipboard";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Linking, Pressable, Text, View } from "react-native";
 
@@ -27,6 +28,7 @@ const STEPS = [
 export function ShopifyAppPanel() {
   const styles = useStyles();
   const { colors } = useTheme();
+  const router = useRouter();
   const { data } = useDashQuery<Status>(["shopify-app"], "/shopify");
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (k: string, v: string) => {
@@ -60,6 +62,13 @@ export function ShopifyAppPanel() {
         </View>
       </View>
       <Text style={styles.text}>One-click install with a drag-and-drop builder section and a “Try it on” button on product pages.</Text>
+      <View style={styles.quick} testID="shopify-quick-sync">
+        <Text style={styles.text}>Just want your products in the builder and try-on now? Sync them from your store address. No app needed.</Text>
+        <Pressable testID="shopify-sync-products" onPress={() => router.push("/store-connect")} style={styles.outline}>
+          <Feather name="refresh-cw" size={14} color={colors.onSurface} />
+          <Text style={styles.outlineText}>Sync products</Text>
+        </Pressable>
+      </View>
       {STEPS.map((s, i) => (
         <View key={i} style={styles.step}><Text style={styles.stepNum}>{i + 1}</Text><Text style={styles.text}>{s}</Text></View>
       ))}
@@ -92,6 +101,9 @@ const useStyles = makeStyles((c) => ({
   linkRow: { flexDirection: "row", alignItems: "center", borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, paddingLeft: spacing.lg },
   linkText: { flex: 1, fontFamily: fonts.medium, fontSize: 13, color: c.onSurface },
   iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  quick: { flexDirection: "row", alignItems: "center", gap: spacing.md, flexWrap: "wrap", backgroundColor: c.surfaceSecondary, borderRadius: radius.md, padding: spacing.lg },
+  outline: { flexDirection: "row", alignItems: "center", gap: spacing.sm, height: 44, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1, borderColor: c.borderStrong },
+  outlineText: { fontFamily: fonts.bold, fontSize: 13, color: c.onSurface },
   darkBtn: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: spacing.sm, height: 44, paddingHorizontal: spacing.xl, borderRadius: radius.pill, backgroundColor: c.surfaceInverse, marginTop: spacing.sm },
   darkText: { fontFamily: fonts.bold, fontSize: 14, color: c.onSurfaceInverse },
 }));

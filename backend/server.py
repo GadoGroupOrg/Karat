@@ -587,7 +587,7 @@ async def get_store():
     return {"store": await db.store_connection.find_one({"key": "default"}, {"_id": 0, "key": 0})}
 
 
-@api_router.post("/store/connect")
+@api_router.post("/store/connect", dependencies=[Depends(merchant_pin)])
 async def connect_store(body: StoreConnect):
     domain = normalize_domain(body.domain)
     if "." not in domain:
@@ -601,7 +601,7 @@ async def connect_store(body: StoreConnect):
         raise HTTPException(502, f"Couldn't reach {domain}: {type(e).__name__}")
 
 
-@api_router.post("/store/sync")
+@api_router.post("/store/sync", dependencies=[Depends(merchant_pin)])
 async def resync_store():
     conn = await db.store_connection.find_one({"key": "default"})
     if not conn:
@@ -613,7 +613,7 @@ async def resync_store():
         raise HTTPException(502, f"Sync failed: {e}")
 
 
-@api_router.delete("/store")
+@api_router.delete("/store", dependencies=[Depends(merchant_pin)])
 async def disconnect_store():
     await db.store_connection.delete_many({})
     await db.store_products.delete_many({})

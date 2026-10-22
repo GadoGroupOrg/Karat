@@ -7,6 +7,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { connectStore, disconnectStore, syncStore, useCatalog } from "@/src/api";
+import { useAuth } from "@/src/auth";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 export default function StoreConnect() {
@@ -16,6 +17,7 @@ export default function StoreConnect() {
   const router = useRouter();
   const qc = useQueryClient();
   const { data: catalog } = useCatalog();
+  const { token } = useAuth();
   const store = catalog?.store;
   const [domain, setDomain] = useState("");
   const [busy, setBusy] = useState<null | "connect" | "sync" | "disconnect">(null);
@@ -23,19 +25,20 @@ export default function StoreConnect() {
   const [message, setMessage] = useState<string | null>(null);
 
   const run = async (kind: "connect" | "sync" | "disconnect") => {
+    if (!token) return router.replace("/admin");
     setError(null);
     setMessage(null);
     setBusy(kind);
     try {
       if (kind === "connect") {
-        const r = await connectStore(domain);
+        const r = await connectStore(token, domain);
         setMessage(`Connected ${r.store.name} · ${r.store.product_count} products`);
         setDomain("");
       } else if (kind === "sync") {
-        const r = await syncStore();
+        const r = await syncStore(token);
         setMessage(`Synced ${r.store.product_count} products`);
       } else {
-        await disconnectStore();
+        await disconnectStore(token);
         setMessage("Store disconnected");
       }
       await Promise.all([
@@ -52,7 +55,7 @@ export default function StoreConnect() {
   return (
     <View style={styles.root} testID="store-connect-screen">
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable testID="store-connect-close-button" onPress={() => (router.canGoBack() ? router.back() : router.replace("/shop"))} hitSlop={10} style={styles.iconBtn}>
+        <Pressable testID="store-connect-close-button" onPress={() => (router.canGoBack() ? router.back() : router.replace("/admin/embed"))} hitSlop={10} style={styles.iconBtn}>
           <Feather name="x" size={22} color={colors.onSurface} />
         </Pressable>
       </View>

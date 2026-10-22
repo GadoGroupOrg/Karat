@@ -238,10 +238,11 @@ export function useStoreProduct(id: string) {
   return useQuery({ queryKey: ["store-product", id], queryFn: () => request<StoreProduct>(`/store/products/${id}`) });
 }
 
-export const connectStore = (domain: string) =>
-  request<{ store: StoreInfo }>("/store/connect", { method: "POST", body: JSON.stringify({ domain }) });
-export const syncStore = () => request<{ store: StoreInfo }>("/store/sync", { method: "POST" });
-export const disconnectStore = () => request<{ store: null }>("/store", { method: "DELETE" });
+const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
+export const connectStore = (token: string, domain: string) =>
+  request<{ store: StoreInfo }>("/store/connect", { method: "POST", headers: bearer(token), body: JSON.stringify({ domain }) });
+export const syncStore = (token: string) => request<{ store: StoreInfo }>("/store/sync", { method: "POST", headers: bearer(token) });
+export const disconnectStore = (token: string) => request<{ store: null }>("/store", { method: "DELETE", headers: bearer(token) });
 
 export type PriceLine = { label: string; amount: number };
 export type Quote = { lines: PriceLine[]; total: number; gold_grams: number };

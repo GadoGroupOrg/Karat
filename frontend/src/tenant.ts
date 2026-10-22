@@ -7,7 +7,8 @@ const web = Platform.OS === "web" && typeof window !== "undefined";
 
 function initial(): string {
   if (!web) return "";
-  const fromUrl = new URLSearchParams(window.location.search).get("store");
+  const fromPath = window.location.pathname.match(/^\/s\/([a-z0-9-]+)/i)?.[1];
+  const fromUrl = fromPath ?? new URLSearchParams(window.location.search).get("store");
   if (fromUrl) {
     window.sessionStorage.setItem(KEY, fromUrl.toLowerCase());
     return fromUrl.toLowerCase();
@@ -34,4 +35,5 @@ export function switchStore(next: string): boolean {
   return false;
 }
 
-export const storeLink = (origin: string, path = "/") => `${origin}${path}?store=${slug || "gado"}`;
+/** Clean hosted storefront link, e.g. https://app.com/s/luna (or /s/luna/build). */
+export const storeLink = (origin: string, path = "/") => `${origin}/s/${slug || "gado"}${path === "/" ? "" : path}`;

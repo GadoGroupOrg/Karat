@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg from "react-native-svg";
 
 import { Catalog, DesignSpec, OptionGroup, assetUrl, formatPrice, useCatalog, usePrice } from "@/src/api";
+import { getBranding } from "@/src/branding";
 import { DesignCanvas } from "@/src/components/design-canvas";
 import { Charm } from "@/src/components/jewelry-preview";
 import { forWearer, groupVisible } from "@/src/catalog-utils";
@@ -223,7 +224,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const stage = (
     <>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Text style={styles.title}>Atelier</Text>
+        <Text style={styles.title} numberOfLines={1}>{getBranding()?.store_name ?? "Atelier"}</Text>
         <Pressable testID="builder-reset-button" hitSlop={10} onPress={() => switchType(design.type)} style={styles.iconBtn}>
           <Feather name="rotate-ccw" size={18} color={colors.onSurface} />
         </Pressable>
