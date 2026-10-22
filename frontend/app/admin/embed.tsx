@@ -7,6 +7,7 @@ import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } fro
 import { BACKEND_ORIGIN } from "@/src/api";
 import { WIDE } from "@/src/components/admin/shell";
 import { ShopifyAppPanel } from "@/src/components/admin/shopify-app-panel";
+import { getStore } from "@/src/tenant";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 type Mode = "popup" | "inline";
@@ -37,9 +38,10 @@ export default function EmbedScreen() {
   const [label, setLabel] = useState("Design your own");
   const [copied, setCopied] = useState<string | null>(null);
 
-  const attrs = `data-mode="${mode}" data-page="${page}"${mode === "popup" ? ` data-label="${label.replace(/"/g, "")}"` : ` data-target="#atelier-builder" data-height="820px"`}`;
+  const store = getStore() || "gado";
+  const attrs = `data-store="${store}" data-mode="${mode}" data-page="${page}"${mode === "popup" ? ` data-label="${label.replace(/"/g, "")}"` : ` data-target="#atelier-builder" data-height="820px"`}`;
   const snippet = `${mode === "inline" ? '<div id="atelier-builder"></div>\n' : ""}<script src="${BACKEND_ORIGIN}/api/embed.js" ${attrs} async></script>`;
-  const link = `${BACKEND_ORIGIN}${page === "home" ? "/" : `/${page}`}?embed=1`;
+  const link = `${BACKEND_ORIGIN}${page === "home" ? "/" : `/${page}`}?embed=1&store=${store}`;
 
   const copy = async (key: string, text: string) => {
     await Clipboard.setStringAsync(text);

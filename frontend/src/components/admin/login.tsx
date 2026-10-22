@@ -12,7 +12,10 @@ export function AdminLogin() {
   const styles = useStyles();
   const { colors } = useTheme();
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn, signUp } = useAuth();
+  const [mode, setMode] = useState<"in" | "up">("in");
+  const [business, setBusiness] = useState("");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
@@ -21,10 +24,13 @@ export function AdminLogin() {
 
   const submit = async () => {
     if (!email.trim() || !password) return setError("Enter your email and password.");
+    if (mode === "up" && (business.trim().length < 2 || !name.trim())) return setError("Enter your business name and your name.");
+    if (mode === "up" && password.length < 8) return setError("Use at least 8 characters for your password.");
     setBusy(true);
     setError(null);
     try {
-      await signIn(email, password);
+      if (mode === "up") await signUp({ business_name: business.trim(), name: name.trim(), email, password });
+      else await signIn(email, password);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -35,23 +41,40 @@ export function AdminLogin() {
   return (
     <KeyboardAwareScrollView style={styles.root} contentContainerStyle={styles.center} keyboardShouldPersistTaps="handled" testID="admin-login-screen">
       <View style={styles.card}>
-        <Text style={styles.eyebrow}>{(getBranding()?.store_name ?? "Atelier").toUpperCase()} · STORE ADMIN</Text>
-        <Text style={styles.title}>Welcome back</Text>
-        <Text style={styles.sub}>Sign in to manage design requests, branding and your website builder.</Text>
+        <Text style={styles.eyebrow}>{mode === "up" ? "ATELIER FOR JEWELLERS" : `${(getBranding()?.store_name ?? "Atelier").toUpperCase()} · STORE ADMIN`}</Text>
+        <Text style={styles.title}>{mode === "up" ? "Create your studio" : "Welcome back"}</Text>
+        <Text style={styles.sub}>
+          {mode === "up"
+            ? "Get your own branded jewelry builder, virtual try-on and consultation dashboard."
+            : "Sign in to manage design requests, branding and your website builder."}
+        </Text>
+        {mode === "up" && (
+          <>
+            <Text style={styles.label}>Business name</Text>
+            <TextInput testID="admin-signup-business-input" value={business} onChangeText={setBusiness} placeholder="e.g. Luna Fine Jewelry"
+              placeholderTextColor={colors.muted} style={styles.input} autoComplete="organization" />
+            <Text style={styles.label}>Your name</Text>
+            <TextInput testID="admin-signup-name-input" value={name} onChangeText={setName} placeholder="Full name"
+              placeholderTextColor={colors.muted} style={styles.input} autoComplete="name" />
+          </>
+        )}
         <Text style={styles.label}>Email</Text>
         <TextInput testID="admin-login-email-input" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email"
           keyboardType="email-address" placeholder="you@store.com" placeholderTextColor={colors.muted} style={styles.input} onSubmitEditing={submit} />
         <Text style={styles.label}>Password</Text>
         <View style={styles.pwWrap}>
           <TextInput testID="admin-login-password-input" value={password} onChangeText={setPassword} secureTextEntry={!show}
-            autoComplete="current-password" placeholder="Password" placeholderTextColor={colors.muted} style={[styles.input, { flex: 1, borderWidth: 0 }]} onSubmitEditing={submit} />
+            autoComplete={mode === "up" ? "new-password" : "current-password"} placeholder={mode === "up" ? "At least 8 characters" : "Password"} placeholderTextColor={colors.muted} style={[styles.input, { flex: 1, borderWidth: 0 }]} onSubmitEditing={submit} />
           <Pressable onPress={() => setShow((s) => !s)} hitSlop={8} style={styles.eye} testID="admin-login-toggle-password">
             <Feather name={show ? "eye-off" : "eye"} size={18} color={colors.muted} />
           </Pressable>
         </View>
         {!!error && <Text style={styles.error} testID="admin-login-error">{error}</Text>}
         <Pressable testID="admin-login-submit-button" onPress={submit} disabled={busy} style={({ pressed }) => [styles.btn, (pressed || busy) && { opacity: 0.8 }]}>
-          {busy ? <ActivityIndicator color={colors.onSurfaceInverse} /> : <Text style={styles.btnText}>Sign in</Text>}
+          {busy ? <ActivityIndicator color={colors.onSurfaceInverse} /> : <Text style={styles.btnText}>{mode === "up" ? "Create account" : "Sign in"}</Text>}
+        </Pressable>
+        <Pressable testID="admin-login-mode-toggle" onPress={() => { setMode(mode === "in" ? "up" : "in"); setError(null); }} style={styles.back}>
+          <Text style={styles.switchText}>{mode === "in" ? "New jeweller? Create a business account" : "Already have an account? Sign in"}</Text>
         </Pressable>
         <Pressable testID="admin-login-back-button" onPress={() => router.replace("/")} style={styles.back}>
           <Feather name="arrow-left" size={14} color={colors.muted} />
@@ -77,5 +100,6 @@ const useStyles = makeStyles((c) => ({
   btn: { marginTop: spacing.xl, height: 52, borderRadius: radius.pill, backgroundColor: c.surfaceInverse, alignItems: "center", justifyContent: "center" },
   btnText: { fontFamily: fonts.bold, fontSize: 15, color: c.onSurfaceInverse },
   back: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, marginTop: spacing.lg, height: 40 },
+  switchText: { fontFamily: fonts.bold, fontSize: 13, color: c.onSurface, textDecorationLine: "underline" },
   backText: { fontFamily: fonts.medium, fontSize: 13, color: c.muted },
 }));

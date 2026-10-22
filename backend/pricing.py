@@ -98,7 +98,8 @@ async def fetch_spot() -> float:
 async def refresh_gold(db) -> dict:
     spot = await fetch_spot()
     now = datetime.now(timezone.utc).isoformat()
-    await db.price_sheet.update_one({"key": "default"}, {"$set": {"gold.live_spot_usd_oz": spot, "gold.live_updated_at": now}})
+    # spot price is market-wide: refresh every business's sheet
+    await getattr(db, "raw", db).price_sheet.update_many({"key": "default"}, {"$set": {"gold.live_spot_usd_oz": spot, "gold.live_updated_at": now}})
     return {"spot": spot, "updated_at": now}
 
 

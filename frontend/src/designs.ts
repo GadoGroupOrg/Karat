@@ -1,9 +1,10 @@
+import { storeKey } from "@/src/tenant";
 import { storage } from "@/src/utils/storage";
 import { customerApi, hasCustomer, type DesignSpec } from "@/src/api";
 
 export type SavedDesign = DesignSpec & { id: string; price: number; createdAt: string; renderUrl?: string | null };
 
-const KEY = "saved_designs";
+const KEY = storeKey("saved_designs");
 
 // storage only accepts primitives, so the list is persisted as a JSON string.
 async function loadLocal(): Promise<SavedDesign[]> {

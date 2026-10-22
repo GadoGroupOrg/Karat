@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { isEmbedded } from "@/src/embed";
+import { tenantHeaders } from "@/src/tenant";
 import { uploadForm } from "@/src/utils/upload";
 
 export const BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
@@ -10,7 +11,10 @@ let customerToken: string | null = null;
 export const setCustomerToken = (t: string | null) => {
   customerToken = t;
 };
-export const customerHeaders = (): Record<string, string> => (customerToken ? { "X-Customer-Token": customerToken } : {});
+export const customerHeaders = (): Record<string, string> => ({
+  ...tenantHeaders(),
+  ...(customerToken ? { "X-Customer-Token": customerToken } : {}),
+});
 export const hasCustomer = () => !!customerToken;
 
 export type Metal = { id: string; name: string; color: string; multiplier: number };
@@ -180,14 +184,43 @@ export async function uploadLogo(token: string, file: { uri: string; mimeType?: 
   if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Upload failed");
   return body as Branding;
 }
+export type AdminRole = "owner" | "staff";
+export type AdminSession = {
+  admin: { id: string; email: string; name: string; role: AdminRole };
+  tenant: { id: string; slug: string; name: string; status: string; plan: string };
+  impersonating: boolean;
+};
 export function login(email: string, password: string) {
-  return request<{ access_token: string; admin: { id: string; email: string; name: string } }>("/auth/login", {
+  return request<AdminSession & { access_token: string }>("/auth/login", {
     method: "POST", body: JSON.stringify({ email, password }),
   });
 }
-export function fetchMe(token: string) {
-  return request<{ id: string; email: string; name: string }>("/auth/me", { headers: { Authorization: `Bearer ${token}` } });
+export function signup(b: { business_name: string; name: string; email: string; password: string }) {
+  return request<AdminSession & { access_token: string }>("/auth/signup", { method: "POST", body: JSON.stringify(b) });
 }
+export function fetchMe(token: string) {
+  return request<AdminSession>("/auth/me", { headers: { Authorization: `Bearer ${token}` } });
+}
+export function changePassword(token: string, current_password: string, new_password: string) {
+  return request<{ ok: boolean }>("/auth/password", {
+    method: "POST", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ current_password, new_password }),
+  });
+}
+
+// ---------- Platform (software supplier) console ----------
+export type PlatformTenant = {
+  id: string; slug: string; name: string; status: "active" | "paused"; plan: string; created_at: string;
+  owner_email: string | null; team: number; leads: number; customers: number; shopify_shop: string | null;
+  ai_usage_month: Record<string, number>; ai_total_month: number;
+};
+export const platformApi = {
+  login: (email: string, password: string) =>
+    request<{ access_token: string; admin: { id: string; email: string; name: string } }>("/platform/login", {
+      method: "POST", body: JSON.stringify({ email, password }),
+    }),
+  call: <T,>(token: string, path: string, init?: RequestInit) =>
+    request<T>(`/platform${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init?.headers || {}) } }),
+};
 export const leadImage = (l: Lead) => (l.image_url ? assetUrl(l.image_url) : l.product?.image ?? null);
 export const BACKEND_ORIGIN = process.env.EXPO_PUBLIC_BACKEND_URL ?? "";
 

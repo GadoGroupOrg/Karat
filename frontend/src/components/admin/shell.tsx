@@ -18,6 +18,7 @@ const NAV: Nav[] = [
   { href: "/admin/customers", label: "Customers", icon: "users", match: (p) => p.startsWith("/admin/customers") },
   { href: "/admin/branding", label: "Branding", icon: "feather", match: (p) => p.startsWith("/admin/branding") },
   { href: "/admin/embed", label: "Website & Shopify", icon: "code", match: (p) => p.startsWith("/admin/embed") },
+  { href: "/admin/team", label: "Team", icon: "user-plus", match: (p) => p.startsWith("/admin/team") },
   { href: "/merchant", label: "Pricing", icon: "dollar-sign", match: () => false },
   { href: "/build", label: "Open builder", icon: "edit-3", match: () => false },
 ];
@@ -31,7 +32,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const path = usePathname();
-  const { admin, signOut } = useAuth();
+  const { admin, session, signOut } = useAuth();
+  const impersonating = !!session?.impersonating;
+  const exit = async () => {
+    await signOut();
+    if (impersonating) router.replace("/platform" as never);
+  };
   const b = getBranding();
   const wide = width >= WIDE;
 
@@ -44,18 +50,19 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       )}
       <View style={{ flex: 1 }}>
         <Text style={styles.storeName} numberOfLines={1}>{b?.store_name ?? "Atelier"}</Text>
-        <Text style={styles.storeSub}>Store admin</Text>
+        <Text style={styles.storeSub}>{admin?.role === "staff" ? "Staff" : "Store admin"}</Text>
       </View>
     </View>
   );
 
-  const items = NAV.map((n) => {
+  const items = NAV.filter((n) => n.href !== "/admin/team" || admin?.role === "owner").map((n) => {
     const active = n.match(path);
     return (
       <Pressable
         key={n.href}
         testID={`admin-nav-${n.label.toLowerCase().replace(/[^a-z]+/g, "-")}`}
         onPress={() => (n.match(path) ? null : n.href.startsWith("/admin") ? router.replace(n.href as never) : router.push(n.href as never))}
+        accessibilityRole="link"
         style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
           wide ? styles.navItem : styles.navChip,
           active && (wide ? styles.navItemActive : styles.navChipActive),
@@ -68,29 +75,43 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     );
   });
 
+  const banner = impersonating && (
+    <View style={styles.banner} testID="admin-impersonation-banner">
+      <Feather name="eye" size={14} color={colors.onSurfaceInverse} />
+      <Text style={styles.bannerText} numberOfLines={1}>Support view · {session?.tenant.name} ({admin?.email})</Text>
+      <Pressable testID="admin-exit-impersonation" onPress={exit} hitSlop={8} style={styles.bannerBtn}>
+        <Text style={styles.bannerBtnText}>Back to platform</Text>
+      </Pressable>
+    </View>
+  );
+
   if (wide) {
     return (
+      <View style={{ flex: 1 }}>
+      {banner}
       <View style={styles.wideRoot} testID="admin-shell">
         <View style={styles.sidebar}>
           {brand}
           <View style={styles.navList}>{items}</View>
           <View style={{ flex: 1 }} />
           <Text style={styles.who} numberOfLines={1}>{admin?.email}</Text>
-          <Pressable testID="admin-sign-out-button" onPress={signOut} style={styles.signOut}>
+          <Pressable testID="admin-sign-out-button" onPress={exit} style={styles.signOut}>
             <Feather name="log-out" size={16} color={colors.onSurface} />
             <Text style={styles.navText}>Sign out</Text>
           </Pressable>
         </View>
         <View style={styles.main}>{children}</View>
       </View>
+      </View>
     );
   }
   return (
     <View style={[styles.root, { paddingTop: insets.top }]} testID="admin-shell">
+      {banner}
       <View style={styles.topBar}>
         {brand}
         <View style={{ flex: 1 }} />
-        <Pressable testID="admin-sign-out-button" onPress={signOut} hitSlop={8} style={styles.iconBtn}>
+        <Pressable testID="admin-sign-out-button" onPress={exit} hitSlop={8} style={styles.iconBtn}>
           <Feather name="log-out" size={18} color={colors.onSurface} />
         </Pressable>
       </View>
@@ -121,6 +142,10 @@ const useStyles = makeStyles((c) => ({
   navText: { fontFamily: fonts.medium, fontSize: 14, color: c.onSurface },
   who: { fontFamily: fonts.text, fontSize: 12, color: c.muted },
   signOut: { flexDirection: "row", alignItems: "center", gap: spacing.md, height: 44, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: c.border },
+  banner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.surfaceInverse, paddingHorizontal: spacing.lg, minHeight: 44 },
+  bannerText: { flex: 1, fontFamily: fonts.medium, fontSize: 13, color: c.onSurfaceInverse },
+  bannerBtn: { height: 32, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: c.onSurfaceInverse, justifyContent: "center" },
+  bannerBtnText: { fontFamily: fonts.bold, fontSize: 12, color: c.onSurfaceInverse },
   topBar: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.md },
   iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   chipBar: { flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: c.border },

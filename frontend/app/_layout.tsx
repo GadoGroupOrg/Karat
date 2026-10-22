@@ -70,6 +70,7 @@ export default function RootLayout() {
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="admin" />
+              <Stack.Screen name="platform" />
               <Stack.Screen name="design/[id]" options={{ presentation: "modal" }} />
               <Stack.Screen name="product/[id]" options={{ presentation: "modal" }} />
               <Stack.Screen name="try-on/[id]" options={{ presentation: "modal" }} />

@@ -11,6 +11,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 import render_service
+import tenancy
 from auth import get_current_admin
 
 STATUSES = ["new", "contacted", "quoted", "won", "lost"]
@@ -116,7 +117,7 @@ async def add_note(lid: str, body: NoteIn, admin: dict = Depends(get_current_adm
 async def get_branding() -> dict:
     doc = await _db.branding.find_one({"key": "default"}, {"_id": 0, "key": 0}) or {}
     b = {**DEFAULT_BRANDING, **doc, "colors": {**DEFAULT_BRANDING["colors"], **(doc.get("colors") or {})}}
-    b["logo_url"] = f"/api/branding/logo?v={(b.get('updated_at') or '')[:19]}" if b.get("logo_path") else None
+    b["logo_url"] = f"/api/branding/logo?v={(b.get('updated_at') or '')[:19]}&{tenancy.store_qs()}" if b.get("logo_path") else None
     b.pop("logo_path", None)
     return b
 
@@ -181,7 +182,8 @@ EMBED_JS = r"""(function(){
   var s=document.currentScript; if(!s) return;
   var origin=new URL(s.src).origin, mode=s.getAttribute('data-mode')||'popup', page=s.getAttribute('data-page')||'build';
   var label=s.getAttribute('data-label')||'Design your own', color=s.getAttribute('data-color')||'%BRAND%';
-  var paths={build:'/build',shop:'/shop',home:'/'}; var src=origin+(paths[page]||'/build')+'?embed=1';
+  var paths={build:'/build',shop:'/shop',home:'/'}; var store=s.getAttribute('data-store')||'%STORE%';
+  var src=origin+(paths[page]||'/build')+'?embed=1&store='+encodeURIComponent(store);
   function frame(h){var f=document.createElement('iframe');f.src=src;f.title=label;f.allow='camera; clipboard-write; web-share';
     f.style.cssText='border:0;width:100%;height:'+h+';display:block;background:#fff;border-radius:12px';return f;}
   if(mode==='inline'){var t=document.querySelector(s.getAttribute('data-target')||'#atelier-builder');
@@ -202,5 +204,5 @@ EMBED_JS = r"""(function(){
 @public.get("/embed.js")
 async def embed_js():
     b = await get_branding()
-    return Response(content=EMBED_JS.replace("%BRAND%", b["colors"]["ink"]), media_type="application/javascript",
+    return Response(content=EMBED_JS.replace("%BRAND%", b["colors"]["ink"]).replace("%STORE%", tenancy.current()["slug"]), media_type="application/javascript",
                     headers={"Cache-Control": "public, max-age=300"})

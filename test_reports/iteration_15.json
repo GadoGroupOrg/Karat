@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 15 (both backend+frontend) validated the multi-tenant conversion + platform console. BACKEND (/app/backend/tests/test_iter15_multitenant.py — 21/21 pass, JUnit /app/test_reports/pytest/iter15_results.xml): Signup via POST /api/auth/signup creates a new tenant+owner and returns token/slug; its token on /api/dashboard/{leads,customers,catalog,access} returns only its own (empty) data with no 'Gado' leakage. Gado admin login + /api/dashboard still works. Public storefront endpoints /api/branding, /api/storefront, /api/store, /api/store/products, /api/access are scoped by X-Tenant header AND ?store= query string (both return the correct business); unknown slug → 404; default (no header/qs) → gado. POST /api/quotes with X-Tenant:<new-slug> appears ONLY in that business's /api/dashboard/leads and NOT in gado's leads. Customer registered under tenant A (via /api/customers/register with X-Tenant) authenticates on /api/customers/me under tenant A, and under tenant B does NOT resolve to that user (401/403/404 or different identity). Team: owner can POST /api/dashboard/team (adds staff), staff can log in, /api/auth/me returns role=staff, staff POST /team → 403, owner reset-password returns temporary_password that then works for login, DELETE removes the staff member, and POST /api/auth/password changes own password. Platform console: POST /api/platform/login (platform@atelier.app) succeeds; GET /api/platform/tenants lists gado + newly-created with leads/customers/ai_usage_month; POST /api/platform/tenants creates business + returns temporary_password that works for owner login; PATCH /tenants/{id} status=paused → GET /api/branding?store=<slug> returns 403 and owner /api/auth/login returns 403; resume restores both; POST /tenants/{id}/impersonate returns a token whose /api/auth/me reports impersonating=true; business tokens → /api/platform/* return 401 and platform token → /api/dashboard/* returns 401. Shopify: GET /api/shopify/package.zip?store=<slug> ships liquid files that embed `store=<slug>`; /api/dashboard/shopify is tenant-scoped; /api/shopify/install|app|callback still 503 when creds empty. gado tenant was never left paused (test actively resumes it; final GET /api/branding = Gado Jewellers verified). FRONTEND (mobile 390x844 storefront + desktop 1440x900 admin/platform): /admin shows admin-login-screen; admin-login-mode-toggle flips to signup and renders admin-signup-business-input + admin-signup-name-input; submitting creates a new business (slug test-ui-luna-684892) and lands directly in admin-shell with the sidebar showing the new business name, setup-guide visible with setup-store-link = <public>/?store=test-ui-luna-684892, and admin-nav-team visible for the owner. Team page add-member works (team-message = 'Team member added…'). /?store=test-ui-luna-684892 renders the new business's branding header ('TEST UI LUNA 684892' via text-transform:uppercase); fresh default tab (no ?store) renders Gado branding. /platform login via platform-email-input/platform-password-input/platform-login-submit loads platform-console with stats and platform-tenant-<slug> cards (gado + all test tenants); platform-create-business shows 'Created … Owner login: <email> / <temp>' message with temporary password; platform-open-test-ui-luna-684892 navigates to /admin?store=…&sso=… with admin-impersonation-banner visible; admin-exit-impersonation returns to /platform. Gado admin login regression works (sidebar shows 'Gado'). Pause/Resume testIDs (platform-toggle-<slug>) are present on tenant cards (verified via DOM query; functional pause/resume covered by backend test).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter15_multitenant.py",
+    "/app/test_reports/pytest/iter15_results.xml"
+  ],
+  "action_items": [
+    "None required. Multi-tenant conversion, platform console, team RBAC and Shopify slug injection all pass. The existing dev-mode LogBox 'PromiseResolve called on non-object' from iteration 14 was not re-observed in these runs; if the main agent wants to close that out, guard WebBrowser.maybeCompleteAuthSession() behind Platform.OS !== 'web' as previously suggested."
+  ],
+  "critical_code_review_comments": [
+    "tenancy.ScopedCollection auto-adds tenant_id to every filter/insert and hides it from exclusion projections — correct and verified by cross-tenant isolation tests.",
+    "auth.admin_from_token refuses tokens whose tenant is paused unless the token is an impersonation token (has `act` claim) — matches review: paused owner login 403, platform impersonation still works.",
+    "platform_admin.get_platform_admin only accepts tokens with role==platform, and auth.admin_from_token only accepts role==admin → cross-token-type rejection (401) verified both directions.",
+    "tenancy.resolve_tenant allows /api/dashboard/* through for paused tenants (so the owner could sign in to settle billing) but blocks /api/branding and other storefront paths with 403 — matches review and verified.",
+    "setup-guide.tsx uses storeLink(BACKEND_ORIGIN) which correctly embeds ?store=<slug> for the current tenant — verified in UI.",
+    "shell.tsx hides /admin/team nav for non-owners (admin.role === 'owner') — correct RBAC in UI; backend also enforces 403 on POST /dashboard/team for staff."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter15_multitenant.py (new)",
+    "/app/test_reports/pytest/iter15_results.xml (new)",
+    "/app/test_reports/iteration_15.json (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (21/21)",
+    "frontend": "100% on review flows (admin signup → dashboard, team CRUD, storefront per-slug branding, platform login/list/create/impersonate/exit, gado regression)"
+  },
+  "seed_data_creation": "Created many TEST_* tenants during testing: `test-ui-luna-684892` (owner test_iter15ui_684892@example.com / SignupPw1234!) plus multiple TEST Plat / TEST Luna / TEST Empty / TEST Pause tenants via pytest (owner emails prefixed TEST_iter15*@example.com). All test-created tenants left ACTIVE. One staff account (test_iter15uis_684892@example.com) was added via UI and is still present under test-ui-luna-684892. gado tenant explicitly left ACTIVE (verified at end of each run).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Platform login testIDs are: platform-login (wrapper), platform-email-input, platform-password-input, platform-login-submit (NOT platform-login-email/password/submit). Tenant card testIDs follow platform-tenant-<slug>; actions use platform-open-<slug>, platform-toggle-<slug>, platform-reset-<slug>, platform-plan-<slug>-<plan>. Admin signup testIDs: admin-login-mode-toggle, admin-signup-business-input, admin-signup-name-input, admin-login-email-input, admin-login-password-input, admin-login-submit-button. Impersonation banner: admin-impersonation-banner + admin-exit-impersonation. Team: team-add-{name,email,password}-input, team-role-{staff|owner}, team-add-button, team-message, team-member-<email>, team-reset-<email>, team-remove-<email>, team-current-password, team-new-password, team-save-password. For storefront HTML text checks, remember the h1 uses text-transform: uppercase (CSS) so compare case-insensitively or match 'TEST UI LUNA 684892'. For /api/quotes payload the correct schema is QuoteCreate: {name,email,phone?,note?,design?:DesignSpec,source?} (NOT title/image/price/contact). For /api/customers/register the response token field is `session_token` and must be sent as X-Customer-Token header on /api/customers/me. Many TEST_* tenants exist in Mongo; cleanup is optional. The multi-tenant conversion is working end-to-end; next review should mainly check regression on builder, try-on, access rules and merchant pricing after this refactor.",
+  "rca_of_issue": "N/A — all review-request items pass."
+}

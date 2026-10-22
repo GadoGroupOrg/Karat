@@ -14,6 +14,8 @@ import catalog_admin
 import customers
 import dashboard
 import shopify_app
+import tenancy
+import platform_admin
 import hashlib
 import json
 from fastapi import File, Form, UploadFile
@@ -36,13 +38,15 @@ load_dotenv(ROOT_DIR / '.env')
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = tenancy.ScopedDB(client[os.environ['DB_NAME']])
+tenancy.init(db)
+platform_admin.init(db)
 auth.init(db)
 dashboard.init(db)
 customers.init(db)
 shopify_app.init(db)
 
-app = FastAPI()
+app = FastAPI(dependencies=[Depends(tenancy.resolve_tenant)])
 
 
 @app.get("/health", include_in_schema=False)
@@ -52,6 +56,10 @@ async def health():
 
 
 api_router = APIRouter(prefix="/api")
+
+
+async def log_usage(kind: str):
+    await db.usage.insert_one({"kind": kind, "created_at": datetime.now(timezone.utc).isoformat()})
 
 PyObjectId = Annotated[str, BeforeValidator(lambda v: str(v) if isinstance(v, ObjectId) else v)]
 
@@ -220,7 +228,7 @@ PIN_WINDOW, PIN_MAX_FAILURES = 300, 5
 async def merchant_pin(request: Request, x_merchant_pin: Optional[str] = Header(default=None),
                        authorization: Optional[str] = Header(default=None)):
     if authorization and authorization.lower().startswith("bearer ") and await auth.admin_from_token(authorization[7:]):
-        return True
+        return True  # admin_from_token switched the request to the admin's business
     ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "?")
     now, q = time.monotonic(), _failed[ip]
     while q and now - q[0] >= PIN_WINDOW:
@@ -371,6 +379,7 @@ async def create_render(request: Request, design: str = Form(...), force: str = 
         raise HTTPException(502, "Couldn't create the studio render. Please try again.")
     doc = Render(hash=h, design=spec, storage_path=path, created_at=datetime.now(timezone.utc).isoformat())
     await db.renders.update_one({"hash": h}, {"$set": doc.to_mongo()}, upsert=True)
+    await log_usage("render")
     return {"id": h, "image_url": f"/api/renders/{h}/image?v={doc.created_at[:19]}", "cached": False}
 
 
@@ -412,6 +421,7 @@ async def create_angle(h: str, angle: str, request: Request):
         raise HTTPException(502, "Couldn't create this view. Please try again.")
     created = datetime.now(timezone.utc).isoformat()
     await db.render_angles.update_one({"hash": h, "angle": angle}, {"$set": {"storage_path": path, "created_at": created}}, upsert=True)
+    await log_usage("angle")
     return {"image_url": f"/api/renders/{h}/angles/{angle}/image?v={created[:19]}", "cached": False}
 
 
@@ -479,6 +489,7 @@ async def create_sketch(request: Request, design: str = Form(...), strokes: str 
         if getattr(getattr(e, "response", None), "status_code", None) == 402:
             raise HTTPException(402, "Render credits exhausted. Please top up your balance.")
         raise HTTPException(502, "Couldn't render your sketch. Please try again.")
+    await log_usage("sketch")
     await db.sketches.insert_one({"id": sid, "design": spec.model_dump(), "note": note[:500], "storage_path": path,
                                   "sketch_path": cpath, "created_at": datetime.now(timezone.utc).isoformat()})
     return {"id": sid, "image_url": f"/api/sketches/{sid}/image", "sketch_url": f"/api/sketches/{sid}/image?which=sketch"}
@@ -516,6 +527,7 @@ async def create_tryon(request: Request, product_id: str = Form(...), photo: Upl
             raise HTTPException(402, "Try-on credits exhausted. Please top up your balance.")
         raise HTTPException(502, "Couldn't create the try-on. Please try another photo.")
     tid = secrets.token_hex(16)
+    await log_usage("tryon")
     await db.tryons.insert_one({"id": tid, "product_id": product_id, "storage_path": path,
                                 "created_at": datetime.now(timezone.utc).isoformat()})
     return {"id": tid, "image_url": f"/api/tryons/{tid}/image", "product_id": product_id}
@@ -639,6 +651,9 @@ app.include_router(customers.public)
 app.include_router(customers.dash)
 app.include_router(shopify_app.public)
 app.include_router(shopify_app.dash)
+app.include_router(auth.team)
+app.include_router(platform_admin.public)
+app.include_router(platform_admin.dash)
 
 app.add_middleware(
     CORSMiddleware,
@@ -663,19 +678,21 @@ async def seed_catalog():
     except Exception:
         logger.exception("Object storage init failed")
     logger.info("Catalog seeded")
-    await auth.seed_admin()
+    gado = await tenancy.migrate()
+    await auth.seed_admins(gado)
     catalog_admin.init(db, get_catalog)
     await customers.ensure_indexes()
-    if not await db.price_sheet.find_one({"key": "default"}):
-        await db.price_sheet.insert_one(pricing.default_sheet())
     asyncio.create_task(gold_refresh_loop())
-    default_domain = os.environ.get("SHOPIFY_STORE_DOMAIN")
-    if default_domain and not await db.store_connection.find_one({"key": "default"}):
-        try:
-            conn = await sync_store(db, normalize_domain(default_domain))
-            logger.info("Synced %s products from %s", conn["product_count"], conn["domain"])
-        except Exception:
-            logger.exception("Initial store sync failed")
+    with tenancy.use(gado):
+        if not await db.price_sheet.find_one({"key": "default"}):
+            await db.price_sheet.insert_one(pricing.default_sheet())
+        default_domain = os.environ.get("SHOPIFY_STORE_DOMAIN")
+        if default_domain and not await db.store_connection.find_one({"key": "default"}):
+            try:
+                conn = await sync_store(db, normalize_domain(default_domain))
+                logger.info("Synced %s products from %s", conn["product_count"], conn["domain"])
+            except Exception:
+                logger.exception("Initial store sync failed")
 
 
 @app.on_event("shutdown")

@@ -5,6 +5,8 @@ import { Linking, Pressable, Text, View } from "react-native";
 
 import { BACKEND_ORIGIN } from "@/src/api";
 import { useDashQuery } from "@/src/components/admin/use-dash";
+import { ShopifyConnect } from "@/src/components/admin/shopify-connect";
+import { getStore } from "@/src/tenant";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 type Status = {
@@ -63,10 +65,11 @@ export function ShopifyAppPanel() {
       ))}
       {field("app-url", "APP URL", data?.app_url)}
       {field("redirect-url", "ALLOWED REDIRECT URL", data?.redirect_url)}
-      <Pressable testID="shopify-download-package" onPress={() => Linking.openURL(`${BACKEND_ORIGIN}/api/shopify/package.zip`)} style={styles.darkBtn}>
+      <Pressable testID="shopify-download-package" onPress={() => Linking.openURL(`${BACKEND_ORIGIN}/api/shopify/package.zip?store=${getStore() || "gado"}`)} style={styles.darkBtn}>
         <Feather name="download" size={14} color={colors.onSurfaceInverse} />
         <Text style={styles.darkText}>Download app package</Text>
       </Pressable>
+      {data?.configured && live.length === 0 && <ShopifyConnect />}
       {!data?.configured && (
         <Text style={styles.hint} testID="shopify-not-configured">Install links stay off until the Client ID and secret are added (step 3).</Text>
       )}

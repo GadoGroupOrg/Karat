@@ -5,6 +5,7 @@ import { Platform } from "react-native";
 
 import { AccessRules, Customer, Level, customerApi, setCustomerToken } from "@/src/api";
 import { GateModal } from "@/src/components/gate-modal";
+import { storeKey } from "@/src/tenant";
 import { storage } from "@/src/utils/storage";
 
 if (Platform.OS !== "web") WebBrowser.maybeCompleteAuthSession();
@@ -14,7 +15,7 @@ export const ACTION_LABELS: Record<string, string> = {
   sketch: "render your sketch", save_design: "save designs", quote: "request a quote", account: "keep your designs and quotes on every device",
 };
 const RANK: Record<Level, number> = { none: 0, form: 1, account: 2 };
-const KEY = "atelier_customer_token";
+const KEY = storeKey("atelier_customer_token");
 const AUTH_URL = "https://auth.emergentagent.com/?redirect=";
 
 type Gate = { action: string; need: Level; resolve: (ok: boolean) => void } | null;

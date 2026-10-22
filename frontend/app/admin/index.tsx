@@ -7,6 +7,7 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, Tex
 import { Lead, LeadList, LeadStatus, formatPrice, leadImage, useCatalog } from "@/src/api";
 import { WIDE } from "@/src/components/admin/shell";
 import { STATUSES, StatusPill, formatDate } from "@/src/components/admin/status";
+import { SetupGuide } from "@/src/components/admin/setup-guide";
 import { useDashQuery } from "@/src/components/admin/use-dash";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -144,7 +145,7 @@ export default function LeadsInbox() {
           data={data?.leads ?? []}
           keyExtractor={(l) => l.id}
           renderItem={renderItem}
-          ListHeaderComponent={header}
+          ListHeaderComponent={<><SetupGuide />{header}</>}
           contentContainerStyle={[styles.content, wide && styles.contentWide]}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.brand} />}
           ListEmptyComponent={

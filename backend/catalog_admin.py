@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 import render_service
+import tenancy
 from auth import get_current_admin
 
 # Curated stock library (Unsplash licence: free for commercial use).
@@ -75,7 +76,7 @@ async def load_slots() -> Dict[str, dict]:
 
 def slot_url(slot: dict) -> Optional[str]:
     if slot.get("source") == "brand":
-        return f"/api/slot-images/{slot['key']}?v={slot['updated_at'][:19]}"
+        return f"/api/slot-images/{slot['key']}?v={slot['updated_at'][:19]}&{tenancy.store_qs()}"
     if slot.get("source") == "stock":
         return slot.get("url")
     return None
