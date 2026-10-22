@@ -44,7 +44,6 @@ export default function DesignDetail() {
     );
   }
 
-  const t = catalog.types.find((x) => x.id === design.type)!;
   const price = quote.data?.total ?? design.price;
   const { rows } = designRows(catalog, design, quote.data?.lines ?? []);
 

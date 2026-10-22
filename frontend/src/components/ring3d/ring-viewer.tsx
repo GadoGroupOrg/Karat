@@ -100,7 +100,8 @@ export const RingViewer = forwardRef<RingViewerHandle, Props>(function RingViewe
 
   useEffect(() => {
     rebuild();
-  }, [spec.setting, spec.band, spec.shape, spec.carat, spec.metalColor, spec.stoneColor, spec.isDiamond]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(spec)]);
 
   useEffect(() => {
     engine.current?.renderer.setClearColor(new THREE.Color(background), 1);

@@ -49,9 +49,9 @@ RING_SETTINGS = [
      "description": "Graceful arches rise from the band to cradle the stone."},
     {"id": "bezel", "name": "Bezel", "price": 350, "grams": 1.0, "accent_ct": 0,
      "description": "A smooth gold rim fully encircles the stone. Modern and secure."},
-    {"id": "three-stone", "name": "Three-Stone", "price": 700, "grams": 1.2, "accent_ct": 0.6,
+    {"id": "three-stone", "name": "Three-Stone", "price": 700, "grams": 1.2, "accent_ct": 0,
      "description": "Centre stone flanked by two side stones: past, present, future."},
-    {"id": "toi-et-moi", "name": "Toi et Moi", "price": 650, "grams": 1.0, "accent_ct": 0.7,
+    {"id": "toi-et-moi", "name": "Toi et Moi", "price": 650, "grams": 1.0, "accent_ct": 0,
      "description": "Two stones side by side, a romantic 'you and me' design."},
     {"id": "split-shank", "name": "Split Shank", "price": 600, "grams": 1.4, "accent_ct": 0.1,
      "description": "The band divides into two strands as it meets the stone."},
@@ -70,8 +70,6 @@ RING_BANDS = [
      "description": "Diamonds continue three-quarters of the way around."},
     {"id": "full-pave", "name": "Full Pavé (Eternity)", "price": 720, "grams": 3.1, "accent_ct": 0.5,
      "description": "Diamonds all the way around the band: full eternity sparkle."},
-    {"id": "infinity", "name": "Infinity", "price": 260, "grams": 3.8, "accent_ct": 0,
-     "description": "Two strands twist and cross in an infinity loop."},
 ]
 
 RING_SHAPES = [
@@ -99,12 +97,47 @@ ACCENT_SHAPES = [
     ("trillion", "Trillion", 1.25, "Triangular side stones."),
 ]
 
-KARAT = [  # kept internal; only 18k is offered
+# Stone pickers (toi et moi, three-stone sides, halo/pavé accents). Colour drives the 3D preview.
+STONE_OPTIONS = [{"id": i, "name": n, "color": c} for i, n, c, _ in STONES]
+MULTI_STONE_STYLES = ["three-stone", "toi-et-moi"]
+SIDE_STONE_RATIO = 0.35  # each three-stone side stone vs the centre carat
+
+# Wedding bands. weight = gold vs a comfort-fit band of the same width; accent_ct at 2.5 mm, size 6.
+WEDDING_STYLES = [
+    {"id": "classic-dome", "name": "Classic Dome", "price": 120, "weight": 1.0, "accent_ct": 0, "wearers": ["womens", "mens"],
+     "description": "A softly rounded, high-polish profile. Timeless."},
+    {"id": "comfort-fit", "name": "Comfort Fit", "price": 150, "weight": 1.15, "accent_ct": 0, "wearers": ["womens", "mens"],
+     "description": "Rounded inside and out so it glides on and stays comfortable."},
+    {"id": "flat-court", "name": "Flat Court", "price": 140, "weight": 1.1, "accent_ct": 0, "wearers": ["mens"],
+     "description": "A crisp flat top with a comfort-fit interior. Modern and strong."},
+    {"id": "beveled-edge", "name": "Beveled Edge", "price": 190, "weight": 1.1, "accent_ct": 0, "wearers": ["mens"],
+     "description": "A flat centre framed by angled, polished bevels."},
+    {"id": "diamond-cut", "name": "Diamond-Cut Accents", "price": 260, "weight": 1.05, "accent_ct": 0, "wearers": ["womens", "mens"],
+     "description": "Gold faceted with a diamond tool in a sparkling geometric pattern."},
+    {"id": "milgrain", "name": "Milgrain Edge", "price": 220, "weight": 1.0, "accent_ct": 0, "wearers": ["womens", "mens"],
+     "description": "Hand-beaded edges for a vintage, heirloom finish."},
+    {"id": "knife-edge", "name": "Knife Edge", "price": 180, "weight": 0.9, "accent_ct": 0, "wearers": ["womens"],
+     "description": "Two planes meet in a fine ridge that catches the light."},
+    {"id": "curved-contour", "name": "Curved Contour", "price": 320, "weight": 1.0, "accent_ct": 0.08, "wearers": ["womens"],
+     "description": "Gently curved to nest flush against your engagement ring."},
+    {"id": "pave", "name": "Pavé", "price": 380, "weight": 0.95, "accent_ct": 0.2, "wearers": ["womens"],
+     "description": "Tiny stones bead-set across the top of the band."},
+    {"id": "channel", "name": "Channel Set", "price": 420, "weight": 1.1, "accent_ct": 0.3, "wearers": ["womens", "mens"],
+     "description": "Stones set flush between two gold walls. Sleek and secure."},
+    {"id": "eternity", "name": "Full Eternity", "price": 560, "weight": 0.95, "accent_ct": 0.6, "wearers": ["womens"],
+     "description": "Stones all the way around for unbroken sparkle."},
+    {"id": "single-stone", "name": "Flush-Set Stone", "price": 260, "weight": 1.1, "accent_ct": 0.05, "wearers": ["mens"],
+     "description": "A single stone burnished flush into the gold."},
+]
+BAND_WIDTHS = [
+    ("1.5", 1.5, ["womens"]), ("2", 2.0, ["womens"]), ("2.5", 2.5, ["womens"]), ("3", 3.0, ["womens", "mens"]),
+    ("4", 4.0, ["womens", "mens"]), ("5", 5.0, ["mens"]), ("6", 6.0, ["mens"]), ("7", 7.0, ["mens"]), ("8", 8.0, ["mens"]),
 ]
 
 TYPES = [
     {
-        "id": "ring", "name": "Ring", "tagline": "Engagement & heirloom rings, set by you",
+        "id": "ring", "name": "Engagement Ring", "group": "bridal", "group_name": "Bridal",
+        "tagline": "Engagement rings & wedding bands, made yours",
         "style_label": "Setting", "featured": True,
         "base_price": 0, "addon_kind": "stone", "addon_label": "Centre stone", "max_addons": 1,
         "engraving_price": 40, "engraving_max": 16, "material_request": True,
@@ -112,6 +145,10 @@ TYPES = [
         "option_groups": [
             {"id": "shape", "label": "Stone shape", "default": "round",
              "options": [{"id": i, "name": n, "price": 0, "description": d} for i, n, d in RING_SHAPES]},
+            {"id": "second_stone", "label": "Second stone", "default": "earth-diamond", "when": {"styles": ["toi-et-moi"]},
+             "options": STONE_OPTIONS},
+            {"id": "second_shape", "label": "Second stone shape", "default": "pear", "when": {"styles": ["toi-et-moi"]},
+             "options": [{"id": i, "name": n, "price": 0} for i, n, _ in RING_SHAPES]},
             {"id": "carat", "label": "Carat weight", "default": "1",
              "options": [
                  {"id": "0.5", "name": "0.50 ct", "price": 0, "addon_factor": 0.42},
@@ -122,8 +159,14 @@ TYPES = [
                  {"id": "2.5", "name": "2.50 ct", "price": 0, "addon_factor": 3.6},
                  {"id": "3", "name": "3.00 ct", "price": 0, "addon_factor": 4.6},
              ]},
+            {"id": "side_left", "label": "Left side stone", "default": "earth-diamond", "when": {"styles": ["three-stone"]},
+             "options": STONE_OPTIONS},
+            {"id": "side_right", "label": "Right side stone", "default": "earth-diamond", "when": {"styles": ["three-stone"]},
+             "options": STONE_OPTIONS},
             {"id": "band", "label": "Band", "default": "polished", "options": RING_BANDS},
-            {"id": "accent_shape", "label": "Accent stone shape", "default": "round",
+            {"id": "accent_stone", "label": "Halo & pavé stones", "default": "earth-diamond", "when": "accents",
+             "options": STONE_OPTIONS},
+            {"id": "accent_shape", "label": "Accent stone shape", "default": "round", "when": "accents",
              "options": [{"id": i, "name": n, "price": 0, "accent_factor": f, "description": d} for i, n, f, d in ACCENT_SHAPES]},
             {"id": "quality", "label": "Stone quality", "default": "fine",
              "options": [
@@ -133,6 +176,25 @@ TYPES = [
              ]},
         ],
         "sizes": [{"id": f"{s:g}", "label": f"{s:g}", "price": 0} for s in [x / 2 for x in range(6, 22)]],
+    },
+    {
+        "id": "band", "name": "Wedding Band", "group": "bridal", "group_name": "Bridal",
+        "tagline": "His, hers and theirs: bands to wear forever", "style_label": "Band style",
+        "base_price": 0, "addon_kind": "none", "addon_label": "", "max_addons": 0,
+        "engraving_price": 40, "engraving_max": 20, "material_request": True,
+        "styles": WEDDING_STYLES,
+        "option_groups": [
+            {"id": "wearer", "label": "For", "default": "womens",
+             "options": [{"id": "womens", "name": "Women's", "price": 0}, {"id": "mens", "name": "Men's", "price": 0}]},
+            {"id": "width", "label": "Width", "default": "2",
+             "options": [{"id": i, "name": f"{mm:g} mm", "price": 0, "mm": mm, "wearers": w} for i, mm, w in BAND_WIDTHS]},
+            {"id": "finish", "label": "Finish", "default": "polished",
+             "options": [{"id": "polished", "name": "High polish", "price": 0}, {"id": "brushed", "name": "Brushed satin", "price": 0},
+                         {"id": "hammered", "name": "Hammered", "price": 0}]},
+            {"id": "accent_stone", "label": "Accent stones", "default": "earth-diamond", "when": "accents",
+             "options": STONE_OPTIONS},
+        ],
+        "sizes": [{"id": f"{s:g}", "label": f"{s:g}", "price": 0} for s in [x / 2 for x in range(6, 31)]],
     },
     {
         "id": "necklace", "name": "Necklace", "tagline": "Layered stories on a fine chain", "style_label": "Chain",

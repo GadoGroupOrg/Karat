@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,6 +12,7 @@ import Svg from "react-native-svg";
 import { Catalog, DesignSpec, OptionGroup, assetUrl, formatPrice, useCatalog, usePrice } from "@/src/api";
 import { DesignCanvas } from "@/src/components/design-canvas";
 import { Charm } from "@/src/components/jewelry-preview";
+import { forWearer, groupVisible } from "@/src/catalog-utils";
 import { getDesign, newId, upsertDesign } from "@/src/designs";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -27,6 +28,7 @@ function defaults(c: Catalog, type: string): DesignSpec {
 }
 
 const BEFORE_ADDONS = ["shape"];
+const WIDE_BREAKPOINT = 900;
 const AFTER_METAL = ["karat"];
 
 const tap = () => {
@@ -65,6 +67,17 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const router = useRouter();
   const params = useLocalSearchParams<{ type?: string; designId?: string; addId?: string; nonce?: string }>();
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
+  const { width: winW, height: winH } = useWindowDimensions();
+  const wide = winW >= WIDE_BREAKPOINT;
+  // Mobile: square-ish stage, capped so the first options stay visible on short screens.
+  const stageH = Math.round(Math.min(winW - spacing.xl * 2, winH * 0.42));
+  // Desktop: options wrap into a grid inside the side panel. Mobile: one swipeable row.
+  const optionRow = (kind: "cards" | "chips", children: React.ReactNode, testID?: string) =>
+    wide ? (
+      <View style={kind === "cards" ? styles.grid : styles.chipWrap} testID={testID}>{children}</View>
+    ) : (
+      <ScrollView key={`${t.id}-${testID ?? kind}`} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }} testID={testID}>{children}</ScrollView>
+    );
 
   const [design, setDesign] = useState<DesignSpec>(() => defaults(catalog, params.type ?? "ring"));
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -99,33 +112,61 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const price = quote.data?.total ?? 0;
   const metal = catalog.metals.find((m) => m.id === design.metalId)!;
   const style = t.styles.find((s) => s.id === design.styleId)!;
-  const groups = t.option_groups ?? [];
+  const groups = (t.option_groups ?? []).filter((g) => groupVisible(t, g, design));
+  const styles_ = forWearer(t, design, t.styles);
+  const bridal = t.group ? catalog.types.filter((x) => x.group === t.group) : [];
+  const chipTypes = catalog.types.filter((x, i, all) => !x.group || all.findIndex((y) => y.group === x.group) === i);
+  const bandType = catalog.types.find((x) => x.id === "band");
+  const matchBand = () => {
+    if (!bandType) return;
+    tap();
+    const base = defaults(catalog, "band");
+    const contour = bandType.styles.some((s) => s.id === "curved-contour") ? "curved-contour" : base.styleId;
+    const sizeOk = bandType.sizes.some((s) => s.id === design.sizeId);
+    const acc = design.options?.accent_stone;
+    setDesign({
+      ...base, styleId: contour, metalId: design.metalId, sizeId: sizeOk ? design.sizeId : base.sizeId,
+      name: design.name.trim() ? `${design.name.trim()} · Band` : "",
+      options: { ...base.options, wearer: "womens", ...(acc ? { accent_stone: acc } : {}) },
+    });
+    setEditingId(null);
+    showToast("Matching band: same gold and size");
+  };
   const groupsBefore = groups.filter((g) => BEFORE_ADDONS.includes(g.id));
   const groupsAfterMetal = groups.filter((g) => AFTER_METAL.includes(g.id));
   const groupsMiddle = groups.filter((g) => !BEFORE_ADDONS.includes(g.id) && !AFTER_METAL.includes(g.id));
   const setOption = (gid: string, oid: string) => {
     tap();
-    setDesign((d) => ({ ...d, options: { ...(d.options ?? {}), [gid]: oid } }));
+    setDesign((d) => {
+      const next = { ...d, options: { ...(d.options ?? {}), [gid]: oid } };
+      if (gid !== "wearer") return next;
+      // Switching women's/men's: keep style and width only if they suit the new wearer.
+      const okStyles = forWearer(t, next, t.styles);
+      const widths = forWearer(t, next, t.option_groups.find((g) => g.id === "width")?.options ?? []);
+      if (!okStyles.some((s) => s.id === next.styleId)) next.styleId = okStyles[0]?.id ?? next.styleId;
+      if (widths.length && !widths.some((w) => w.id === next.options.width)) next.options.width = widths[Math.min(1, widths.length - 1)].id;
+      return next;
+    });
   };
   const renderGroup = (g: OptionGroup) => {
     const current = design.options?.[g.id] ?? g.default;
     const visual = g.options.some((o) => o.description);
     return (
       <Section key={g.id} label={g.label} value={g.options.find((o) => o.id === current)?.name}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
-          {g.options.map((o) => {
+        {optionRow(visual ? "cards" : "chips",
+          forWearer(t, design, g.options).map((o) => {
             const sel = o.id === current;
             const extra = o.accent_ct ? `+${o.accent_ct} ct pavé` : undefined;
             return visual ? (
               <OptionCard key={o.id} testID={`option-${g.id}-${o.id}`} selected={sel} onPress={() => setOption(g.id, o.id)}
-                title={o.name} description={o.description} image={o.image} meta={extra} />
+                title={o.name} description={o.description} image={o.image} meta={extra} grid={wide} />
             ) : (
-              <Pressable key={o.id} testID={`option-${g.id}-${o.id}`} onPress={() => setOption(g.id, o.id)} style={[styles.chip, sel && styles.chipSel]}>
+              <Pressable key={o.id} testID={`option-${g.id}-${o.id}`} onPress={() => setOption(g.id, o.id)} style={[styles.chip, !!o.color && styles.chipWithDot, sel && styles.chipSel]}>
+                {!!o.color && <View style={[styles.dot, { backgroundColor: o.color }]} />}
                 <Text style={[styles.chipText, sel && styles.chipTextSel]}>{o.name}{o.price ? `  +${formatPrice(o.price)}` : ""}</Text>
               </Pressable>
             );
-          })}
-        </ScrollView>
+          }))}
       </Section>
     );
   };
@@ -175,8 +216,8 @@ function Builder({ catalog }: { catalog: Catalog }) {
     showToast(editingId ? "Design updated" : "Saved to your collection");
   };
 
-  return (
-    <View style={styles.root} testID="builder-screen">
+  const stage = (
+    <>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Text style={styles.title}>Atelier</Text>
         <Pressable testID="builder-reset-button" hitSlop={10} onPress={() => switchType(design.type)} style={styles.iconBtn}>
@@ -185,31 +226,48 @@ function Builder({ catalog }: { catalog: Catalog }) {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chipRowContent}>
-        {catalog.types.map((x) => {
-          const sel = x.id === design.type;
+        {chipTypes.map((x) => {
+          const sel = x.group ? x.group === t.group : x.id === design.type;
+          const testId = x.group ? `type-chip-${x.group}` : `type-chip-${x.id}`;
           return (
-            <Pressable key={x.id} testID={`type-chip-${x.id}`} onPress={() => switchType(x.id)} style={[styles.chip, sel && styles.chipSel]}>
-              <Text style={[styles.chipText, sel && styles.chipTextSel]}>{x.name}</Text>
+            <Pressable key={x.id} testID={testId} onPress={() => !sel && switchType(x.id)} style={[styles.chip, sel && styles.chipSel]}>
+              <Text style={[styles.chipText, sel && styles.chipTextSel]}>{x.group_name ?? x.name}</Text>
             </Pressable>
           );
         })}
       </ScrollView>
+      {bridal.length > 1 && (
+        <View style={styles.modeRow} testID="bridal-mode-toggle">
+          {bridal.map((x) => {
+            const sel = x.id === design.type;
+            return (
+              <Pressable key={x.id} testID={`bridal-mode-${x.id}`} onPress={() => !sel && switchType(x.id)} style={[styles.modeBtn, sel && styles.modeSel]}>
+                <Text style={[styles.modeText, sel && styles.modeTextSel]}>{x.name}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
 
-      <DesignCanvas catalog={catalog} design={design} height={design.type === "ring" ? 330 : 270} onRenderChange={setRenderUrl} />
+      <DesignCanvas catalog={catalog} design={design} height={wide ? undefined : stageH} onRenderChange={setRenderUrl} />
       <Text style={styles.canvasCaption} testID="builder-preview-caption" numberOfLines={1}>
         {style.name} {t.name} · {metal.name}
       </Text>
+    </>
+  );
 
+  const panel = (
+    <>
       <KeyboardAwareScrollView bottomOffset={24} style={{ flex: 1 }} contentContainerStyle={styles.controls} showsVerticalScrollIndicator={false}>
         <Section label={t.style_label ?? "Style"} value={style.name}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
-            {t.styles.map((s) => {
+          {optionRow(t.styles.some((s) => s.description) ? "cards" : "chips",
+            styles_.map((s) => {
               const sel = s.id === design.styleId;
               if (s.description) {
                 return (
                   <OptionCard key={s.id} testID={`style-option-${s.id}`} selected={sel} onPress={() => update({ styleId: s.id })}
                     title={s.name ?? ""} description={s.description} image={s.image}
-                    meta={s.accent_ct ? `+${s.accent_ct} ct accents` : undefined} />
+                    meta={s.accent_ct ? `+${s.accent_ct} ct accents` : undefined} grid={wide} />
                 );
               }
               return (
@@ -218,13 +276,12 @@ function Builder({ catalog }: { catalog: Catalog }) {
                   <Text style={styles.optionPrice}>{s.price ? `+${formatPrice(s.price)}` : "Included"}</Text>
                 </Pressable>
               );
-            })}
-          </ScrollView>
+            }))}
         </Section>
 
         {groupsBefore.map(renderGroup)}
 
-        <Section label={t.addon_label} value={t.max_addons > 1 ? `${design.addonIds.length}/${t.max_addons}` : undefined}>
+        {t.max_addons > 0 && <Section label={design.styleId === "toi-et-moi" ? "First stone" : t.addon_label} value={t.max_addons > 1 ? `${design.addonIds.length}/${t.max_addons}` : undefined}>
           <View style={styles.addonGrid}>
             {addons.map((a) => {
               const sel = design.addonIds.includes(a.id);
@@ -244,7 +301,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
               );
             })}
           </View>
-        </Section>
+        </Section>}
 
         {groupsMiddle.map(renderGroup)}
 
@@ -284,26 +341,25 @@ function Builder({ catalog }: { catalog: Catalog }) {
         </Section>
 
         {groupsAfterMetal.map(renderGroup)}
-        <Section label={t.id === "ring" ? "Ring size" : t.id === "earrings" ? "Size" : "Length"}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
-            {t.sizes.map((s) => {
+        <Section label={t.id === "ring" || t.id === "band" ? "Ring size" : t.id === "earrings" ? "Size" : "Length"}>
+          {optionRow("chips",
+            t.sizes.map((s) => {
               const sel = s.id === design.sizeId;
               return (
                 <Pressable key={s.id} testID={`size-option-${s.id}`} onPress={() => update({ sizeId: s.id })} style={[styles.chip, sel && styles.chipSel]}>
                   <Text style={[styles.chipText, sel && styles.chipTextSel]}>{s.label}{s.price ? `  +$${s.price}` : ""}</Text>
                 </Pressable>
               );
-            })}
-          </ScrollView>
+            }))}
         </Section>
 
         {catalog.store && storeAddons.length > 0 && (
           <Section label={`From ${catalog.store.name}`} value={t.addon_kind === "charm" ? "Add as charm" : "Use as centre"}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }} testID="store-addon-row">
-              {storeAddons.map((a) => {
+            {optionRow("cards",
+              storeAddons.map((a) => {
                 const sel = design.addonIds.includes(a.id);
                 return (
-                  <Pressable key={a.id} testID={`store-addon-option-${a.id}`} onPress={() => toggleAddon(a.id)} style={[styles.storeTile, sel && styles.optionSel]}>
+                  <Pressable key={a.id} testID={`store-addon-option-${a.id}`} onPress={() => toggleAddon(a.id)} style={[styles.storeTile, wide && styles.gridItem, sel && styles.optionSel]}>
                     <Image source={{ uri: a.image ?? undefined }} style={styles.storeImg} contentFit="cover" transition={200} />
                     <Text style={styles.addonName} numberOfLines={2}>{a.name}</Text>
                     <Text style={styles.optionPrice}>+{formatPrice(a.price)}</Text>
@@ -314,8 +370,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
                     )}
                   </Pressable>
                 );
-              })}
-            </ScrollView>
+              }), "store-addon-row")}
             <Pressable testID="builder-browse-shop-button" onPress={() => router.push("/shop")} style={styles.linkRow} hitSlop={8}>
               <Text style={styles.linkText}>Browse the full shop</Text>
               <Feather name="arrow-right" size={14} color={colors.brandPrimary} />
@@ -336,6 +391,17 @@ function Builder({ catalog }: { catalog: Catalog }) {
               returnKeyType="done"
             />
           </Section>
+        )}
+
+        {t.id === "ring" && bandType && (
+          <Pressable testID="add-matching-band-button" onPress={matchBand} style={styles.matchBtn}>
+            <Feather name="link-2" size={16} color={colors.onSurface} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.matchTitle}>Add a matching wedding band</Text>
+              <Text style={styles.matchText}>Same 18k gold and size, contoured to sit against this ring</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.onSurface} />
+          </Pressable>
         )}
 
         <Section label="Price breakdown" value="Estimate">
@@ -366,7 +432,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
         </Section>
       </KeyboardAwareScrollView>
 
-      <View style={[styles.bottomBar, { paddingBottom: bottomChrome + spacing.md }]}>
+      <View style={[styles.bottomBar, { paddingBottom: (wide ? 0 : bottomChrome) + spacing.md }]}>
         <View>
           <Text style={styles.totalLabel}>Estimated total</Text>
           <Text style={[styles.total, quote.isFetching && { opacity: 0.5 }]} testID="builder-total-price">{quote.data ? formatPrice(price) : "…"}</Text>
@@ -376,6 +442,22 @@ function Builder({ catalog }: { catalog: Catalog }) {
           <Text style={styles.saveText}>{editingId ? "Update design" : "Save design"}</Text>
         </Pressable>
       </View>
+    </>
+  );
+
+  return (
+    <View style={styles.root} testID="builder-screen">
+      {wide ? (
+        <View style={styles.split}>
+          <View style={styles.stageCol} testID="builder-stage-column">{stage}</View>
+          <View style={styles.panelCol} testID="builder-options-panel">{panel}</View>
+        </View>
+      ) : (
+        <>
+          {stage}
+          {panel}
+        </>
+      )}
 
       {toast && (
         <Animated.View entering={FadeInUp} exiting={FadeOutDown} style={[styles.toast, { bottom: bottomChrome + 96 }]} testID="builder-toast">
@@ -392,13 +474,13 @@ function Builder({ catalog }: { catalog: Catalog }) {
   );
 }
 
-function OptionCard({ title, description, image, meta, selected, onPress, testID }: {
-  title: string; description?: string; image?: string; meta?: string; selected: boolean; onPress: () => void; testID: string;
+function OptionCard({ title, description, image, meta, selected, onPress, testID, grid }: {
+  title: string; description?: string; image?: string; meta?: string; selected: boolean; onPress: () => void; testID: string; grid?: boolean;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
   return (
-    <Pressable testID={testID} onPress={onPress} style={({ pressed }) => [styles.card, selected && styles.optionSel, pressed && { opacity: 0.85 }]}>
+    <Pressable testID={testID} onPress={onPress} style={({ pressed }) => [styles.card, grid && styles.gridItem, selected && styles.optionSel, pressed && { opacity: 0.85 }]}>
       {image ? (
         <Image source={{ uri: assetUrl(image) }} style={styles.cardImg} contentFit="cover" transition={250} />
       ) : (
@@ -408,7 +490,7 @@ function OptionCard({ title, description, image, meta, selected, onPress, testID
       )}
       <View style={styles.cardBody}>
         <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
-        {!!description && <Text style={styles.cardDesc} numberOfLines={3}>{description}</Text>}
+        {!!description && <Text style={styles.cardDesc} numberOfLines={grid ? 3 : 2}>{description}</Text>}
         {!!meta && <Text style={styles.cardMeta}>{meta}</Text>}
       </View>
       {selected && (
@@ -451,7 +533,17 @@ const useStyles = makeStyles((c) => ({
   chipSel: { backgroundColor: c.surfaceInverse, borderColor: c.surfaceInverse },
   chipText: { fontFamily: fonts.medium, fontSize: 13, color: c.onSurface },
   chipTextSel: { color: c.onSurfaceInverse },
-  canvasCaption: { textAlign: "center", fontFamily: fonts.medium, fontSize: 12, color: c.muted, letterSpacing: 0.5, marginTop: spacing.sm },
+  chipWithDot: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingLeft: spacing.md },
+  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: c.borderStrong },
+  modeRow: { flexDirection: "row", marginHorizontal: spacing.xl, marginBottom: spacing.md, padding: 3, borderRadius: radius.pill, backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border },
+  modeBtn: { flex: 1, height: 38, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
+  modeSel: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong },
+  modeText: { fontFamily: fonts.medium, fontSize: 13, color: c.muted },
+  modeTextSel: { fontFamily: fonts.bold, color: c.onSurface },
+  matchBtn: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.xl, padding: spacing.lg, borderRadius: radius.md, backgroundColor: c.brandTertiary },
+  matchTitle: { fontFamily: fonts.bold, fontSize: 14, color: c.onSurface },
+  matchText: { fontFamily: fonts.text, fontSize: 12, color: c.onSurface, marginTop: 2 },
+  canvasCaption: { textAlign: "center", fontFamily: fonts.medium, fontSize: 12, color: c.muted, letterSpacing: 0.5, marginTop: spacing.sm, flexShrink: 0 },
   controls: { paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing.xl },
   section: { marginTop: spacing.xl },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: spacing.md },
@@ -484,12 +576,19 @@ const useStyles = makeStyles((c) => ({
   bdLabel: { flex: 1, fontFamily: fonts.text, fontSize: 13, color: c.onSurface },
   bdAmount: { fontFamily: fonts.bold, fontSize: 13, color: c.onSurface },
   bdNote: { fontFamily: fonts.text, fontSize: 12, color: c.muted, paddingBottom: spacing.sm },
-  card: { width: 168, flexShrink: 0, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, overflow: "hidden" },
-  cardImg: { width: "100%", height: 112, backgroundColor: c.surfaceTertiary },
-  cardBody: { padding: spacing.md },
-  cardTitle: { fontFamily: fonts.display, fontSize: 15, color: c.onSurface },
+  card: { width: 136, flexShrink: 0, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, overflow: "hidden" },
+  cardImg: { width: "100%", aspectRatio: 1, backgroundColor: c.surfaceTertiary },
+  cardBody: { padding: spacing.sm + 2 },
+  cardTitle: { fontFamily: fonts.display, fontSize: 14, color: c.onSurface },
   cardDesc: { fontFamily: fonts.text, fontSize: 11, lineHeight: 15, color: c.muted, marginTop: 2 },
   cardMeta: { fontFamily: fonts.bold, fontSize: 11, color: c.brandPrimary, marginTop: spacing.xs },
+  // Desktop split layout
+  split: { flex: 1, flexDirection: "row" },
+  stageCol: { flex: 1, paddingBottom: spacing.xl },
+  panelCol: { width: 480, borderLeftWidth: 1, borderLeftColor: c.border, backgroundColor: c.surface },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  gridItem: { width: "31.8%" },
+  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   input: {
     height: 48, borderRadius: radius.md, backgroundColor: c.surfaceSecondary, paddingHorizontal: spacing.lg,
     fontFamily: fonts.text, fontSize: 15, color: c.onSurface, borderWidth: 1, borderColor: c.border,

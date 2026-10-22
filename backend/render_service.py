@@ -85,9 +85,32 @@ def build_prompt(catalog: dict, d: dict, has_snapshot: bool, product_refs: int) 
             f"Setting: {style['name']} — {style.get('description', '')} "
             f"Band: {band['name'] if band else 'Polished Gold'} — {band.get('description', '') if band else ''} "
         )
+        accent_stone = _opt(t, "accent_stone", options)
+        if style["id"] == "toi-et-moi":
+            s2, sh2 = _opt(t, "second_stone", options), _opt(t, "second_shape", options)
+            desc += (f"Toi et Moi: TWO feature stones of equal size sit side by side, slightly offset and touching, each in its own prongs: "
+                     f"the {shape['name'] if shape else 'round'} {stone} and a {sh2['name'] if sh2 else 'pear'} cut {s2['name'] if s2 else 'diamond'}. ")
+        if style["id"] == "three-stone":
+            sl, sr = _opt(t, "side_left", options), _opt(t, "side_right", options)
+            desc += (f"Three-stone: the centre stone is flanked by two smaller matching-cut side stones (about a third of its size): "
+                     f"left side stone {sl['name'] if sl else 'diamond'}, right side stone {sr['name'] if sr else 'diamond'}. ")
         if has_accents and accent:
-            desc += f"All accent/pavé stones are small {accent['name'].lower()}-cut white diamonds. "
+            kind = accent_stone["name"].lower() if accent_stone else "white diamond"
+            desc += f"All halo/pavé accent stones are small {accent['name'].lower()}-cut {kind}s. "
         desc += "The ring stands upright, viewed at a three-quarter angle slightly from above so the stone and setting are the focal point. "
+        if engraving:
+            desc += f"Fine script engraving '{engraving}' visible on the inside of the band. "
+    elif d["type"] == "band":
+        wearer, width, finish = _opt(t, "wearer", options), _opt(t, "width", options), _opt(t, "finish", options)
+        accent_stone = _opt(t, "accent_stone", options)
+        desc = (
+            f"Subject: a single {'men' if wearer and wearer['id'] == 'mens' else 'women'}'s wedding band in {gold}, "
+            f"{width['name'] if width else '2 mm'} wide, {finish['name'].lower() if finish else 'high polish'} finish. "
+            f"Style: {style['name']} — {style.get('description', '')} No centre stone. "
+        )
+        if style.get("accent_ct", 0) > 0:
+            desc += f"The set stones are small {accent_stone['name'].lower() if accent_stone else 'white diamond'}s. "
+        desc += "The band stands upright, viewed at a three-quarter angle slightly from above. "
         if engraving:
             desc += f"Fine script engraving '{engraving}' visible on the inside of the band. "
     else:

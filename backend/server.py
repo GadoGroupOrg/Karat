@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, BeforeValidator, ConfigDict, EmailStr
 from typing import Dict, List, Literal, Optional, Annotated
 import auth
+import catalog_admin
 import dashboard
 import hashlib
 import json
@@ -123,6 +124,8 @@ async def get_catalog() -> dict:
             attach("setting", t["styles"])
             for g in t.get("option_groups", []):
                 attach(g["id"], g["options"])
+        elif t["id"] == "band":
+            attach("band_style", t["styles"])
     sheet = pricing.merge_defaults(await db.price_sheet.find_one({"key": "default"}, {"_id": 0}))
     return {"types": types, "metals": metals, "addons": addons, "store": store,
             "pricing": {"gold_karat": "18k", "currency": "USD"}, "sheet": sheet}
@@ -132,6 +135,9 @@ def public_catalog(c: dict) -> dict:
     """Strip supplier costs: the ring is priced only through /api/price."""
     c = {k: v for k, v in c.items() if k != "sheet"}
     for t in c["types"]:
+        if t["id"] == "band":
+            for s in t["styles"]:
+                s.pop("price", None); s.pop("weight", None)
         if t["id"] == "ring":
             for s in t["styles"]:
                 s.pop("price", None); s.pop("grams", None)
@@ -162,6 +168,8 @@ def compute_breakdown(catalog: dict, d: DesignSpec) -> dict:
             raise HTTPException(400, f"Invalid {g['label']}")
     if t["id"] == "ring":
         return pricing.ring_quote(catalog["sheet"], catalog, d, t, style, size, addons)
+    if t["id"] == "band":
+        return pricing.wedding_band_quote(catalog["sheet"], d, t, style, size)
     labor = t["base_price"] + style["price"] + size["price"]
     lines = [{"label": "Piece", "amount": labor * metal["multiplier"]}]
     for a in addons:
@@ -184,7 +192,9 @@ async def root():
 
 @api_router.get("/catalog")
 async def catalog():
-    return public_catalog(await get_catalog())
+    c = await get_catalog()
+    catalog_admin.apply_slots(c, await catalog_admin.load_slots())
+    return public_catalog(catalog_admin.apply_config(c, await catalog_admin.load_config()))
 
 
 # ---------- Merchant admin (PIN-gated) ----------
@@ -489,6 +499,8 @@ app.include_router(admin)
 app.include_router(auth.router)
 app.include_router(dashboard.public)
 app.include_router(dashboard.dash)
+app.include_router(catalog_admin.public)
+app.include_router(catalog_admin.dash)
 
 app.add_middleware(
     CORSMiddleware,
@@ -514,6 +526,7 @@ async def seed_catalog():
         logger.exception("Object storage init failed")
     logger.info("Catalog seeded")
     await auth.seed_admin()
+    catalog_admin.init(db, get_catalog)
     if not await db.price_sheet.find_one({"key": "default"}):
         await db.price_sheet.insert_one(pricing.default_sheet())
     asyncio.create_task(gold_refresh_loop())

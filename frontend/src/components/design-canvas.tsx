@@ -1,13 +1,14 @@
 import Feather from "@react-native-vector-icons/feather";
 import { Image } from "expo-image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Catalog, DesignSpec, assetUrl, requestRender } from "@/src/api";
 import { JewelryPreview } from "@/src/components/jewelry-preview";
 import { RingViewer, type RingViewerHandle } from "@/src/components/ring3d/ring-viewer";
+import type { RingSpec } from "@/src/components/ring3d/build-ring";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 const RENDER_DELAY = 1200;
@@ -20,7 +21,8 @@ type RenderState = { status: "idle" | "loading" | "ready" | "error"; url?: strin
 type Props = {
   catalog: Catalog;
   design: DesignSpec;
-  height: number;
+  /** Fixed height (mobile). Omit to fill the parent (desktop). */
+  height?: number;
   onRenderChange?: (url: string | null) => void;
   initialRenderUrl?: string | null;
   autoRender?: boolean;
@@ -42,20 +44,33 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
   );
   const keyRef = useRef(key);
   keyRef.current = key;
-  const isRing = design.type === "ring";
+  const isRing = design.type === "ring" || design.type === "band";
 
-  const ringSpec = useMemo(() => {
-    const t = catalog.types.find((x) => x.id === "ring");
+  const ringSpec = useMemo((): RingSpec => {
+    const t = catalog.types.find((x) => x.id === design.type);
     const opt = (g: string) => design.options?.[g] ?? t?.option_groups.find((x) => x.id === g)?.default ?? "";
+    const colorOf = (g: string) => t?.option_groups.find((x) => x.id === g)?.options.find((o) => o.id === opt(g))?.color ?? "#FFFFFF";
     const stone = catalog.addons.find((a) => a.id === design.addonIds[0]);
+    const metalColor = catalog.metals.find((m) => m.id === design.metalId)?.color ?? "#EDC36A";
+    if (design.type === "band") {
+      const w = t?.option_groups.find((g) => g.id === "width")?.options.find((o) => o.id === opt("width"));
+      return {
+        setting: "none", band: "polished", shape: "round", carat: 1, metalColor, stoneColor: "#FFFFFF", isDiamond: true,
+        accentColor: colorOf("accent_stone"), weddingBand: { widthMm: w?.mm ?? parseFloat(opt("width") || "2"), style: design.styleId },
+      };
+    }
     return {
       setting: design.styleId,
       band: opt("band"),
       shape: opt("shape"),
       carat: parseFloat(opt("carat") || "1"),
-      metalColor: catalog.metals.find((m) => m.id === design.metalId)?.color ?? "#EDC36A",
+      metalColor,
       stoneColor: stone?.color ?? "#FFFFFF",
       isDiamond: !stone || stone.id.includes("diamond"),
+      accentColor: colorOf("accent_stone"),
+      sideColors: [colorOf("side_left"), colorOf("side_right")],
+      secondColor: colorOf("second_stone"),
+      secondShape: opt("second_shape"),
     };
   }, [catalog, design]);
 
@@ -111,7 +126,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
   );
 
   return (
-    <View style={[styles.canvas, { height }]} testID="builder-preview-canvas">
+    <View style={[styles.canvas, height ? { height } : { flex: 1 }]} testID="builder-preview-canvas">
       <View style={styles.stage}>
         {mode === "live" ? (
           isRing ? (
@@ -123,7 +138,9 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
           )
         ) : shownUrl ? (
           <View style={styles.photoLayer}>
-            <Image source={{ uri: shownUrl }} style={styles.photo} contentFit="cover" transition={400} testID="builder-render-photo" />
+            {/* Soft blurred backdrop fills the frame; the sharp photo is always shown whole (never cropped). */}
+            <Image source={{ uri: shownUrl }} style={styles.photo} contentFit="cover" blurRadius={40} />
+            <Image source={{ uri: shownUrl }} style={[styles.photo, StyleSheet.absoluteFill]} contentFit="contain" transition={400} testID="builder-render-photo" />
             {!photoReady && <View style={styles.updatingVeil} />}
           </View>
         ) : (

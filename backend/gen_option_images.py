@@ -31,6 +31,12 @@ def jobs():
     for sh in groups["shape"]["options"]:
         yield f"shape:{sh['id']}", (f"A single loose white diamond, {sh['name']} cut: {sh['description']} "
                                     "Viewed from the top, centred, showing the outline and facet pattern clearly.")
+    band = next(t for t in TYPES if t["id"] == "band")
+    for w in band["styles"]:
+        who = "men's" if w["wearers"] == ["mens"] else "women's"
+        stones = " with small white diamonds set as described" if w["accent_ct"] else ", no stones"
+        yield f"band_style:{w['id']}", (f"A single 18k yellow gold {who} wedding band, style '{w['name']}': {w['description']}{stones}. "
+                                        "The band stands upright at a three-quarter angle, profile clearly visible, no engagement ring.")
     for a in groups["accent_shape"]["options"]:
         yield f"accent_shape:{a['id']}", (f"A neat row of five tiny loose {a['name'].lower()}-cut white diamonds "
                                           f"({a['description']}) arranged on the backdrop, macro detail.")

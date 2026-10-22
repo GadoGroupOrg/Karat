@@ -10,6 +10,15 @@ export type RingSpec = {
   metalColor: string;
   stoneColor: string;
   isDiamond: boolean;
+  /** Halo / pavé / channel accent colour (default white diamond). */
+  accentColor?: string;
+  /** Three-stone side stones [left, right]. */
+  sideColors?: [string, string];
+  /** Toi et Moi second stone. */
+  secondColor?: string;
+  secondShape?: string;
+  /** Wedding band: no head, band width in mm, accent stone style. */
+  weddingBand?: { widthMm: number; style: string };
 };
 
 export type RingBuild = { group: THREE.Group; sparkleAnchors: THREE.Vector3[]; stoneSize: number };
@@ -86,10 +95,22 @@ export function makeMaterials(spec: RingSpec) {
     
   });
   const melee = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color("#FFFFFF"), metalness: 1, roughness: 0, envMapIntensity: 3,
+    color: new THREE.Color(spec.accentColor ?? "#FFFFFF"), metalness: 1, roughness: 0, envMapIntensity: 3,
     flatShading: true,
   });
   return { metal, gemOuter, gemInner, melee };
+}
+
+/** Materials for an extra feature stone of another colour (toi et moi, three-stone sides). */
+function gemMats(base: Mats, color: string): Mats {
+  const white = color.toUpperCase() === "#FFFFFF";
+  const c = new THREE.Color(color);
+  const gemOuter = base.gemOuter.clone();
+  gemOuter.color = c;
+  gemOuter.opacity = white ? 0.22 : 0.3;
+  const gemInner = base.gemInner.clone();
+  gemInner.color = white ? new THREE.Color("#D2D9E1") : c;
+  return { ...base, gemOuter, gemInner };
 }
 
 type Mats = ReturnType<typeof makeMaterials>;
@@ -150,11 +171,51 @@ const SETTING_3D: Record<string, string> = {
   "split-shank": "cathedral", bypass: "solitaire-4",
 };
 
+const WEDDING_3D: Record<string, string> = {
+  pave: "partial-pave", channel: "three-quarter-pave", eternity: "full-pave", "diamond-cut": "diamond-cut",
+};
+
+function buildWeddingBand(spec: RingSpec, m: Mats): RingBuild {
+  const group = new THREE.Group();
+  const wb = spec.weddingBand!;
+  const tubeR = 0.075 + 0.004 * wb.widthMm;
+  const zs = Math.max(1, (wb.widthMm / 8) / (2 * tubeR));
+  const radial = ["flat-court", "beveled-edge"].includes(wb.style) ? 4 : wb.style === "knife-edge" ? 3 : wb.style === "diamond-cut" ? 6 : 40;
+  const geo = new THREE.TorusGeometry(R + tubeR, tubeR, radial, 220);
+  geo.scale(1, 1, zs);
+  group.add(new THREE.Mesh(geo, m.metal));
+  const pk = WEDDING_3D[wb.style];
+  const anchors: THREE.Vector3[] = [new THREE.Vector3(0, R + 2 * tubeR, 0)];
+  if (pk && BANDS[pk].pave) {
+    const [from, to] = BANDS[pk].pave!;
+    const ds = Math.min(0.11, 0.05 + 0.008 * wb.widthMm);
+    const angles: number[] = [];
+    for (let deg = from; deg <= to; deg += (ds / (R + 2 * tubeR)) * (180 / Math.PI) * 1.15) angles.push((deg * Math.PI) / 180);
+    const pave = new THREE.InstancedMesh(gemGeometry(cutFor("round"), ds), m.melee, angles.length);
+    const up = new THREE.Vector3(0, 1, 0);
+    angles.forEach((a, i) => {
+      const dir = new THREE.Vector3(Math.cos(a), Math.sin(a), 0);
+      const q = new THREE.Quaternion().setFromUnitVectors(up, dir);
+      pave.setMatrixAt(i, new THREE.Matrix4().compose(dir.clone().multiplyScalar(R + 2 * tubeR - 0.012), q, new THREE.Vector3(1, 1, 1)));
+      if (i % 6 === 0) anchors.push(dir.clone().multiplyScalar(R + 2 * tubeR));
+    });
+    group.add(pave);
+  }
+  if (wb.style === "single-stone") {
+    const g = new THREE.Mesh(gemGeometry(cutFor("round"), 0.14), m.melee);
+    g.position.set(0, R + 2 * tubeR - 0.02, 0);
+    group.add(g);
+  }
+  return { group, sparkleAnchors: anchors, stoneSize: 0.3 };
+}
+
 export function buildRing(spec: RingSpec): RingBuild {
   const m = makeMaterials(spec);
+  if (spec.weddingBand) return buildWeddingBand(spec, m);
   const group = new THREE.Group();
   const b = BANDS[spec.band] ?? BANDS.polished;
-  spec = { ...spec, setting: SETTING_3D[spec.setting] ?? spec.setting };
+  const isToiEtMoi = spec.setting === "toi-et-moi";
+  spec = { ...spec, setting: isToiEtMoi ? "toi-et-moi" : SETTING_3D[spec.setting] ?? spec.setting };
 
   // Band
   const bandGeo = new THREE.TorusGeometry(R + b.tube, b.tube, b.radial, 220);
@@ -168,8 +229,17 @@ export function buildRing(spec: RingSpec): RingBuild {
   const rx = (d / 2) * cut.sx, rz = (d / 2) * cut.sz;
   const raised = spec.setting === "bezel" ? 0.1 + 0.18 * d : 0.14 + 0.3 * d;
   const gy = topY + raised;
-  const center = new THREE.Vector3(0, gy, 0);
-  addGem(group, cut, d, center, m);
+  // Toi et Moi: two equal feature stones side by side, each in its own prongs.
+  const offset = isToiEtMoi ? rx * 0.98 : 0;
+  const center = new THREE.Vector3(-offset, gy, isToiEtMoi ? -rz * 0.18 : 0);
+  addGem(group, cut, d, center, m, isToiEtMoi ? 0.12 : 0);
+  if (isToiEtMoi) {
+    const cut2 = cutFor(spec.secondShape ?? "pear");
+    const c2 = new THREE.Vector3(offset, gy, rz * 0.18);
+    const m2 = gemMats(m, spec.secondColor ?? "#FFFFFF");
+    addGem(group, cut2, d, c2, m2, -0.12);
+    addProngs(group, c2, (d / 2) * cut2.sx, (d / 2) * cut2.sz, d, 4, topY - 0.03, m);
+  }
   const anchors: THREE.Vector3[] = [];
   for (let i = 0; i < 9; i++) {
     const a = Math.random() * Math.PI * 2, rr = Math.random() * 0.8;
@@ -216,7 +286,8 @@ export function buildRing(spec: RingSpec): RingBuild {
     for (const side of [-1, 1]) {
       const sx = side * (rx + (d2 / 2) * cut.sx + 0.05);
       const c2 = new THREE.Vector3(sx, gy - 0.08 * d, 0);
-      addGem(group, cut, d2, c2, m, -side * 0.22);
+      const sc = spec.sideColors?.[side < 0 ? 0 : 1];
+      addGem(group, cut, d2, c2, sc ? gemMats(m, sc) : m, -side * 0.22);
       addProngs(group, c2, (d2 / 2) * cut.sx, (d2 / 2) * cut.sz, d2, 4, topY - 0.06, m);
     }
   }

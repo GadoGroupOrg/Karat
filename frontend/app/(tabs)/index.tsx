@@ -6,18 +6,19 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { assetUrl } from "@/src/api";
+import { assetUrl, useStorefront } from "@/src/api";
 import { getBranding } from "@/src/branding";
 import { isEmbedded } from "@/src/embed";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
-const HERO = "https://images.unsplash.com/photo-1549439602-43ebca2327af?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200";
+// Images come from the merchant's Catalog settings (brand photo, stock or default).
 const CATEGORIES = [
-  { id: "ring", name: "Ring", line: "Engagement & heirloom", img: "https://images.unsplash.com/photo-1626122780071-c09d403b8e32?crop=entropy&cs=srgb&fm=jpg&q=80&w=800" },
-  { id: "necklace", name: "Necklace", line: "Charms on fine chain", img: "https://images.unsplash.com/photo-1680690653166-1618c3bcdf51?crop=entropy&cs=srgb&fm=jpg&q=80&w=800" },
-  { id: "bracelet", name: "Bracelet", line: "Stack your story", img: "https://images.unsplash.com/photo-1633810543462-77c4a3b13f07?crop=entropy&cs=srgb&fm=jpg&q=80&w=800" },
-  { id: "earrings", name: "Earrings", line: "Quiet light", img: "https://images.unsplash.com/photo-1671644730555-916aa8d8157f?crop=entropy&cs=srgb&fm=jpg&q=80&w=800" },
+  { id: "ring", name: "Bridal", line: "Engagement rings & bands" },
+  { id: "band", name: "Wedding Bands", line: "His, hers & theirs" },
+  { id: "necklace", name: "Necklace", line: "Charms on fine chain" },
+  { id: "bracelet", name: "Bracelet", line: "Stack your story" },
+  { id: "earrings", name: "Earrings", line: "Quiet light" },
 ];
 const STEPS = [
   { icon: "layers", title: "Choose a setting", text: "Solitaire, cathedral, bezel, halo or three-stone." },
@@ -33,12 +34,18 @@ export default function Home() {
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
 
   const start = (type: string) => router.push({ pathname: "/build", params: { type } });
+  const { data: sf } = useStorefront();
+  const img = (k: string) => (sf?.images[k] ? assetUrl(sf.images[k]) : undefined);
+  const off = sf?.disabled_types ?? [];
+  // Bridal tile covers both bridal builders; show the band tile only when the engagement builder is off.
+  const cats = CATEGORIES.filter((c) => !off.includes(c.id) && !(c.id === "band" && !off.includes("ring")));
+  const heroType = cats[0]?.id ?? "ring";
 
   return (
     <View style={styles.root} testID="home-screen">
       <ScrollView contentContainerStyle={{ paddingBottom: bottomChrome + spacing.xl }} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
-          <Image source={{ uri: HERO }} style={styles.heroImg} contentFit="cover" transition={300} />
+          <Image source={{ uri: img("home:hero") }} style={styles.heroImg} contentFit="cover" transition={300} testID="home-hero-image" />
           <LinearGradient colors={["transparent", colors.scrim]} style={styles.heroScrim} />
           <View style={[styles.heroContent, { paddingTop: insets.top + spacing.lg }]}>
             {getBranding()?.logo_url ? (
@@ -51,7 +58,7 @@ export default function Home() {
               <Text style={styles.heroSub}>Build it in 3D, stone by stone, then see it in a studio photo.</Text>
               <Pressable
                 testID="hero-start-designing-button"
-                onPress={() => start("ring")}
+                onPress={() => start(heroType)}
                 style={({ pressed }) => [styles.heroBtn, pressed && { opacity: 0.85 }]}
               >
                 <Text style={styles.heroBtnText}>Start designing</Text>
@@ -65,14 +72,14 @@ export default function Home() {
           <Text style={styles.eyebrow}>THE COLLECTION</Text>
           <Text style={styles.h2}>What will you create?</Text>
           <View style={styles.grid}>
-            {CATEGORIES.map((c, i) => (
+            {cats.map((c, i) => (
               <Animated.View key={c.id} entering={FadeInDown.delay(80 * i).duration(400)} style={styles.cardWrap}>
                 <Pressable
                   testID={`category-card-${c.id}`}
                   onPress={() => start(c.id)}
                   style={({ pressed }) => [styles.card, pressed && { transform: [{ scale: 0.98 }] }]}
                 >
-                  <Image source={{ uri: c.img }} style={styles.cardImg} contentFit="cover" transition={300} />
+                  <Image source={{ uri: img(`type:${c.id}`) }} style={styles.cardImg} contentFit="cover" transition={300} />
                   <LinearGradient colors={["transparent", colors.scrim]} style={styles.cardScrim} />
                   <View style={styles.cardText}>
                     <Text style={styles.cardTitle}>{c.name}</Text>

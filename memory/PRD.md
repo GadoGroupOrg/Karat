@@ -82,3 +82,11 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - /api/embed.js: floating button + modal iframe or inline iframe (camera allowed); ?embed=1 tags leads as Website
 - Tested iteration_8: backend 24/24, frontend all pass
 - Backlog: native Shopify App (theme app extension + app proxy + add-to-cart), multi-store tenancy, email alerts for new leads, try-on for custom designs
+
+## Bridal builder + Catalog control (2026-06)
+- "Bridal" chip with modes Engagement Ring (type ring) | Wedding Band (type band); "Add a matching wedding band" copies gold + size, curved-contour
+- Wedding band: 12 styles w/ women's/men's (wearers), widths 1.5–8 mm filtered by wearer, finish (polish/brushed/hammered), accent stone type, size 3–15, engraving; priced via pricing.wedding_band_quote (grams/mm × width × weight × size)
+- Multi-stone: toi et moi second stone + shape; three-stone left/right side stones (each 0.35× centre ct); halo/pavé accent stone type (accent_stone_factor in sheet). Groups use `when` ({styles}|"accents"); 3D shows colours + distinct toi et moi
+- Removed Infinity band
+- Admin /admin/catalog: builders on/off, per-option on/off (settings, shapes, bands, centre stones, accent stones, band styles), image slots per option + storefront (hero, tiles): brand upload / stock library / AI default. Collections: catalog_config, image_slots. Public /api/storefront, /api/slot-images/{key}
+- Stock library is curated (5 Unsplash photos); live Unsplash search needs a user key

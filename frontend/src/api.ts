@@ -3,19 +3,21 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { isEmbedded } from "@/src/embed";
 import { uploadForm } from "@/src/utils/upload";
 
-const BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
+export const BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
 
 export type Metal = { id: string; name: string; color: string; multiplier: number };
 export type Option = {
   id: string; name?: string; label?: string; price: number; description?: string; image?: string;
-  grams?: number; accent_ct?: number; weight_factor?: number;
+  grams?: number; accent_ct?: number; weight_factor?: number; wearers?: string[];
 };
 export type JewelryType = {
   id: string;
   name: string;
   tagline: string;
   base_price: number;
-  addon_kind: "charm" | "stone";
+  addon_kind: "charm" | "stone" | "none";
+  group?: string;
+  group_name?: string;
   addon_label: string;
   max_addons: number;
   engraving_price: number;
@@ -32,9 +34,13 @@ export type Addon = {
 };
 export type GroupOption = {
   id: string; name: string; price: number; metal_factor?: number; addon_factor?: number; accent_factor?: number;
-  grams?: number; accent_ct?: number; description?: string; image?: string;
+  grams?: number; accent_ct?: number; description?: string; image?: string; color?: string; wearers?: string[]; mm?: number;
 };
-export type OptionGroup = { id: string; label: string; default: string; options: GroupOption[] };
+export type OptionGroup = {
+  id: string; label: string; default: string; options: GroupOption[];
+  /** Only show for these styles, or only when the design has halo/pavé accents. */
+  when?: { styles: string[] } | "accents";
+};
 export type StoreInfo = { domain: string; name: string; currency: string; product_count: number; last_synced: string };
 export type Pricing = { gold_karat: string; currency: string };
 export type Catalog = { types: JewelryType[]; metals: Metal[]; addons: Addon[]; store: StoreInfo | null; pricing: Pricing };
@@ -68,6 +74,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw err;
   }
   return res.json();
+}
+
+export type Storefront = { images: Record<string, string>; disabled_types: string[] };
+export function useStorefront() {
+  return useQuery({ queryKey: ["storefront"], queryFn: () => request<Storefront>("/storefront"), staleTime: 1000 * 30 });
 }
 
 export function useCatalog() {
@@ -180,7 +191,7 @@ export async function adminCsv(pin: string) {
 
 export const formatPrice = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
-export const assetUrl = (path: string) => `${process.env.EXPO_PUBLIC_BACKEND_URL}${path}`;
+export const assetUrl = (path: string) => (/^https?:\/\//.test(path) ? path : `${process.env.EXPO_PUBLIC_BACKEND_URL}${path}`);
 
 export async function requestTryOn(productId: string, photo: { uri: string; mimeType?: string; name?: string }) {
   const res = await uploadForm(`${BASE}/tryons`, {
