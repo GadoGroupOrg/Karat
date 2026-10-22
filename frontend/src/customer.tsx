@@ -7,11 +7,11 @@ import { AccessRules, Customer, Level, customerApi, setCustomerToken } from "@/s
 import { GateModal } from "@/src/components/gate-modal";
 import { storage } from "@/src/utils/storage";
 
-WebBrowser.maybeCompleteAuthSession();
+if (Platform.OS !== "web") WebBrowser.maybeCompleteAuthSession();
 
 export const ACTION_LABELS: Record<string, string> = {
   prices: "see prices", studio_photo: "create studio photos", angles: "see more angles", try_on: "try pieces on",
-  sketch: "render your sketch", save_design: "save designs", quote: "request a quote",
+  sketch: "render your sketch", save_design: "save designs", quote: "request a quote", account: "keep your designs and quotes on every device",
 };
 const RANK: Record<Level, number> = { none: 0, form: 1, account: 2 };
 const KEY = "atelier_customer_token";
@@ -23,6 +23,7 @@ type Ctx = {
   rules: AccessRules | null;
   allowed: (action: string) => boolean;
   ensure: (action: string) => Promise<boolean>;
+  promptSignIn: () => Promise<boolean>;
   signIn: (r: { session_token: string; user: Customer }) => Promise<void>;
   signOut: () => Promise<void>;
   google: () => Promise<boolean>;
@@ -86,6 +87,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     (action: string) => (allowed(action) ? Promise.resolve(true) : new Promise<boolean>((resolve) => setGate({ action, need: need(action), resolve }))),
     [allowed, need],
   );
+  const promptSignIn = useCallback(() => new Promise<boolean>((resolve) => setGate({ action: "account", need: "account", resolve })), []);
 
   const signOut = useCallback(async () => {
     await customerApi.logout().catch(() => null);
@@ -116,7 +118,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     setGate(null);
   };
 
-  const value = useMemo(() => ({ customer, rules, allowed, ensure, signIn, signOut, google }), [customer, rules, allowed, ensure, signIn, signOut, google]);
+  const value = useMemo(() => ({ customer, rules, allowed, ensure, promptSignIn, signIn, signOut, google }), [customer, rules, allowed, ensure, promptSignIn, signIn, signOut, google]);
   return (
     <C.Provider value={value}>
       {children}

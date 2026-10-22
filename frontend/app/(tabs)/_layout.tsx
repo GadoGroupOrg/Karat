@@ -24,9 +24,9 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Icon sf="sparkles" />
           <NativeTabs.Trigger.Label>Build</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="saved">
-          <NativeTabs.Trigger.Icon sf="heart.fill" />
-          <NativeTabs.Trigger.Label>Saved</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger name="account">
+          <NativeTabs.Trigger.Icon sf="person.crop.circle.fill" />
+          <NativeTabs.Trigger.Label>Account</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       </NativeTabs>
     );
@@ -60,8 +60,8 @@ export default function TabsLayout() {
         options={{ title: "Build", tabBarButtonTestID: "tab-build", tabBarIcon: ({ color }) => <Feather name="edit-3" size={22} color={color} /> }}
       />
       <Tabs.Screen
-        name="saved"
-        options={{ title: "Saved", tabBarButtonTestID: "tab-saved", tabBarIcon: ({ color }) => <Feather name="heart" size={22} color={color} /> }}
+        name="account"
+        options={{ title: "Account", tabBarButtonTestID: "tab-account", tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} /> }}
       />
     </Tabs>
   );

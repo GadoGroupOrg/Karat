@@ -6,6 +6,7 @@ import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } fro
 
 import { BACKEND_ORIGIN } from "@/src/api";
 import { WIDE } from "@/src/components/admin/shell";
+import { ShopifyAppPanel } from "@/src/components/admin/shopify-app-panel";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 type Mode = "popup" | "inline";
@@ -108,10 +109,7 @@ export default function EmbedScreen() {
               ))}
             </View>
           ))}
-          <View style={[styles.panel, { backgroundColor: colors.brandTertiary, borderColor: colors.brandTertiary }]}>
-            <Text style={styles.h3}>Shopify App Store version</Text>
-            <Text style={styles.stepText}>A native Shopify app (one-click install, theme app block, add-to-cart) is planned. The snippet above already works on every Shopify theme today.</Text>
-          </View>
+          <ShopifyAppPanel />
         </View>
       </View>
     </ScrollView>

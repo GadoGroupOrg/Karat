@@ -40,6 +40,7 @@ async def ensure_indexes():
     await _db.customers.create_index("user_id", unique=True)
     await _db.customer_sessions.create_index("session_token", unique=True)
     await _db.customer_sessions.create_index("expires_at", expireAfterSeconds=0)
+    await _db.customer_designs.create_index([("user_id", 1), ("id", 1)], unique=True)
 
 
 # ---------- Access rules ----------
@@ -118,7 +119,14 @@ async def list_customers(q: str = ""):
     items = await _db.customers.find(filt, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(1000)
     for c in items:
         c["leads"] = await _db.quotes.count_documents({"email": c["email"]})
+        c["designs"] = await _db.customer_designs.count_documents({"user_id": c["user_id"]})
     return {"customers": items, "total": len(items)}
+
+
+@dash.get("/customers/{user_id}/designs")
+async def customer_designs_admin(user_id: str):
+    docs = await _db.customer_designs.find({"user_id": user_id}, {"_id": 0}).sort("updated_at", -1).to_list(500)
+    return {"designs": [d["data"] for d in docs]}
 
 
 # ---------- Customer identity ----------
@@ -221,6 +229,47 @@ async def me(request: Request):
     if not c:
         raise HTTPException(401, "Not signed in")
     return out(c, c["level"])
+
+
+async def signed_in(request: Request) -> dict:
+    c = await customer_from_request(request)
+    if not c:
+        raise HTTPException(401, "Not signed in")
+    return c
+
+
+@public.get("/customers/designs")
+async def my_designs(request: Request):
+    c = await signed_in(request)
+    docs = await _db.customer_designs.find({"user_id": c["user_id"]}, {"_id": 0}).sort("updated_at", -1).to_list(500)
+    return {"designs": [d["data"] for d in docs]}
+
+
+@public.put("/customers/designs/{design_id}")
+async def save_my_design(design_id: str, body: dict, request: Request):
+    c = await signed_in(request)
+    if len(design_id) > 40 or len(str(body)) > 20_000:
+        raise HTTPException(400, "Design is too large")
+    await _db.customer_designs.update_one({"user_id": c["user_id"], "id": design_id},
+                                          {"$set": {"data": {**body, "id": design_id}, "updated_at": now().isoformat()}}, upsert=True)
+    return {"ok": True}
+
+
+@public.delete("/customers/designs/{design_id}")
+async def delete_my_design(design_id: str, request: Request):
+    c = await signed_in(request)
+    await _db.customer_designs.delete_one({"user_id": c["user_id"], "id": design_id})
+    return {"ok": True}
+
+
+@public.get("/customers/quotes")
+async def my_quotes(request: Request):
+    c = await signed_in(request)
+    docs = await _db.quotes.find({"$or": [{"customer_id": c["user_id"]}, {"email": c["email"]}]}).sort("created_at", -1).to_list(200)
+    return {"quotes": [{"id": str(q["_id"]), "kind": q.get("kind", "design"), "price": q.get("price", 0), "status": q.get("status", "new"),
+                        "created_at": q["created_at"], "image_url": q.get("image_url"), "note": q.get("note", ""),
+                        "title": (q.get("design") or {}).get("name") or (q.get("product") or {}).get("title") or "Custom design",
+                        "product_image": (q.get("product") or {}).get("image")} for q in docs]}
 
 
 @public.post("/customers/logout")

@@ -11,6 +11,7 @@ export const setCustomerToken = (t: string | null) => {
   customerToken = t;
 };
 export const customerHeaders = (): Record<string, string> => (customerToken ? { "X-Customer-Token": customerToken } : {});
+export const hasCustomer = () => !!customerToken;
 
 export type Metal = { id: string; name: string; color: string; multiplier: number };
 export type Option = {
@@ -121,6 +122,14 @@ export const customerApi = {
     request<{ session_token: string; user: Customer }>("/customers/login", { method: "POST", body: JSON.stringify(b) }),
   google: (session_id: string) => request<{ session_token: string; user: Customer }>("/auth/session", { method: "POST", body: JSON.stringify({ session_id }) }),
   logout: () => request<{ ok: boolean }>("/customers/logout", { method: "POST" }),
+  designs: <T,>() => request<{ designs: T[] }>("/customers/designs"),
+  saveDesign: (d: { id: string }) => request<{ ok: boolean }>(`/customers/designs/${d.id}`, { method: "PUT", body: JSON.stringify(d) }),
+  deleteDesign: (id: string) => request<{ ok: boolean }>(`/customers/designs/${id}`, { method: "DELETE" }),
+  quotes: () => request<{ quotes: MyQuote[] }>("/customers/quotes"),
+};
+export type MyQuote = {
+  id: string; kind: string; price: number; status: string; created_at: string; image_url: string | null;
+  note: string; title: string; product_image: string | null;
 };
 
 export type QuoteBody = {

@@ -32,7 +32,7 @@ export default function DesignDetail() {
   useEffect(() => { getDesign(id).then(setDesign); }, [id]);
   const quote = usePrice(design ? (({ id: _i, price: _p, createdAt: _c, renderUrl: _r, ...spec }) => spec)(design) : null);
 
-  const close = () => (router.canGoBack() ? router.back() : router.replace("/saved"));
+  const close = () => (router.canGoBack() ? router.back() : router.replace("/account"));
 
   if (design === undefined || !catalog) {
     return <View style={[styles.root, styles.center]}><ActivityIndicator color={colors.brand} /></View>;

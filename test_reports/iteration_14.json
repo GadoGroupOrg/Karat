@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 14 (both backend+frontend) verified the new My Account tab + Shopify app package deliverables. BACKEND (/app/backend/tests/test_iter14_review.py — 16/16 pass): GET/PUT/DELETE /api/customers/designs[/{id}] all return 401 without X-Customer-Token. PUT with token persists; GET returns the design (name/price preserved); DELETE removes it. GET /api/customers/quotes 401 without token; after POST /api/quotes with x-customer-token the quote shows up with id/title/status/price fields and status in {new,contacted,quoted,won,lost}. GET /api/dashboard/customers?q=TEST_iter14_ (admin JWT) returns rows containing both 'leads' and 'designs' integer counts (verified >=1 after a save). GET /api/dashboard/customers/{user_id}/designs returns the design list. GET /api/dashboard/shopify returns configured=false and the three absolute URLs (app/callback/webhooks). GET /api/shopify/install|app|callback return 503 when SHOPIFY_API_KEY/SECRET are empty; POST /api/shopify/webhooks returns 503. GET /api/shopify/package.zip returns a valid zip containing shopify.app.toml, README.md, extensions/atelier-builder/shopify.extension.toml, blocks/builder.liquid, blocks/try-on-button.liquid, locales/en.default.json. The public BASE_URL host is baked into shopify.app.toml, README.md, builder.liquid and try-on-button.liquid. HMAC: shopify_app.valid_query_hmac returns True for a matching sha256 and False for a wrong/missing hmac; the webhook base64-sha256 compare_digest logic verified by equivalent construction. FRONTEND (mobile 390x844 + admin 1440x900): bottom tab 'tab-account' present, 'tab-saved' absent. account-screen renders; signed-out state shows 'account-signed-out' + 'account-sign-in-button'. Tapping it opens 'gate-modal' with 'gate-google-button' and the signup form; signup via gate-{name,email,password}-input + gate-submit-button logs the user in and 'account-profile' shows 'account-name' + 'account-email' + 'account-sign-out-button'. 'account-tab-designs' and 'account-tab-quotes' both present; signed-out quotes tab shows 'quotes-empty-state'. Saving a design on /build with correct testID 'save-design-button' shows the 'toast-view-saved-button' which navigates to /account where the FlatList renders 'saved-design-card-<id>'. While signed in, GET /api/customers/designs returns the uploaded design (verified via fetch with the x-customer-token stored in localStorage key 'atelier_customer_token'). Designs saved while signed OUT are stored locally (localStorage.saved_designs) and uploaded automatically on next sign-in (verified: locally saved 1 design → server /api/customers/designs count = 1 after signup). Admin /admin/embed renders 'admin-embed-screen' and 'shopify-app-panel' with 'shopify-app-status' = 'Setup needed', the app URL and redirect URL fields with 'shopify-copy-app-url' and 'shopify-copy-redirect-url' buttons, 'shopify-download-package' button and 'shopify-not-configured' hint. /admin/customers rows show '0/1 saved design(s)' labels per customer. Access rules were toggled during tests and reset to all 'none' at the end (verified via GET /api/access).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "src/customer.tsx (expo-web-browser WebBrowser.maybeCompleteAuthSession on web)",
+        "issue": "Dev-mode LogBox shows an 'Uncaught Error: PromiseResolve called on non-object' when navigating from Account → Build on web, apparently originating from the auth-session completion polyfill in react-native-web + expo-web-browser. The UI continues to work (saves, sync, navigation all succeed); the overlay only appears in Expo dev. Consider guarding WebBrowser.maybeCompleteAuthSession() behind Platform.OS !== 'web' or wrapping it in try/catch to avoid the noisy LogBox during development. Reference: /app/frontend/src/customer.tsx:10."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter14_review.py",
+    "/app/test_reports/pytest/iter14_results.xml"
+  ],
+  "action_items": [
+    "Optional (LOW): guard WebBrowser.maybeCompleteAuthSession() in /app/frontend/src/customer.tsx so it only runs on native (Platform.OS !== 'web') or wrap in try/catch — avoids the dev-mode 'PromiseResolve called on non-object' LogBox overlay observed on web navigation to /build. No functional impact; signup/signin/save/sync all pass."
+  ],
+  "critical_code_review_comments": [
+    "customers.py my_quotes correctly matches on {customer_id OR email} and projects a stable payload (id/title/status/price/image) — matches review requirement.",
+    "customers.py list_customers populates both 'leads' (quote count) and 'designs' (customer_designs count) per row — matches review requirement.",
+    "shopify_app.py require_configured() guards /install, /app, /callback, /webhooks with 503 when creds empty; package.zip remains accessible so the merchant can download it first — matches review requirement.",
+    "shopify_app.valid_query_hmac sorts params and excludes 'hmac'/'signature' before hex-sha256; webhooks route uses base64 hmac + hmac.compare_digest. Correct and tested at unit level.",
+    "account.tsx reload() loads customerApi.quotes() only when signed in and falls back to [] on error — correct behaviour.",
+    "designs.ts loadDesigns() merges remote + local-only and uploads missing designs via saveDesign — matches review requirement; verified end-to-end."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter14_review.py (new)",
+    "/app/test_reports/pytest/iter14_results.xml (new)",
+    "/app/test_reports/iteration_14.json (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16)",
+    "frontend": "100% on the review flows (account tab replaces saved; signed-out card + gate; signup → profile; save design → toast → account; signed-out save synced after signin; admin shopify panel + copy buttons + download; customers list designs count)"
+  },
+  "seed_data_creation": "Created multiple TEST_iter14*@example.com customers (prefix 'test_iter14_' once lowercased by server) with a saved design each. Can be purged via GET /api/dashboard/customers?q=TEST_iter14_ then deleting from Mongo if needed. Access rules were briefly toggled and reset to all 'none' with questions=[].",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Account tab testIDs: tab-account (bottom tab), account-screen, account-signed-out, account-sign-in-button, account-profile, account-name, account-email, account-sign-out-button, account-tab-designs, account-tab-quotes, quotes-empty-state, saved-empty-state, saved-design-card-<id>, saved-design-photo-<id>, account-quote-<id>. Builder save testID is 'save-design-button' (NOT 'build-save-button'); toast is 'toast-view-saved-button'. Admin shopify testIDs: shopify-app-panel, shopify-app-status, shopify-app-url-text, shopify-redirect-url-text, shopify-copy-app-url, shopify-copy-redirect-url, shopify-download-package, shopify-not-configured. The Expo dev LogBox occasionally overlays with 'PromiseResolve called on non-object' when WebBrowser.maybeCompleteAuthSession runs on web — ignore it for functional assertions and query DOM behind it. Customer token in localStorage is stored as a quoted JSON string via secureSet; when calling the API from page.evaluate strip quotes first. Access rules are currently all 'none' and should be left so.",
+  "rca_of_issue": "N/A — all review-request features behaved as specified. Only incidental finding: dev-mode LogBox 'PromiseResolve called on non-object' from WebBrowser.maybeCompleteAuthSession on web; no functional impact (saves, server sync, admin pages, zip contents all verified)."
+}

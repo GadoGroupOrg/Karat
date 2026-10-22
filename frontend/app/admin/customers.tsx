@@ -8,7 +8,7 @@ import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 type Cust = {
   user_id: string; email: string; name?: string; phone?: string; kind: "contact" | "account"; google?: boolean;
-  answers?: Record<string, { label: string; answer: string }>; created_at: string; last_seen?: string; leads: number;
+  answers?: Record<string, { label: string; answer: string }>; created_at: string; last_seen?: string; leads: number; designs: number;
 };
 
 export default function CustomersScreen() {
@@ -48,7 +48,7 @@ export default function CustomersScreen() {
             </View>
             {!!c.answers && Object.values(c.answers).map((a) => <Text key={a.label} style={styles.meta}><Text style={styles.qLabel}>{a.label}: </Text>{a.answer}</Text>)}
             <View style={styles.rowTop}>
-              <Text style={styles.meta}>Joined {formatDate(c.created_at)} · {c.leads} request{c.leads === 1 ? "" : "s"}</Text>
+              <Text style={styles.meta}>Joined {formatDate(c.created_at)} · {c.leads} request{c.leads === 1 ? "" : "s"} · {c.designs} saved design{c.designs === 1 ? "" : "s"}</Text>
               <Pressable onPress={() => Linking.openURL(`mailto:${c.email}`)} style={styles.mail} testID={`customer-email-${c.user_id}`}>
                 <Feather name="mail" size={14} color={colors.onSurface} />
               </Pressable>

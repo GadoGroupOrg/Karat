@@ -13,6 +13,7 @@ import auth
 import catalog_admin
 import customers
 import dashboard
+import shopify_app
 import hashlib
 import json
 from fastapi import File, Form, UploadFile
@@ -39,6 +40,7 @@ db = client[os.environ['DB_NAME']]
 auth.init(db)
 dashboard.init(db)
 customers.init(db)
+shopify_app.init(db)
 
 app = FastAPI()
 
@@ -635,6 +637,8 @@ app.include_router(catalog_admin.public)
 app.include_router(catalog_admin.dash)
 app.include_router(customers.public)
 app.include_router(customers.dash)
+app.include_router(shopify_app.public)
+app.include_router(shopify_app.dash)
 
 app.add_middleware(
     CORSMiddleware,

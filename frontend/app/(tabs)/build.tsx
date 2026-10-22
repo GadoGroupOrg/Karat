@@ -474,7 +474,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
           <Feather name="check-circle" size={16} color={colors.brandSecondary} />
           <Text style={styles.toastText}>{toast}</Text>
           {toast !== "Design updated" && !toast.startsWith("Up to") && (
-            <Pressable testID="toast-view-saved-button" onPress={() => router.push("/saved")} hitSlop={10}>
+            <Pressable testID="toast-view-saved-button" onPress={() => router.push("/account")} hitSlop={10}>
               <Text style={styles.toastAction}>View</Text>
             </Pressable>
           )}

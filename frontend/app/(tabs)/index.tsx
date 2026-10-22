@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { assetUrl, useStorefront } from "@/src/api";
 import { getBranding } from "@/src/branding";
-import { useCustomer } from "@/src/customer";
 import { isEmbedded } from "@/src/embed";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -39,7 +38,6 @@ export default function Home() {
 
   const start = (type: string) => router.push({ pathname: "/build", params: { type } });
   const { data: sf } = useStorefront();
-  const { customer, signOut } = useCustomer();
   const img = (k: string) => (sf?.images[k] ? assetUrl(sf.images[k]) : undefined);
   const off = sf?.disabled_types ?? [];
   // Bridal tile covers both bridal builders; show the band tile only when the engagement builder is off.
@@ -120,14 +118,6 @@ export default function Home() {
           </View>
           <Feather name="chevron-right" size={18} color={colors.onSurface} />
         </Pressable>
-        {!!customer && (
-          <View style={styles.accountRow} testID="home-customer-account">
-            <Text style={styles.adminLinkText} numberOfLines={1}>Signed in as {customer.name || customer.email}</Text>
-            <Pressable testID="home-customer-sign-out" onPress={signOut} hitSlop={8} style={styles.signOutBtn}>
-              <Text style={styles.signOutText}>Sign out</Text>
-            </Pressable>
-          </View>
-        )}
         {!isEmbedded && (
           <Pressable testID="home-store-admin-link" onPress={() => router.push("/admin")} style={styles.adminLink}>
             <Feather name="briefcase" size={14} color={colors.muted} />
@@ -148,9 +138,6 @@ const useStyles = makeStyles((c) => ({
   brandMark: { fontFamily: fonts.bold, fontSize: 13, letterSpacing: 4, color: c.onSurfaceInverse },
   heroLogo: { width: 160, height: 40 },
   adminLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, height: 48, marginTop: spacing["2xl"] },
-  accountRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.md, marginTop: spacing["2xl"], paddingHorizontal: spacing.xl },
-  signOutBtn: { height: 44, justifyContent: "center" },
-  signOutText: { fontFamily: fonts.bold, fontSize: 13, color: c.onSurface, textDecorationLine: "underline" },
   adminLinkText: { fontFamily: fonts.medium, fontSize: 13, color: c.muted },
   heroTitle: { fontFamily: fonts.display, fontSize: 40, lineHeight: 46, color: c.onSurfaceInverse },
   heroSub: { fontFamily: fonts.text, fontSize: 15, color: c.onSurfaceInverse, opacity: 0.85, marginTop: spacing.sm },
