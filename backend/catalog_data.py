@@ -221,6 +221,9 @@ TYPES = [
             {"id": "cable", "name": "Cable", "price": 0},
             {"id": "paperclip", "name": "Paperclip", "price": 35},
             {"id": "tennis", "name": "Tennis", "price": 220},
+            {"id": "charm-bracelet", "name": "Charm Bracelet", "price": 60, "description": "A classic link chain made for collecting charms."},
+            {"id": "bangle", "name": "Bangle", "price": 180, "description": "A solid, polished cuff-style bangle."},
+            {"id": "anklet", "name": "Anklet", "price": 30, "description": "A delicate chain made to be worn at the ankle."},
         ],
         "option_groups": [],
         "sizes": [
@@ -238,6 +241,9 @@ TYPES = [
             {"id": "stud", "name": "Stud", "price": 0},
             {"id": "hoop", "name": "Hoop", "price": 40},
             {"id": "drop", "name": "Drop", "price": 80},
+            {"id": "huggie", "name": "Huggie", "price": 60, "description": "A small, chunky hoop that hugs the earlobe."},
+            {"id": "pave-hoop", "name": "Pavé Hoop", "price": 220, "description": "A hoop set with a line of sparkling stones."},
+            {"id": "climber", "name": "Ear Climber", "price": 140, "description": "Sweeps up the ear in a curve of stones."},
         ],
         "option_groups": [],
         "sizes": [
@@ -245,6 +251,62 @@ TYPES = [
             {"id": "classic", "label": "Classic", "price": 30},
             {"id": "statement", "label": "Statement", "price": 60},
         ],
+    },
+]
+
+_STONE_PICK = {"id": "stone", "label": "Stones", "default": "earth-diamond", "options": [{**o, "price": 0} for o in STONE_OPTIONS]}
+
+TYPES += [
+    {
+        "id": "fashion-ring", "name": "Fashion Ring", "tagline": "Stackable, signet and cocktail rings", "style_label": "Style",
+        "base_price": 260, "addon_kind": "none", "addon_label": "", "max_addons": 0, "engraving_price": 30, "engraving_max": 20,
+        "styles": [
+            {"id": "stackable", "name": "Stackable Band", "price": 0, "description": "A slim band designed to be layered with others."},
+            {"id": "signet", "name": "Signet", "price": 320, "description": "A flat-faced signet, ready for initials or a crest."},
+            {"id": "cocktail", "name": "Cocktail", "price": 680, "description": "A bold statement ring with a large centre stone."},
+            {"id": "eternity", "name": "Eternity", "price": 520, "description": "Stones set all the way around the band."},
+            {"id": "dome", "name": "Dome", "price": 220, "description": "A sculptural, high-polish domed ring."},
+            {"id": "cluster", "name": "Cluster", "price": 460, "description": "Stones gathered in an organic, floral cluster."},
+            {"id": "chevron", "name": "Chevron", "price": 160, "description": "A V-shaped band that frames other rings."},
+        ],
+        "option_groups": [_STONE_PICK],
+        "sizes": [{"id": f"{s:g}", "label": f"{s:g}", "price": 0} for s in [x / 2 for x in range(6, 27)]],
+    },
+    {
+        "id": "pendant", "name": "Pendant", "tagline": "A single, meaningful piece on a fine chain", "style_label": "Pendant",
+        "base_price": 220, "addon_kind": "none", "addon_label": "", "max_addons": 0, "engraving_price": 25, "engraving_max": 12,
+        "styles": [
+            {"id": "solitaire", "name": "Solitaire", "price": 120, "description": "One stone in a four-prong basket."},
+            {"id": "halo", "name": "Halo", "price": 320, "description": "A centre stone ringed with a halo of accents."},
+            {"id": "bezel-drop", "name": "Bezel Drop", "price": 160, "description": "A stone wrapped in a smooth rim of gold."},
+            {"id": "initial", "name": "Initial", "price": 140, "description": "A polished gold letter."},
+            {"id": "heart", "name": "Heart", "price": 150, "description": "A softly rounded gold heart."},
+            {"id": "cross", "name": "Cross", "price": 170, "description": "A fine gold cross, plain or stone-set."},
+            {"id": "locket", "name": "Locket", "price": 260, "description": "An oval locket that opens for a keepsake."},
+            {"id": "bar", "name": "Bar", "price": 120, "description": "A slim horizontal bar, ready for engraving."},
+        ],
+        "option_groups": [_STONE_PICK, {"id": "chain", "label": "Chain", "default": "cable", "options": [
+            {"id": "cable", "name": "Cable", "price": 0}, {"id": "box", "name": "Box", "price": 40}, {"id": "rope", "name": "Rope", "price": 90}]}],
+        "sizes": [{"id": f"{n}", "label": f'{n}"', "price": (n - 16) * 10} for n in (16, 18, 20, 22)],
+    },
+    {
+        "id": "tennis", "name": "Tennis", "tagline": "An unbroken line of light", "style_label": "Setting",
+        "base_price": 900, "addon_kind": "none", "addon_label": "", "max_addons": 0, "engraving_price": 0, "engraving_max": 0,
+        "styles": [
+            {"id": "four-prong", "name": "Classic 4-Prong", "price": 0, "description": "Each stone held by four fine prongs."},
+            {"id": "bezel", "name": "Bezel Set", "price": 300, "description": "Each stone framed in a smooth gold rim."},
+            {"id": "illusion", "name": "Illusion", "price": 150, "description": "Mirror-polished plates make stones look larger."},
+            {"id": "graduated", "name": "Graduated", "price": 400, "description": "Stones grow larger towards the centre."},
+            {"id": "two-row", "name": "Two-Row", "price": 900, "description": "Two rows of stones side by side."},
+        ],
+        "option_groups": [
+            {"id": "piece", "label": "Piece", "default": "bracelet", "options": [
+                {"id": "bracelet", "name": "Bracelet", "price": 0}, {"id": "necklace", "name": "Necklace (Riviera)", "price": 2400}]},
+            _STONE_PICK,
+            {"id": "total_ct", "label": "Total carat weight", "default": "3", "options": [
+                {"id": c, "name": f"{c} ct tw", "price": p} for c, p in (("2", 0), ("3", 1200), ("5", 3600), ("7", 6200), ("10", 9800))]},
+        ],
+        "sizes": [{"id": n, "label": f'{n}"', "price": 0} for n in ("6.5", "7", "7.5", "16", "18")],
     },
 ]
 

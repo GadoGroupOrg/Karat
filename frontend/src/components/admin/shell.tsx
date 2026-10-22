@@ -14,6 +14,8 @@ type Nav = { href: string; label: string; icon: React.ComponentProps<typeof Feat
 const NAV: Nav[] = [
   { href: "/admin", label: "Leads", icon: "inbox", match: (p) => p === "/admin" || p.startsWith("/admin/leads") },
   { href: "/admin/catalog", label: "Catalog", icon: "grid", match: (p) => p.startsWith("/admin/catalog") },
+  { href: "/admin/access", label: "Customer access", icon: "lock", match: (p) => p.startsWith("/admin/access") },
+  { href: "/admin/customers", label: "Customers", icon: "users", match: (p) => p.startsWith("/admin/customers") },
   { href: "/admin/branding", label: "Branding", icon: "feather", match: (p) => p.startsWith("/admin/branding") },
   { href: "/admin/embed", label: "Website & Shopify", icon: "code", match: (p) => p.startsWith("/admin/embed") },
   { href: "/merchant", label: "Pricing", icon: "dollar-sign", match: () => false },

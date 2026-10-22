@@ -37,6 +37,12 @@ def jobs():
         stones = " with small white diamonds set as described" if w["accent_ct"] else ", no stones"
         yield f"band_style:{w['id']}", (f"A single 18k yellow gold {who} wedding band, style '{w['name']}': {w['description']}{stones}. "
                                         "The band stands upright at a three-quarter angle, profile clearly visible, no engagement ring.")
+    for t in TYPES:
+        if t["id"] in ("ring", "band"):
+            continue
+        for st in t["styles"]:
+            yield f"style.{t['id']}:{st['id']}", (f"A single 18k yellow gold {t['name'].lower()}, style '{st['name']}'"
+                                                  f"{': ' + st['description'] if st.get('description') else ''}. Fine jewelry product photo, white diamonds where stones are set.")
     for a in groups["accent_shape"]["options"]:
         yield f"accent_shape:{a['id']}", (f"A neat row of five tiny loose {a['name'].lower()}-cut white diamonds "
                                           f"({a['description']}) arranged on the backdrop, macro detail.")

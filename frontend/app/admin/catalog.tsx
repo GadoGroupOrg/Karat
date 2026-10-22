@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, Switch, Text, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, Switch, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import { BASE, assetUrl, dashRequest } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -13,8 +13,8 @@ import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { uploadForm } from "@/src/utils/upload";
 
 type Source = "brand" | "stock" | "ai" | "default" | "none";
-type Opt = { id: string; name: string; color: string | null; enabled: boolean; image: string | null; image_source: Source | null };
-type Group = { key: string; label: string; type: string; has_images: boolean; options: Opt[] };
+type Opt = { id: string; name: string; color: string | null; enabled: boolean; custom?: boolean; image: string | null; image_source: Source | null };
+type Group = { key: string; label: string; type: string; has_images: boolean; can_add?: boolean; options: Opt[] };
 type Slot = { key: string; label: string; image: string | null; image_source: Source };
 type Stock = { id: string; label: string; tags: string[]; url: string };
 type AdminCatalog = { types: { id: string; name: string; group?: string; enabled: boolean }[]; groups: Group[]; storefront: Slot[]; stock: Stock[] };
@@ -35,6 +35,36 @@ export default function CatalogScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [picker, setPicker] = useState<{ key: string; label: string; source: Source } | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
+  const [newStyle, setNewStyle] = useState({ name: "", description: "", price: "" });
+
+  const addStyle = async (type: string) => {
+    if (!newStyle.name.trim()) return setMsg({ ok: false, text: "Give your style a name." });
+    setBusy("add");
+    try {
+      await dashRequest(token!, "/custom-styles", { method: "POST", body: JSON.stringify({
+        type, name: newStyle.name.trim(), description: newStyle.description.trim(), price: Number(newStyle.price) || 0 }) });
+      setAdding(null);
+      setNewStyle({ name: "", description: "", price: "" });
+      await refresh();
+      setMsg({ ok: true, text: "Style added. Tap its image to upload your product photo." });
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  };
+  const removeStyle = async (id: string) => {
+    setBusy("add");
+    try {
+      await dashRequest(token!, `/custom-styles/${id}`, { method: "DELETE" });
+      await refresh();
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   useEffect(() => {
     if (!data || dirty) return;
@@ -149,7 +179,7 @@ export default function CatalogScreen() {
                     <Text style={styles.typeName}>{t.name}</Text>
                     <Text style={styles.typeSub}>{t.group === "bridal" ? "Bridal builder" : "Builder"} · {on ? "On" : "Off"}</Text>
                   </View>
-                  <Switch value={on} onValueChange={() => toggleType(t.id)} trackColor={{ true: colors.brand, false: colors.surfaceTertiary }} testID={`catalog-type-switch-${t.id}`} />
+                  <Switch value={on} pointerEvents="none" trackColor={{ true: colors.brand, false: colors.surfaceTertiary }} testID={`catalog-type-switch-${t.id}`} />
                 </Pressable>
               );
             })}
@@ -171,7 +201,12 @@ export default function CatalogScreen() {
             <View style={styles.wrap}>
               {g.options.map((o) => {
                 const on = !(off[g.key] ?? []).includes(o.id);
-                const sw = <Switch value={on} onValueChange={() => toggleOpt(g.key, o.id)} trackColor={{ true: colors.brand, false: colors.surfaceTertiary }} testID={`catalog-switch-${g.key}-${o.id}`} />;
+                const sw = (
+                  <>
+                    {o.custom && <Pressable onPress={() => removeStyle(o.id)} hitSlop={6} testID={`catalog-remove-style-${o.id}`}><Feather name="trash-2" size={14} color={colors.error} /></Pressable>}
+                    <Switch value={on} onValueChange={() => toggleOpt(g.key, o.id)} trackColor={{ true: colors.brand, false: colors.surfaceTertiary }} testID={`catalog-switch-${g.key}-${o.id}`} />
+                  </>
+                );
                 return g.has_images ? imageTile(`${g.key}:${o.id}`, o.name, o.image, o.image_source, sw, !on) : (
                   <View key={o.id} style={[styles.chipRow, !on && { opacity: 0.5 }]} testID={`catalog-option-${g.key}-${o.id}`}>
                     {!!o.color && <View style={[styles.dot, { backgroundColor: o.color }]} />}
@@ -181,6 +216,22 @@ export default function CatalogScreen() {
                 );
               })}
             </View>
+            {g.can_add && !["ring", "band"].includes(g.type) && (adding === g.type ? (
+              <View style={styles.addForm} testID={`catalog-add-form-${g.type}`}>
+                <TextInput testID="catalog-new-style-name" value={newStyle.name} onChangeText={(v) => setNewStyle({ ...newStyle, name: v })} placeholder="Style name (e.g. Gado Signature Huggie)" placeholderTextColor={colors.muted} style={styles.input} maxLength={60} />
+                <TextInput testID="catalog-new-style-description" value={newStyle.description} onChangeText={(v) => setNewStyle({ ...newStyle, description: v })} placeholder="Short description" placeholderTextColor={colors.muted} style={styles.input} maxLength={200} />
+                <TextInput testID="catalog-new-style-price" value={newStyle.price} onChangeText={(v) => setNewStyle({ ...newStyle, price: v.replace(/[^0-9.]/g, "") })} placeholder="Price added to the base ($)" placeholderTextColor={colors.muted} style={styles.input} keyboardType="numeric" />
+                <View style={styles.wrap}>
+                  <Pressable testID="catalog-new-style-save" onPress={() => addStyle(g.type)} disabled={busy === "add"} style={styles.darkBtn}><Text style={styles.darkText}>Add style</Text></Pressable>
+                  <Pressable onPress={() => setAdding(null)} style={styles.outlineBtnSm}><Text style={styles.outlineText}>Cancel</Text></Pressable>
+                </View>
+              </View>
+            ) : (
+              <Pressable testID={`catalog-add-style-${g.type}`} onPress={() => setAdding(g.type)} style={styles.outlineBtnSm}>
+                <Feather name="plus" size={14} color={colors.onSurface} />
+                <Text style={styles.outlineText}>Add your own style</Text>
+              </Pressable>
+            ))}
           </View>
         ))}
         <View style={{ height: 80 }} />
@@ -257,6 +308,9 @@ const useStyles = makeStyles((c) => ({
   darkBtn: { flexDirection: "row", gap: spacing.sm, height: 48, paddingHorizontal: spacing.xl, borderRadius: radius.pill, backgroundColor: c.surfaceInverse, alignItems: "center", justifyContent: "center" },
   darkText: { fontFamily: fonts.bold, fontSize: 14, color: c.onSurfaceInverse },
   outlineBtn: { height: 48, borderRadius: radius.pill, borderWidth: 1, borderColor: c.borderStrong, alignItems: "center", justifyContent: "center" },
+  outlineBtnSm: { flexDirection: "row", gap: spacing.sm, alignSelf: "flex-start", height: 44, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1, borderColor: c.borderStrong, alignItems: "center" },
+  addForm: { gap: spacing.sm, maxWidth: 520 },
+  input: { height: 46, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, paddingHorizontal: spacing.lg, fontFamily: fonts.text, fontSize: 14, color: c.onSurface },
   outlineText: { fontFamily: fonts.bold, fontSize: 14, color: c.onSurface },
   msg: { padding: spacing.lg, borderRadius: radius.md },
   msgText: { fontFamily: fonts.medium, fontSize: 13, color: c.onSuccess },

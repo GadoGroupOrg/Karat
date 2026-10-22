@@ -5,7 +5,10 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Catalog, DesignSpec, assetUrl, requestRender } from "@/src/api";
+import { Catalog, DesignSpec, Stroke, assetUrl, requestAngle, requestRender, requestSketch } from "@/src/api";
+import { SketchPad } from "@/src/components/sketch-pad";
+import { SketchResult } from "@/src/components/sketch-result";
+import { useCustomer } from "@/src/customer";
 import { JewelryPreview } from "@/src/components/jewelry-preview";
 import { RingViewer, type RingViewerHandle } from "@/src/components/ring3d/ring-viewer";
 import type { RingSpec } from "@/src/components/ring3d/build-ring";
@@ -16,7 +19,10 @@ const RENDER_DELAY = 1200;
 export const specKey = (d: DesignSpec) =>
   JSON.stringify({ ...d, name: undefined, addonIds: [...d.addonIds].sort(), options: d.options ?? {} });
 
-type RenderState = { status: "idle" | "loading" | "ready" | "error"; url?: string; key?: string; error?: string };
+type RenderState = { status: "idle" | "loading" | "ready" | "error"; url?: string; key?: string; error?: string; id?: string };
+const ANGLES = [
+  { id: "hero", label: "¾" }, { id: "front", label: "Front" }, { id: "side", label: "Side" }, { id: "top", label: "Top" }, { id: "back", label: "Back" },
+];
 
 type Props = {
   catalog: Catalog;
@@ -45,6 +51,15 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
   const keyRef = useRef(key);
   keyRef.current = key;
   const isRing = design.type === "ring" || design.type === "band";
+  const hasLive = isRing || ["necklace", "bracelet", "earrings"].includes(design.type);
+  const { allowed, ensure } = useCustomer();
+  const [angle, setAngle] = useState("hero");
+  const [angleUrls, setAngleUrls] = useState<Record<string, string>>({});
+  const [angleBusy, setAngleBusy] = useState<string | null>(null);
+  const [sketching, setSketching] = useState(false);
+  const [sketchBusy, setSketchBusy] = useState(false);
+  const [sketch, setSketch] = useState<{ id: string; image_url: string; sketch_url: string; note: string } | null>(null);
+  const [sketchError, setSketchError] = useState<string | null>(null);
 
   const ringSpec = useMemo((): RingSpec => {
     const t = catalog.types.find((x) => x.id === design.type);
@@ -82,7 +97,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
       const r = await requestRender(design, snap, force);
       if (keyRef.current !== k) return;
       const url = assetUrl(r.image_url);
-      setRender({ status: "ready", url, key: k });
+      setRender({ status: "ready", url, key: k, id: r.id });
       setLastUrl(url);
     } catch (e) {
       if (keyRef.current !== k) return;
@@ -93,7 +108,9 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
   // Auto-render once the customer pauses on a configuration; any change returns to the live view.
   useEffect(() => {
     setRender((r) => (r.key === key ? r : { status: "idle" }));
-    if (!autoRender) return;
+    setAngle("hero");
+    setAngleUrls({});
+    if (!autoRender || !allowed("studio_photo")) return;
     const h = setTimeout(() => run(false), RENDER_DELAY);
     return () => clearTimeout(h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,7 +123,48 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
 
 
   const photoReady = render.status === "ready" && render.key === key;
-  const shownUrl = photoReady ? render.url ?? null : lastUrl;
+  const baseUrl = photoReady ? render.url ?? null : lastUrl;
+  const shownUrl = photoReady && angle !== "hero" ? angleUrls[angle] ?? baseUrl : baseUrl;
+
+  const pickAngle = async (a: string) => {
+    if (a === "hero" || angleUrls[a]) return setAngle(a);
+    if (!render.id || !(await ensure("angles"))) return;
+    setAngleBusy(a);
+    try {
+      const r = await requestAngle(render.id, a);
+      setAngleUrls((u) => ({ ...u, [a]: assetUrl(r.image_url) }));
+      setAngle(a);
+    } catch (e) {
+      setRender((r) => ({ ...r, error: (e as Error).message }));
+    } finally {
+      setAngleBusy(null);
+    }
+  };
+  const startPhoto = async () => {
+    if (await ensure("studio_photo")) run(false);
+  };
+  const startSketch = async () => {
+    if (await ensure("sketch")) {
+      setSketchError(null);
+      setSketching(true);
+    }
+  };
+  const submitSketch = async (strokes: Stroke[], note: string) => {
+    setSketchBusy(true);
+    setSketchError(null);
+    try {
+      const useRender = mode === "photo" && photoReady && angle === "hero" ? render.id ?? null : null;
+      const snap = !useRender && isRing && mode === "live" ? await viewer.current?.snapshot() ?? null : null;
+      if (!useRender && !snap) throw new Error("Wait for the studio photo, or switch to 3D, then sketch.");
+      const r = await requestSketch(design, strokes, note, useRender, snap);
+      setSketch({ ...r, note });
+      setSketching(false);
+    } catch (e) {
+      setSketchError((e as Error).message);
+    } finally {
+      setSketchBusy(false);
+    }
+  };
 
   const toggleSpin = () => {
     const next = !spin;
@@ -128,7 +186,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
   return (
     <View style={[styles.canvas, height ? { height } : { flex: 1 }]} testID="builder-preview-canvas">
       <View style={styles.stage}>
-        {mode === "live" ? (
+        {mode === "live" && hasLive ? (
           isRing ? (
             <RingViewer ref={viewer} spec={ringSpec} background={colors.surfaceSecondary} testID="ring-3d-viewer" />
           ) : (
@@ -143,6 +201,14 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
             <Image source={{ uri: shownUrl }} style={[styles.photo, StyleSheet.absoluteFill]} contentFit="contain" transition={400} testID="builder-render-photo" />
             {!photoReady && <View style={styles.updatingVeil} />}
           </View>
+        ) : !allowed("studio_photo") && render.status !== "loading" ? (
+          <View style={styles.placeholder} testID="photo-locked">
+            <Feather name="aperture" size={24} color={colors.brandPrimary} />
+            <Text style={styles.placeholderTitle}>See it as a real photograph</Text>
+            <Pressable testID="unlock-studio-photo-button" onPress={startPhoto} style={styles.unlockBtn}>
+              <Text style={styles.unlockText}>Create studio photo</Text>
+            </Pressable>
+          </View>
         ) : (
           <View style={styles.placeholder} testID="photo-placeholder">
             <ActivityIndicator color={colors.brandPrimary} />
@@ -150,9 +216,11 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
             <Text style={styles.placeholderText}>Every choice you make is rendered as a real photograph.</Text>
           </View>
         )}
+        {sketching && <SketchPad square={mode === "photo"} busy={sketchBusy} onCancel={() => setSketching(false)} onSubmit={submitSketch} />}
       </View>
+      {!!sketchError && sketching && <Text style={styles.sketchError} testID="sketch-error">{sketchError}</Text>}
 
-      <View style={styles.segment} testID="canvas-mode-toggle">
+      {hasLive && <View style={styles.segment} testID="canvas-mode-toggle">
         {(["photo", "live"] as const).map((m) => {
           const sel = mode === m;
           return (
@@ -166,7 +234,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
             </Pressable>
           );
         })}
-      </View>
+      </View>}
 
       {isRing && mode === "live" && (
         <View style={[styles.hint, { pointerEvents: "none" }]}>
@@ -175,11 +243,27 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
         </View>
       )}
       {isRing && mode === "live" && controls(viewer, false)}
-      {mode === "photo" && shownUrl && (
-        <View style={styles.controls}>
-          <CtrlBtn testID="photo-fullscreen-button" icon="maximize-2" onPress={() => setFullscreen(true)} />
+      {!sketching && (mode === "photo" ? !!shownUrl : isRing) && (
+        <View style={[styles.controls, mode === "live" && { bottom: "auto", top: spacing["3xl"] + spacing.lg }]}>
+          <CtrlBtn testID="sketch-start-button" icon="edit-3" onPress={startSketch} />
+          {mode === "photo" && <CtrlBtn testID="photo-fullscreen-button" icon="maximize-2" onPress={() => setFullscreen(true)} />}
         </View>
       )}
+      {!sketching && mode === "photo" && photoReady && !!render.id && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.angles} contentContainerStyle={styles.anglesInner} testID="angle-bar">
+          {ANGLES.map((a) => {
+            const sel = angle === a.id;
+            return (
+              <Pressable key={a.id} testID={`angle-${a.id}`} onPress={() => pickAngle(a.id)} disabled={!!angleBusy} style={[styles.angleChip, sel && styles.angleSel]}>
+                {angleBusy === a.id ? <ActivityIndicator size="small" color={colors.onSurface} /> : (
+                  <Text style={[styles.angleText, sel && { color: colors.onSurfaceInverse }]}>{a.label}</Text>
+                )}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
+      {sketch && <SketchResult design={design} sketch={sketch} onClose={() => setSketch(null)} />}
 
       <Modal visible={fullscreen} animationType="fade" presentationStyle="fullScreen" onRequestClose={() => setFullscreen(false)}>
         <View style={[styles.fsRoot, { paddingTop: insets.top }]} testID="fullscreen-viewer">
@@ -210,7 +294,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
         </View>
       </Modal>
 
-      <View style={[styles.renderChip, { pointerEvents: "box-none" }]} testID="render-status">
+      {!sketching && <View style={[styles.renderChip, mode === "photo" && photoReady && styles.renderChipTop, { pointerEvents: "box-none" }]} testID="render-status">
         {render.status === "loading" ? (
           <View style={styles.chipInner}>
             <ActivityIndicator size="small" color={colors.brandPrimary} />
@@ -230,12 +314,12 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
             <Text style={styles.chipText} numberOfLines={1}>Render failed · Retry</Text>
           </Pressable>
         ) : (
-          <Pressable testID="render-now-button" onPress={() => run(false)} style={styles.chipInner}>
+          <Pressable testID="render-now-button" onPress={startPhoto} style={styles.chipInner}>
             <Feather name="aperture" size={14} color={colors.brandPrimary} />
             <Text style={styles.chipText}>Render photo</Text>
           </Pressable>
         )}
-      </View>
+      </View>}
     </View>
   );
 }
@@ -284,5 +368,14 @@ const useStyles = makeStyles((c) => ({
     borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
   },
   chipText: { fontFamily: fonts.bold, fontSize: 12, color: c.onSurface },
+  renderChipTop: { bottom: "auto", top: spacing.md, left: "auto", right: spacing.md },
+  angles: { position: "absolute", left: 0, right: 56, bottom: spacing.md },
+  anglesInner: { gap: 6, paddingHorizontal: spacing.md },
+  angleChip: { minWidth: 48, height: 36, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" },
+  angleSel: { backgroundColor: c.surfaceInverse, borderColor: c.surfaceInverse },
+  angleText: { fontFamily: fonts.bold, fontSize: 12, color: c.onSurface },
+  unlockBtn: { marginTop: spacing.md, height: 44, paddingHorizontal: spacing.xl, borderRadius: radius.pill, backgroundColor: c.surfaceInverse, justifyContent: "center" },
+  unlockText: { fontFamily: fonts.bold, fontSize: 14, color: c.onSurfaceInverse },
+  sketchError: { position: "absolute", top: spacing.md, alignSelf: "center", fontFamily: fonts.medium, fontSize: 12, color: c.onError, backgroundColor: c.error, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill },
   rerender: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: c.surfaceSecondary },
 }));

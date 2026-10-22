@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, BeforeValidator, ConfigDict, EmailStr
 from typing import Dict, List, Literal, Optional, Annotated
 import auth
 import catalog_admin
+import customers
 import dashboard
 import hashlib
 import json
@@ -37,6 +38,7 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 auth.init(db)
 dashboard.init(db)
+customers.init(db)
 
 app = FastAPI()
 
@@ -80,6 +82,7 @@ class QuoteCreate(BaseModel):
     design: Optional[DesignSpec] = None
     product_id: Optional[str] = None
     tryon_id: Optional[str] = None
+    sketch_id: Optional[str] = None
     render_url: Optional[str] = Field(default=None, max_length=300)
     source: Literal["app", "embed"] = "app"
     name: str = Field(min_length=1, max_length=80)
@@ -92,6 +95,8 @@ class Quote(BaseDocument):
     kind: str = "design"
     design: Optional[DesignSpec] = None
     product: Optional[dict] = None
+    sketch: Optional[dict] = None
+    customer_id: Optional[str] = None
     name: str
     email: str
     phone: str = ""
@@ -126,6 +131,12 @@ async def get_catalog() -> dict:
                 attach(g["id"], g["options"])
         elif t["id"] == "band":
             attach("band_style", t["styles"])
+    custom = await db.custom_styles.find({}, {"_id": 0}).to_list(500)
+    for t in types:
+        t["styles"] = t["styles"] + [{k: c[k] for k in ("id", "name", "description", "price")} | {"custom": True}
+                                     for c in custom if c["type"] == t["id"]]
+        if t["id"] not in ("ring", "band"):
+            attach(f"style.{t['id']}", t["styles"])
     sheet = pricing.merge_defaults(await db.price_sheet.find_one({"key": "default"}, {"_id": 0}))
     return {"types": types, "metals": metals, "addons": addons, "store": store,
             "pricing": {"gold_karat": "18k", "currency": "USD"}, "sheet": sheet}
@@ -170,7 +181,9 @@ def compute_breakdown(catalog: dict, d: DesignSpec) -> dict:
         return pricing.ring_quote(catalog["sheet"], catalog, d, t, style, size, addons)
     if t["id"] == "band":
         return pricing.wedding_band_quote(catalog["sheet"], d, t, style, size)
-    labor = t["base_price"] + style["price"] + size["price"]
+    labor = t["base_price"] + style["price"] + size["price"] + sum(
+        next((x.get("price", 0) for x in g["options"] if x["id"] == d.options.get(g["id"], g["default"])), 0)
+        for g in t.get("option_groups", []))
     lines = [{"label": "Piece", "amount": labor * metal["multiplier"]}]
     for a in addons:
         lines.append({"label": a["name"], "amount": a["price"]})
@@ -329,7 +342,8 @@ class Render(BaseDocument):
 
 
 @api_router.post("/renders")
-async def create_render(design: str = Form(...), force: str = Form("false"), snapshot: Optional[UploadFile] = File(None)):
+async def create_render(request: Request, design: str = Form(...), force: str = Form("false"), snapshot: Optional[UploadFile] = File(None)):
+    await customers.require("studio_photo", request)
     try:
         spec = DesignSpec.model_validate_json(design)
     except Exception:
@@ -367,8 +381,119 @@ async def render_image(h: str):
     return Response(content=data, media_type=ctype, headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
+@api_router.get("/renders/{h}/angles/{angle}")
+async def get_angle(h: str, angle: str):
+    doc = await db.render_angles.find_one({"hash": h, "angle": angle})
+    return {"image_url": f"/api/renders/{h}/angles/{angle}/image?v={doc['created_at'][:19]}" if doc else None}
+
+
+@api_router.post("/renders/{h}/angles/{angle}")
+async def create_angle(h: str, angle: str, request: Request):
+    if angle not in render_service.ANGLES:
+        raise HTTPException(400, "Unknown angle")
+    base = await db.renders.find_one({"hash": h})
+    if not base:
+        raise HTTPException(404, "Render not found")
+    cached = await db.render_angles.find_one({"hash": h, "angle": angle})
+    if cached:
+        return {"image_url": f"/api/renders/{h}/angles/{angle}/image?v={cached['created_at'][:19]}", "cached": True}
+    await customers.require("angles", request)
+    try:
+        data, _ = await run_in_threadpool(render_service.get_object, base["storage_path"])
+        img, mime = await render_service.generate_angle(data, angle)
+        path = render_service.storage_path()
+        await run_in_threadpool(render_service.put_object, path, img, mime)
+    except Exception as e:
+        logger.exception("angle failed")
+        if getattr(getattr(e, "response", None), "status_code", None) == 402:
+            raise HTTPException(402, "Render credits exhausted. Please top up your balance.")
+        raise HTTPException(502, "Couldn't create this view. Please try again.")
+    created = datetime.now(timezone.utc).isoformat()
+    await db.render_angles.update_one({"hash": h, "angle": angle}, {"$set": {"storage_path": path, "created_at": created}}, upsert=True)
+    return {"image_url": f"/api/renders/{h}/angles/{angle}/image?v={created[:19]}", "cached": False}
+
+
+@api_router.get("/renders/{h}/angles/{angle}/image")
+async def angle_image(h: str, angle: str):
+    doc = await db.render_angles.find_one({"hash": h, "angle": angle})
+    if not doc:
+        raise HTTPException(404, "View not found")
+    data, ctype = await run_in_threadpool(render_service.get_object, doc["storage_path"])
+    return Response(content=data, media_type=ctype, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
+def _composite(base: bytes, strokes: list) -> bytes:
+    import io
+    from PIL import Image as PILImage, ImageDraw
+    img = PILImage.open(io.BytesIO(base)).convert("RGB")
+    w, h = img.size
+    draw = ImageDraw.Draw(img)
+    for st in strokes[:200]:
+        pts = [(float(x) * w, float(y) * h) for x, y in st.get("points", [])[:2000]]
+        width = max(3, int(float(st.get("w", 0.008)) * w))
+        if len(pts) == 1:
+            x, y = pts[0]
+            draw.ellipse([x - width, y - width, x + width, y + width], fill=(230, 20, 40))
+        elif pts:
+            draw.line(pts, fill=(230, 20, 40), width=width, joint="curve")
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    return buf.getvalue()
+
+
+@api_router.post("/sketches")
+async def create_sketch(request: Request, design: str = Form(...), strokes: str = Form(...), note: str = Form(""),
+                        render_id: str = Form(""), snapshot: Optional[UploadFile] = File(None)):
+    await customers.require("sketch", request)
+    try:
+        spec = DesignSpec.model_validate_json(design)
+        lines = json.loads(strokes)
+        assert isinstance(lines, list) and lines
+    except Exception:
+        raise HTTPException(400, "Draw something on the design first")
+    catalog = await get_catalog()
+    compute_price(catalog, spec)
+    base = None
+    if render_id:
+        r = await db.renders.find_one({"hash": render_id})
+        if r:
+            base, _ = await run_in_threadpool(render_service.get_object, r["storage_path"])
+    if base is None and snapshot:
+        base = await snapshot.read()
+    if not base:
+        raise HTTPException(400, "No design image to sketch on")
+    try:
+        comp = await run_in_threadpool(_composite, base, lines)
+        desc = render_service.build_prompt(catalog, spec.model_dump(), False, 0)[:1500]
+        img, mime = await render_service.generate_sketch(comp, note[:500], desc)
+        sid = secrets.token_hex(16)
+        path, cpath = render_service.storage_path(), render_service.storage_path()
+        await run_in_threadpool(render_service.put_object, path, img, mime)
+        await run_in_threadpool(render_service.put_object, cpath, comp, "image/png")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("sketch failed")
+        if getattr(getattr(e, "response", None), "status_code", None) == 402:
+            raise HTTPException(402, "Render credits exhausted. Please top up your balance.")
+        raise HTTPException(502, "Couldn't render your sketch. Please try again.")
+    await db.sketches.insert_one({"id": sid, "design": spec.model_dump(), "note": note[:500], "storage_path": path,
+                                  "sketch_path": cpath, "created_at": datetime.now(timezone.utc).isoformat()})
+    return {"id": sid, "image_url": f"/api/sketches/{sid}/image", "sketch_url": f"/api/sketches/{sid}/image?which=sketch"}
+
+
+@api_router.get("/sketches/{sid}/image")
+async def sketch_image(sid: str, which: str = "result"):
+    doc = await db.sketches.find_one({"id": sid})
+    if not doc:
+        raise HTTPException(404, "Sketch not found")
+    data, ctype = await run_in_threadpool(render_service.get_object, doc["sketch_path" if which == "sketch" else "storage_path"])
+    return Response(content=data, media_type=ctype, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
 @api_router.post("/tryons")
-async def create_tryon(product_id: str = Form(...), photo: UploadFile = File(...)):
+async def create_tryon(request: Request, product_id: str = Form(...), photo: UploadFile = File(...)):
+    await customers.require("try_on", request)
     product = await db.store_products.find_one({"id": product_id}, {"_id": 0})
     if not product:
         raise HTTPException(404, "Product not found")
@@ -404,7 +529,9 @@ async def tryon_image(tid: str):
 
 
 @api_router.post("/quotes", response_model=Quote, response_model_by_alias=False)
-async def create_quote(payload: QuoteCreate):
+async def create_quote(payload: QuoteCreate, request: Request):
+    cust = await customers.require("quote", request)
+    payload.email = payload.email.lower()
     product = None
     if payload.design:
         p = compute_price(await get_catalog(), payload.design)
@@ -421,8 +548,13 @@ async def create_quote(payload: QuoteCreate):
         image_url = payload.render_url
     if payload.tryon_id and await db.tryons.find_one({"id": payload.tryon_id, "product_id": payload.product_id}):
         image_url = f"/api/tryons/{payload.tryon_id}/image"
+    sketch = None
+    if payload.sketch_id and (sk := await db.sketches.find_one({"id": payload.sketch_id})):
+        image_url = f"/api/sketches/{payload.sketch_id}/image"
+        sketch = {"id": sk["id"], "note": sk.get("note", ""), "sketch_url": f"/api/sketches/{sk['id']}/image?which=sketch"}
     quote = Quote(
-        design=payload.design, product=product, kind="design" if payload.design else "product",
+        design=payload.design, product=product, kind="sketch" if sketch else "design" if payload.design else "product", sketch=sketch,
+        customer_id=cust["user_id"] if cust else None,
         name=payload.name.strip(), email=payload.email, phone=payload.phone.strip(),
         note=payload.note.strip(), price=p, image_url=image_url, source=payload.source,
         created_at=datetime.now(timezone.utc).isoformat(),
@@ -501,6 +633,8 @@ app.include_router(dashboard.public)
 app.include_router(dashboard.dash)
 app.include_router(catalog_admin.public)
 app.include_router(catalog_admin.dash)
+app.include_router(customers.public)
+app.include_router(customers.dash)
 
 app.add_middleware(
     CORSMiddleware,
@@ -527,6 +661,7 @@ async def seed_catalog():
     logger.info("Catalog seeded")
     await auth.seed_admin()
     catalog_admin.init(db, get_catalog)
+    await customers.ensure_indexes()
     if not await db.price_sheet.find_one({"key": "default"}):
         await db.price_sheet.insert_one(pricing.default_sheet())
     asyncio.create_task(gold_refresh_loop())

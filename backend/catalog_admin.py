@@ -23,6 +23,7 @@ STOCK = [
 ]
 DEFAULT_STOREFRONT = {
     "home:hero": STOCK[0]["url"], "type:ring": STOCK[1]["url"], "type:band": STOCK[1]["url"],
+    "type:fashion-ring": STOCK[0]["url"], "type:pendant": STOCK[2]["url"], "type:tennis": STOCK[3]["url"],
     "type:necklace": STOCK[2]["url"], "type:bracelet": STOCK[3]["url"], "type:earrings": STOCK[4]["url"],
 }
 # Option groups the merchant can switch on/off, with where their options live in the catalog.
@@ -36,6 +37,21 @@ TOGGLE_GROUPS = [
 ]
 # Image slot group key used for each option list (matches AI option-image keys).
 IMAGE_GROUPS = {"setting", "shape", "band", "band_style"}
+BRIDAL = ("ring", "band")
+
+
+def style_key(type_id: str) -> str:
+    return {"ring": "setting", "band": "band_style"}.get(type_id, f"style.{type_id}")
+
+
+def toggle_groups(full: dict) -> list:
+    """Bridal groups + one style group per other builder (built-in and custom styles)."""
+    extra = [(style_key(t["id"]), f"{t['name']} styles", t["id"], "styles") for t in full["types"] if t["id"] not in BRIDAL]
+    return TOGGLE_GROUPS + extra
+
+
+def has_images(key: str) -> bool:
+    return key in IMAGE_GROUPS or key.startswith("style.")
 
 _db = None
 _get_catalog = None
@@ -70,10 +86,8 @@ def apply_slots(catalog: dict, slots: Dict[str, dict]):
     for t in catalog["types"]:
         if t["id"] == "ring":
             pairs = [("setting", t["styles"])] + [(g["id"], g["options"]) for g in t["option_groups"]]
-        elif t["id"] == "band":
-            pairs = [("band_style", t["styles"])]
         else:
-            continue
+            pairs = [(style_key(t["id"]), t["styles"])]
         for group, opts in pairs:
             for o in opts:
                 s = slots.get(f"{group}:{o['id']}")
@@ -108,6 +122,8 @@ def apply_config(catalog: dict, cfg: dict) -> dict:
                     g["options"] = keep("accent_stone", g["options"])
                     if not any(o["id"] == g["default"] for o in g["options"]):
                         g["default"] = g["options"][0]["id"]
+        else:
+            t["styles"] = keep(style_key(t["id"]), t["styles"])
     centre_off = off.get("centre_stone", set())
     ring_stones = [a for a in c["addons"] if a["id"].startswith("ring-")]
     if any(a["id"].removeprefix("ring-") not in centre_off for a in ring_stones):
@@ -158,15 +174,16 @@ async def admin_catalog():
     apply_slots(full, slots)
     off = cfg["disabled"]
     groups = []
-    for key, label, type_id, where in TOGGLE_GROUPS:
+    for key, label, type_id, where in toggle_groups(full):
         opts = []
+        img = has_images(key)
         for o in _options(full, type_id, where):
-            slot = slots.get(f"{key}:{o['id']}") if key in IMAGE_GROUPS else None
-            opts.append({"id": o["id"], "name": o["name"], "color": o.get("color"),
+            slot = slots.get(f"{key}:{o['id']}") if img else None
+            opts.append({"id": o["id"], "name": o["name"], "color": o.get("color"), "custom": o.get("custom", False),
                          "enabled": o["id"] not in off.get(key, []),
-                         "image": o.get("image") if key in IMAGE_GROUPS else None,
-                         "image_source": (slot or {}).get("source", "ai" if o.get("image") else "none") if key in IMAGE_GROUPS else None})
-        groups.append({"key": key, "label": label, "type": type_id, "has_images": key in IMAGE_GROUPS, "options": opts})
+                         "image": o.get("image") if img else None,
+                         "image_source": (slot or {}).get("source", "ai" if o.get("image") else "none") if img else None})
+        groups.append({"key": key, "label": label, "type": type_id, "has_images": img, "can_add": where == "styles", "options": opts})
     types = [{"id": t["id"], "name": t["name"], "group": t.get("group"), "enabled": t["id"] not in cfg["disabled_types"]}
              for t in full["types"]]
     sf = await storefront_images()
@@ -189,7 +206,7 @@ async def save_toggles(body: TogglesIn):
         raise HTTPException(400, "Unknown builder")
     if len(set(body.disabled_types)) >= len(type_ids):
         raise HTTPException(400, "Keep at least one builder switched on")
-    valid = {k for k, *_ in TOGGLE_GROUPS}
+    valid = {k for k, *_ in toggle_groups(full)}
     if not set(body.disabled) <= valid:
         raise HTTPException(400, "Unknown option group")
     await _db.catalog_config.update_one({"key": "default"}, {"$set": {"disabled_types": body.disabled_types,
@@ -199,7 +216,7 @@ async def save_toggles(body: TogglesIn):
 
 def _valid_slot(key: str) -> str:
     group = key.split(":", 1)[0]
-    if key not in DEFAULT_STOREFRONT and group not in IMAGE_GROUPS:
+    if key not in DEFAULT_STOREFRONT and not has_images(group):
         raise HTTPException(400, "Unknown image slot")
     return key
 
@@ -235,4 +252,32 @@ async def upload_slot(key: str, image: UploadFile = File(...)):
     await run_in_threadpool(render_service.put_object, path, data, ctype)
     await _db.image_slots.update_one({"key": key}, {"$set": {"key": key, "source": "brand", "storage_path": path,
                                       "updated_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+    return {"ok": True}
+
+
+class CustomStyleIn(BaseModel):
+    type: str = Field(min_length=1, max_length=40)
+    name: str = Field(min_length=1, max_length=60)
+    description: str = Field(default="", max_length=200)
+    price: float = Field(ge=0, le=100000)
+
+
+@dash.post("/custom-styles")
+async def add_custom_style(body: CustomStyleIn):
+    full = await _get_catalog()
+    if body.type not in {t["id"] for t in full["types"]}:
+        raise HTTPException(400, "Unknown builder")
+    if body.type in BRIDAL:
+        raise HTTPException(400, "Bridal settings are managed in the price sheet")
+    sid = f"custom-{uuid.uuid4().hex[:8]}"
+    await _db.custom_styles.insert_one({"id": sid, "type": body.type, "name": body.name.strip(), "description": body.description.strip(),
+                                        "price": round(body.price), "created_at": datetime.now(timezone.utc).isoformat()})
+    return {"id": sid, "key": f"{style_key(body.type)}:{sid}"}
+
+
+@dash.delete("/custom-styles/{sid}")
+async def delete_custom_style(sid: str):
+    res = await _db.custom_styles.delete_one({"id": sid})
+    if not res.deleted_count:
+        raise HTTPException(404, "Style not found")
     return {"ok": True}

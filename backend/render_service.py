@@ -113,6 +113,12 @@ def build_prompt(catalog: dict, d: dict, has_snapshot: bool, product_refs: int) 
         desc += "The band stands upright, viewed at a three-quarter angle slightly from above. "
         if engraving:
             desc += f"Fine script engraving '{engraving}' visible on the inside of the band. "
+    elif d["type"] in ("fashion-ring", "pendant", "tennis"):
+        bits = [f"{g['label']}: {_opt(t, g['id'], options)['name']}" for g in t.get("option_groups", []) if _opt(t, g["id"], options)]
+        desc = (f"Subject: a single {style['name'].lower()} {t['name'].lower()} in polished {gold}. "
+                f"{style.get('description', '')} {'; '.join(bits)}. Size {size['label'] if size else ''}. ")
+        if engraving:
+            desc += f"Fine engraving '{engraving}'. "
     else:
         names = ", ".join(a["name"] for a in addons) or "no charms"
         desc = f"Subject: a {style['name'].lower()} {t['name'].lower()} in polished {gold}"
@@ -159,6 +165,49 @@ async def generate_render(catalog: dict, design: dict, snapshot: bytes | None) -
     if not images:
         raise RuntimeError("The renderer returned no image")
     return base64.b64decode(images[0]["data"]), images[0].get("mime_type") or "image/png"
+
+
+ANGLES = {
+    "front": "straight-on FRONT view, camera level with the centre stone, looking directly at the top of the setting with the band as a circle behind it",
+    "side": "true SIDE PROFILE view at 90°, camera level with the ring, showing the setting height, gallery, basket and how the stone sits above the band",
+    "top": "TOP-DOWN view looking straight down at the ring lying flat, showing the stone's outline, the halo/prongs and band from above",
+    "back": "BACK view from behind and slightly above, showing the inside of the band, the underside of the setting and the gallery",
+    "hero": "classic three-quarter hero view from slightly above, the ring upright",
+}
+
+
+async def _edit_with_refs(refs: list[bytes], prompt: str, tag: str) -> tuple[bytes, str]:
+    chat = LlmChat(api_key=os.environ["EMERGENT_LLM_KEY"], session_id=f"{tag}-{uuid.uuid4()}",
+                   system_message="You are a world-class jewelry product photographer and retoucher.")
+    chat.with_model("gemini", MODEL).with_params(modalities=["image", "text"])
+    files = [ImageContent(base64.b64encode(r).decode()) for r in refs]
+    _, images = await chat.send_message_multimodal_response(UserMessage(text=prompt, file_contents=files))
+    if not images:
+        raise RuntimeError("The renderer returned no image")
+    return base64.b64decode(images[0]["data"]), images[0].get("mime_type") or "image/png"
+
+
+async def generate_angle(base: bytes, angle: str) -> tuple[bytes, str]:
+    prompt = (
+        "The attached image is a studio photograph of ONE specific piece of fine jewelry. Photograph the EXACT SAME piece from a new "
+        f"camera angle: {ANGLES[angle]}. Keep every design detail identical — same metal colour and finish, same stones (type, colour, "
+        "shape, size, count), same setting, prongs, halo, pavé and band profile. Same seamless soft studio background, same soft lighting, "
+        "photoreal macro product photography, sharp focus, square image. Only the camera angle changes. No hands, no text, no watermark."
+    )
+    return await _edit_with_refs([base], prompt, "angle")
+
+
+async def generate_sketch(composite: bytes, note: str, design_desc: str) -> tuple[bytes, str]:
+    prompt = (
+        "The attached image is a photo of a fine-jewelry design with the customer's RED hand-drawn sketch marks drawn over it. "
+        f"Design: {design_desc}. The red strokes show changes or additions the customer wants (for example new stones, a different "
+        "band shape, extra details, engraving or a different silhouette). "
+        + (f"The customer's note: \"{note.strip()}\". " if note.strip() else "")
+        + "Create a new photoreal studio product photograph of the finished piece that incorporates the sketched idea as real, "
+        "manufacturable fine jewelry in the same metal unless the note says otherwise. Remove all red sketch lines — they must not "
+        "appear. Seamless soft studio background, soft lighting, sharp macro focus, square image. No hands, no text, no watermark."
+    )
+    return await _edit_with_refs([composite], prompt, "sketch")
 
 
 TRYON_PLACEMENT = {

@@ -8,11 +8,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BACKEND_ORIGIN, createQuote, formatPrice, useCatalog, usePrice } from "@/src/api";
 import { DesignCanvas } from "@/src/components/design-canvas";
+import { useCustomer } from "@/src/customer";
 import { designRows } from "@/src/design-rows";
 import { SavedDesign, deleteDesign, getDesign } from "@/src/designs";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 export default function DesignDetail() {
+  const { ensure } = useCustomer();
   const styles = useStyles();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -53,6 +55,7 @@ export default function DesignDetail() {
       setError("Please enter your name and a valid email.");
       return;
     }
+    if (!(await ensure("quote"))) return;
     setSending(true);
     try {
       const { id: _id, price: _p, createdAt: _c, renderUrl, ...spec } = design;

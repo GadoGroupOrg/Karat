@@ -7,7 +7,7 @@ import { useState } from "react";
 import { ActivityIndicator, Linking, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
-import { Lead, LeadStatus, dashRequest, formatPrice, leadImage, useCatalog, usePrice } from "@/src/api";
+import { Lead, LeadStatus, assetUrl, dashRequest, formatPrice, leadImage, useCatalog, usePrice } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { WIDE } from "@/src/components/admin/shell";
 import { STATUSES, StatusPill, formatDateTime, useStatusColor } from "@/src/components/admin/status";
@@ -75,7 +75,7 @@ export default function LeadDetail() {
         <View style={[styles.hero, styles.heroEmpty]}><Feather name="hexagon" size={32} color={colors.brandPrimary} /><Text style={styles.muted}>No studio photo saved with this request</Text></View>
       )}
       <View style={{ padding: spacing.xl }}>
-        <Text style={styles.eyebrow}>{lead.kind === "product" ? "TRY-ON ENQUIRY" : "CUSTOM DESIGN"}</Text>
+        <Text style={styles.eyebrow}>{lead.kind === "product" ? "TRY-ON ENQUIRY" : lead.kind === "sketch" ? "SKETCH REQUEST" : "CUSTOM DESIGN"}</Text>
         <Text style={styles.h2} testID="lead-piece-title">{pieceTitle}</Text>
         <Text style={styles.price}>{formatPrice(lead.price)}</Text>
         <View style={styles.table}>
@@ -83,6 +83,13 @@ export default function LeadDetail() {
             <View key={k} style={styles.tr}><Text style={styles.tk}>{k}</Text><Text style={styles.tv}>{v}</Text></View>
           ))}
         </View>
+        {lead.sketch && (
+          <View style={styles.quote} testID="lead-sketch">
+            <Text style={styles.quoteLabel}>Customer’s sketch</Text>
+            <Image source={{ uri: assetUrl(lead.sketch.sketch_url) }} style={{ width: "100%", aspectRatio: 1, borderRadius: radius.sm, marginTop: spacing.sm }} contentFit="contain" />
+            {!!lead.sketch.note && <Text style={styles.quoteText}>“{lead.sketch.note}”</Text>}
+          </View>
+        )}
         {lead.product?.url && (
           <Pressable onPress={() => WebBrowser.openBrowserAsync(lead.product!.url)} style={styles.outlineBtn} testID="lead-view-product-button">
             <Feather name="external-link" size={14} color={colors.onSurface} />

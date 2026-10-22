@@ -5,6 +5,13 @@ import { uploadForm } from "@/src/utils/upload";
 
 export const BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
 
+// Customer identity (contact form / account) is attached to every call so the jeweler's access rules apply.
+let customerToken: string | null = null;
+export const setCustomerToken = (t: string | null) => {
+  customerToken = t;
+};
+export const customerHeaders = (): Record<string, string> => (customerToken ? { "X-Customer-Token": customerToken } : {});
+
 export type Metal = { id: string; name: string; color: string; multiplier: number };
 export type Option = {
   id: string; name?: string; label?: string; price: number; description?: string; image?: string;
@@ -64,7 +71,7 @@ export type DesignSpec = {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    headers: { "Content-Type": "application/json", ...customerHeaders(), ...(init?.headers || {}) },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -85,8 +92,39 @@ export function useCatalog() {
   return useQuery({ queryKey: ["catalog"], queryFn: () => request<Catalog>("/catalog"), staleTime: 1000 * 60 * 10 });
 }
 
+export type Stroke = { points: [number, number][]; w: number };
+export async function requestSketch(design: DesignSpec, strokes: Stroke[], note: string, renderId: string | null, snapshotUri: string | null) {
+  const res = await uploadForm(`${BASE}/sketches`, {
+    fields: { design: JSON.stringify(design), strokes: JSON.stringify(strokes), note, render_id: renderId ?? "" },
+    files: snapshotUri && !renderId ? { snapshot: { uri: snapshotUri, name: "preview.png", mimeType: "image/png" } } : {},
+    headers: customerHeaders(),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Sketch render failed");
+  return body as { id: string; image_url: string; sketch_url: string };
+}
+export function requestAngle(renderId: string, angle: string) {
+  return request<{ image_url: string }>(`/renders/${renderId}/angles/${angle}`, { method: "POST" });
+}
+
+export type Level = "none" | "form" | "account";
+export type Customer = { user_id: string; email: string; name: string; phone: string; picture?: string | null; kind: string; level: Level };
+export type AccessRules = { rules: Record<string, Level>; questions: { id: string; label: string; required: boolean }[] };
+export const customerApi = {
+  access: () => request<AccessRules>("/access"),
+  me: () => request<Customer>("/customers/me"),
+  contact: (b: { name: string; email: string; phone: string; answers: Record<string, string> }) =>
+    request<{ session_token: string; user: Customer }>("/customers/contact", { method: "POST", body: JSON.stringify(b) }),
+  register: (b: { name: string; email: string; password: string; phone: string }) =>
+    request<{ session_token: string; user: Customer }>("/customers/register", { method: "POST", body: JSON.stringify(b) }),
+  login: (b: { email: string; password: string }) =>
+    request<{ session_token: string; user: Customer }>("/customers/login", { method: "POST", body: JSON.stringify(b) }),
+  google: (session_id: string) => request<{ session_token: string; user: Customer }>("/auth/session", { method: "POST", body: JSON.stringify({ session_id }) }),
+  logout: () => request<{ ok: boolean }>("/customers/logout", { method: "POST" }),
+};
+
 export type QuoteBody = {
-  design?: DesignSpec; product_id?: string; tryon_id?: string; render_url?: string | null; source?: "app" | "embed";
+  design?: DesignSpec; product_id?: string; tryon_id?: string; sketch_id?: string; render_url?: string | null; source?: "app" | "embed";
   name: string; email: string; phone?: string; note: string;
 };
 export function createQuote(body: QuoteBody) {
@@ -113,7 +151,8 @@ export async function fetchBranding(timeoutMs = 4000): Promise<Branding | null> 
 export type LeadStatus = "new" | "contacted" | "quoted" | "won" | "lost";
 export type LeadNote = { id: string; text: string; system: boolean; author: string; created_at: string };
 export type Lead = {
-  id: string; kind: "design" | "product"; design: DesignSpec | null;
+  id: string; kind: "design" | "product" | "sketch"; design: DesignSpec | null;
+  sketch?: { id: string; note: string; sketch_url: string } | null;
   product: { id: string; title: string; price: number; image: string | null; url: string; product_type: string } | null;
   name: string; email: string; phone: string; note: string; price: number; image_url: string | null;
   source: "app" | "embed"; status: LeadStatus; notes: LeadNote[]; created_at: string;
@@ -196,6 +235,7 @@ export const assetUrl = (path: string) => (/^https?:\/\//.test(path) ? path : `$
 export async function requestTryOn(productId: string, photo: { uri: string; mimeType?: string; name?: string }) {
   const res = await uploadForm(`${BASE}/tryons`, {
     fields: { product_id: productId },
+    headers: customerHeaders(),
     files: { photo: { uri: photo.uri, name: photo.name || "photo.jpg", mimeType: photo.mimeType || "image/jpeg" } },
   });
   const body = await res.json().catch(() => ({}));
@@ -206,6 +246,7 @@ export async function requestTryOn(productId: string, photo: { uri: string; mime
 export async function requestRender(design: DesignSpec, snapshotUri: string | null, force = false) {
   const res = await uploadForm(`${BASE}/renders`, {
     fields: { design: JSON.stringify(design), force: force ? "true" : "false" },
+    headers: customerHeaders(),
     files: snapshotUri ? { snapshot: { uri: snapshotUri, name: "preview.png", mimeType: "image/png" } } : {},
   });
   const body = await res.json().catch(() => ({}));

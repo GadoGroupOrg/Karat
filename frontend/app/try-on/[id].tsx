@@ -11,6 +11,7 @@ import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { assetUrl, createQuote, requestTryOn, useStoreProduct } from "@/src/api";
+import { useCustomer } from "@/src/customer";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 type Photo = { uri: string; mimeType?: string; name?: string };
@@ -44,6 +45,7 @@ export default function TryOn() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cam, setCam] = useState<CamState>("idle");
+  const { ensure } = useCustomer();
   const [tryonId, setTryonId] = useState<string | null>(null);
   const [enquire, setEnquire] = useState<"closed" | "open" | "sent">("closed");
   const [form, setForm] = useState({ name: "", email: "", phone: "", note: "" });
@@ -53,6 +55,7 @@ export default function TryOn() {
   const sendEnquiry = async () => {
     setFormError(null);
     if (!form.name.trim() || !/^\S+@\S+\.\S+$/.test(form.email.trim())) return setFormError("Please enter your name and a valid email.");
+    if (!(await ensure("quote"))) return;
     setSending(true);
     try {
       await createQuote({ product_id: id, tryon_id: tryonId ?? undefined, name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), note: form.note });
@@ -98,7 +101,7 @@ export default function TryOn() {
   };
 
   const run = async () => {
-    if (!photo || !id) return;
+    if (!photo || !id || !(await ensure("try_on"))) return;
     setBusy(true);
     setError(null);
     try {

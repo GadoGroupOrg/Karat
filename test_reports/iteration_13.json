@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 13 (both backend+frontend) verified home-grid category filtering, gate modal Google button in form and account modes, Emergent Google OAuth redirect, email/password signup via gate, home signed-in row + sign-out, and backend 401 on bogus /api/auth/session. BACKEND (/app/backend/tests/test_iter13_review.py — 9/9 pass): GET /api/storefront returns {images, disabled_types} with pendant, ring, band tiles present by default. PUT /api/dashboard/catalog/toggles with disabled_types=['pendant'] reflected in GET /api/storefront, then reset. Same for ring. Disabling ALL types rejected (400 'Keep at least one builder switched on'). POST /api/auth/session with bogus session_id → 401 'Google sign-in failed'; empty body → 422. POST /api/customers/register → 200 session_token+account; /api/customers/me with x-customer-token works; re-login works; wrong password → 401; logout → 200; /me without token → 401; duplicate email register → 409. Admin PUT /api/dashboard/access with all rules='none' succeeds and GET /api/access verifies. FRONTEND (390x844 mobile + 1440x900 admin): Home screen loads with testID home-screen, home-hero-image, home-brand-logo. Default category tiles rendered: ['category-card-ring' (text 'Bridal / Engagement rings & bands'), -fashion-ring, -pendant, -tennis, -necklace, -bracelet, -earrings]; category-card-band absent (ring enabled). Admin login via admin-login-{email,password,submit} succeeds. /admin/catalog: toggling pendant off (via catalog-type-pendant parent card) + catalog-save-button → catalog-message 'Catalog saved' + /api/storefront.disabled_types=['pendant'] + home grid no longer renders category-card-pendant. Toggling ring off → /api/storefront.disabled_types=['ring'] + home grid shows category-card-band and hides category-card-ring per intended Bridal mapping. All toggles reset to [] after test. GATE MODAL FORM MODE (studio_photo='form', trigger unlock-studio-photo-button on /build): gate-modal rendered, gate-google-button present with text 'Continue with Google'. Clicking it on web redirects to https://auth.emergentagent.com/oauth/?redirect=<encoded gemfit-studio preview URL>/build (confirmed no Google login completed). GATE MODAL ACCOUNT MODE (studio_photo='account'): same gate-google-button present with 'Continue with Google'. Email/password signup via gate (TEST_iter13_<ts>@example.com + Password123!) → gate-submit-button → gate-modal closes → home-customer-account row rendered with text 'Signed in as Iter13 Signup' and home-customer-sign-out visible → tap sign-out → account row removed. Access rules reset to all 'none' at end (verified via /api/access). No React Native red screens, no deprecated expo-av/-barcode-scanner/-background-fetch imports in the referenced files, no raw-text-outside-Text warnings.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "admin/catalog.tsx <Switch> inside <Pressable>",
+        "issue": "On react-native-web, tapping the <Switch> toggle (data-testid 'catalog-type-switch-<type>') propagates its click to the parent <Pressable> (data-testid 'catalog-type-<type>') causing a double toggle that cancels out. User visually sees nothing happen when clicking the toggle directly on web. Workaround: click the card body. Fix: wrap the Switch in a View with onStartShouldSetResponder/stopPropagation, or move the Pressable's onPress off the parent and only onto non-switch area. Reference: /app/frontend/app/admin/catalog.tsx:177-182.",
+        "testID": "catalog-type-switch-<type>",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter13_review.py",
+    "/app/test_reports/pytest/iter13_results.xml"
+  ],
+  "action_items": [
+    "Optional (LOW): stop click propagation from the <Switch> to the parent <Pressable> in /app/frontend/app/admin/catalog.tsx so clicking the toggle directly on web no longer double-fires. Current behaviour: the parent card tap works and is the primary interaction on mobile, so no functional loss."
+  ],
+  "critical_code_review_comments": [
+    "src/customer.tsx google() now returns Promise<boolean>; GateModal.onGoogle awaits google() and closes the modal only on true — matches the review request.",
+    "GateModal shows gate-google-button whenever need !== 'none' (both form and account tabs) — matches the review request.",
+    "Home (app/(tabs)/index.tsx) renders home-customer-account + home-customer-sign-out when useCustomer().customer is truthy, and signOut clears both the server session (via /api/customers/logout) and local secure storage.",
+    "Backend POST /api/auth/session validates upstream HTTP 200 and maps non-200 to 401 'Google sign-in failed' — correct behaviour and tested."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter13_review.py (new)",
+    "/app/test_reports/pytest/iter13_results.xml (new)",
+    "/app/test_reports/iteration_13.json (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9)",
+    "frontend": "100% on the review flows (home grid filtering, Bridal/band swap, gate-modal form+account Google button + redirect, email/password signup, signed-in row + sign-out)"
+  },
+  "seed_data_creation": "Created one TEST_iter13_<ts>@example.com customer via gate signup (persisted in db.customers). Access rules were toggled during tests (studio_photo=form, then account) and reset to all 'none' with questions=[] at the end. Catalog disabled_types briefly set to ['pendant'] and ['ring'] during tests and reset to [] (verified via /api/storefront).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Admin login testIDs are admin-login-{email,password,submit}-{input,button}. Catalog toggle testIDs: catalog-type-<id> (parent card, works reliably) and catalog-type-switch-<id> (Switch; double-fires on web — click the parent card instead). Save: catalog-save-button; result: catalog-message. Home signed-in row: home-customer-account + home-customer-sign-out. Gate modal: gate-modal + gate-google-button + gate-{name|email|phone|password}-input + gate-submit-button. The AUTH_URL in src/customer.tsx is 'https://auth.emergentagent.com/?redirect=' and the preview replaces it with '/oauth/?redirect=' server-side (observed redirect target: https://auth.emergentagent.com/oauth/?redirect=<encoded preview url>/build). Backend /api/auth/session returns 401 for any bogus session_id; happy path requires a real Emergent-managed Google session_id so cannot be E2E-tested from preview. All iter13 test customers are prefixed TEST_iter13_ for easy cleanup via GET /api/dashboard/customers?q=TEST_iter13_.",
+  "rca_of_issue": "N/A — all review-request features behaved as specified. Only incidental finding: catalog toggle Switch click bubbles to parent Pressable on web (double-toggle). Mobile usage is unaffected."
+}

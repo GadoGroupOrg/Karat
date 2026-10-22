@@ -90,3 +90,18 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - Removed Infinity band
 - Admin /admin/catalog: builders on/off, per-option on/off (settings, shapes, bands, centre stones, accent stones, band styles), image slots per option + storefront (hero, tiles): brand upload / stock library / AI default. Collections: catalog_config, image_slots. Public /api/storefront, /api/slot-images/{key}
 - Stock library is curated (5 Unsplash photos); live Unsplash search needs a user key
+
+## Angles, Sketch, Customer access, New builders (2026-06) — tested iterations 11-12
+- Angle views: POST /api/renders/{hash}/angles/{front|side|top|back|hero} (Gemini w/ base render as reference, cached in render_angles); angle-bar under studio photo
+- Sketch-to-render: SketchPad overlay (red ink, normalised strokes) on photo or 3D snapshot → POST /api/sketches (PIL composite + Gemini) → SketchResult modal → quote with sketch_id → lead kind "sketch"
+- Customer access (customers.py): rules per action prices/studio_photo/angles/try_on/sketch/save_design/quote = none|form|account; custom contact questions; customers collection (contact/account, bcrypt, Emergent Google via POST /api/auth/session); X-Customer-Token header; server enforces on renders/angles/sketches/tryons/quotes (403 "gate:<level>"); client GateModal via useCustomer().ensure(action); admin /admin/access + /admin/customers
+- Iteration 13 (Jun 2026): Verified home grid respects disabled_types + Bridal tile; "Continue with Google" shown on form & account gates, gate auto-closes after native Google sign-in; customer "Signed in as · Sign out" row on home; admin catalog Switch is display-only (card toggles) to fix web double-toggle.
+
+- New builders: fashion-ring, pendant, tennis (+ bracelet charm/bangle/anklet, earrings huggie/pavé hoop/climber); generic pricing adds option prices; 3D only for ring/band; style toggles per builder (style.<type>) with image slots; custom styles (db.custom_styles) via /api/dashboard/custom-styles
+- Spend controls (caps per AI feature) — user still deciding (explained options A/B/C)
+
+## NEXT (user-approved order)
+3. Consultation Studio (admin): customer profiles (create/edit, ring size, budget, occasion, date, preferences), timeline of designs/sketches/quotes/notes; consult-mode builder inside admin for a customer (no gating, shows cost vs retail/margin, price override); multi-colour annotate (save without AI) or render; share proposal link/PDF
+4. Production: spec sheet PDF (piece, metal, size, widths, stones mm/ct/grade, accents, gold weight, engraving, finish, images/angles/sketches, deadline) + Production board (Design→CAD→Wax/Print→Casting→Setting→Polish→QC→Ready), assignees, due dates, comments
+5. Staff logins with roles (Owner, Sales/Consultant, Atelier/Bench — bench sees only Production board)
+- CAD/3D export: REMOVED from scope by user

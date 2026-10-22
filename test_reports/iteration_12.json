@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 12 covered the new builders (Fashion Ring, Pendant, Tennis), custom-styles API, admin catalog style groups for all non-bridal builders, and the gate-modal UI flow. BACKEND (/app/backend/tests/test_builders_v12.py — 15/15 pass): GET /api/catalog includes types fashion-ring (styles stackable/signet/cocktail/eternity/dome/cluster/chevron + option_group stone), pendant (8 styles + option_groups stone & chain with cable/box/rope), tennis (4-prong/bezel/illusion/graduated/two-row + option_groups piece bracelet|necklace, stone, total_ct 2/3/5/7/10). POST /api/price priced: tennis bezel + total_ct=5 (≥ 3600 base reduction when switched to 2 ct), pendant halo rope (total drops when chain switched to cable), fashion-ring cocktail with ruby stone. GET /api/dashboard/catalog groups contain style.necklace, style.bracelet, style.earrings, style.fashion-ring, style.pendant, style.tennis each with can_add=true. POST /api/dashboard/custom-styles {type:ring|band} → 400 'Bridal settings are managed in the price sheet'; {type:pendant, name, description, price} → 200 returns {id:'custom-<hex>', key:'style.pendant:<id>'}, and the new style appears in /api/catalog pendant styles with custom:true and is priceable. PUT /api/dashboard/catalog/toggles with {disabled:{'style.pendant':[sid]}} removes it from /api/catalog, then reset restores it. PUT /api/dashboard/images/style.pendant:<id> {source:'stock', url} attaches the stock url to the style's image field in public catalog. DELETE /api/dashboard/custom-styles/<id> → 200, second delete → 404. Pre-existing custom-324c6765 'Gado Evil Eye' deleted at end of run as instructed (accepted 200 or 404). FRONTEND (/build 390x844): type chips rendered for type-chip-bridal, type-chip-fashion-ring, type-chip-pendant, type-chip-tennis, type-chip-necklace, type-chip-bracelet, type-chip-earrings. Selecting pendant renders all 8 style-option-* cards and option-stone-*, option-chain-{cable,box,rope} chips; total updated $340 (solitaire+cable) → $540 (halo+cable) → $630 (halo+rope). Selecting tennis renders all 5 style-option-* + option-piece-{bracelet,necklace}, option-stone-earth-diamond, option-total_ct-{2,3,5,10}. Selecting fashion-ring renders all 7 style cards + option-stone-earth-diamond. canvas-mode-toggle is correctly ABSENT on pendant, tennis and fashion-ring (hasLive=false), present only for ring/band/necklace/bracelet/earrings — matches spec. Studio photo (builder-render-photo) renders on all three new builders. Home (/ 390x844): category-card-fashion-ring, -pendant, -tennis, -necklace, -bracelet, -earrings all render; the Bridal tile is testID 'category-card-ring' (not 'category-card-bridal') — mapping intentional per index.tsx. ADMIN /admin/catalog (1440x900): catalog-add-style-{necklace,bracelet,earrings,fashion-ring,pendant,tennis} all present and functional. Adding a pendant style via catalog-add-style-pendant → catalog-new-style-name/description/price → catalog-new-style-save creates a 9th tile (catalog-switch-style.pendant-custom-<hex>) and catalog-remove-style-custom-<hex> removes it (confirmed by the 8-tile grid after remove + 'All changes saved'). GATE UI: via /admin/access set prices=form + required contact question 'What is your budget?', saved ('Saved. New visitors see these requirements immediately.'). Fresh browser context on /build showed see-price-button; tap → gate-modal rendered. Rules reset back to prices=none with the question removed and re-saved. SKETCH/ANGLE E2E NOT RUN this iteration to preserve AI credits; iteration 11 already code-grep-verified every sketch-/angle-* testID exists and backend gating + validation errors (400/404) are tested. No deprecated expo packages, no raw-text-outside-Text warnings, no RN red screen on any screen rendered.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_builders_v12.py",
+    "/app/test_reports/pytest/iter12_results.xml"
+  ],
+  "action_items": [
+    "No blocking actions. Optional: if the review spec expects a 'category-card-bridal' testID on the home tile for consistency with 'type-chip-bridal' on /build, consider aliasing — currently the Bridal home tile is testID 'category-card-ring' because CATEGORIES is driven off catalog.types[].id and 'bridal' is a group label, not a type id.",
+    "Optional: iteration 10 observation remains open — confirm the home grid filters by /api/storefront.disabled_types (backend already publishes it). Not re-verified this run."
+  ],
+  "critical_code_review_comments": [
+    "catalog_admin.toggle_groups emits style.{type} for every non-bridal builder dynamically — nice, keeps new types zero-config. CustomStyleIn validates length and price range; style ids use 'custom-<8-hex>' which is URL-safe.",
+    "server.get_catalog (not shown) must merge db.custom_styles into TYPES[].styles with custom:true — verified by test_add_pendant_style_and_appears. Make sure the merge preserves the merchant-ordered built-in styles and appends customs at the end (observed behaviour).",
+    "catalog_admin.apply_slots keys off f'{group}:{o[\"id\"]}' where group = style_key(type_id); image slot keys for new builders therefore live under 'style.pendant:*', 'style.tennis:*', 'style.fashion-ring:*' — tested and working.",
+    "Toggle group has_images(key) now covers both the built-in IMAGE_GROUPS and any 'style.*' key, so new builders get image slot support automatically — good.",
+    "Price breakdown for custom pendant styles currently emits the generic 'Pendant' style line (correct given the data model), but merchants may want the custom style's name on the receipt — minor UX nit."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_builders_v12.py (new)",
+    "/app/test_reports/pytest/iter12_results.xml (new)",
+    "/app/test_reports/iteration_12.json (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15)",
+    "frontend": "~95% (new-builder UI + gate modal verified end-to-end; sketch/angle E2E deferred to preserve AI credits per review request)"
+  },
+  "seed_data_creation": "test_builders_v12.py creates one TEST_Iter12 Pendant custom style and deletes it; also attempts to delete pre-existing custom-324c6765 'Gado Evil Eye' per review instruction (accepted 200 or 404). The admin UI run added a TEST_Iter12 Lotus pendant style and removed it via catalog-remove-style. Access rules were toggled to prices=form during the gate test and reset to all 'none' with questions empty at end.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "New builder testIDs on /build: type-chip-{fashion-ring|pendant|tennis}; style-option-{style_id}; option chips for new builders: option-stone-{stone_id}, option-chain-{cable|box|rope} (pendant), option-piece-{bracelet|necklace} + option-total_ct-{2|3|5|7|10} (tennis). canvas-mode-toggle is only rendered when hasLive=true (ring/band/necklace/bracelet/earrings) — new builders deliberately skip it. Admin catalog: catalog-add-style-{type_id} opens an inline form with catalog-new-style-{name|description|price} and catalog-new-style-save; custom styles render as catalog-switch-style.{type}-custom-<hex> toggles with catalog-remove-style-custom-<hex> delete buttons. Image slot keys for new builders are 'style.{type}:{style_id}' (e.g. 'style.pendant:solitaire', 'style.tennis:bezel'). Home tile testID is 'category-card-{type_id}' driven by /api/catalog types; the Bridal tile uses id='ring'. Access rules: PUT /api/dashboard/access with {rules:{prices:'form',...}, questions:[{label,required}]} — frontend testIDs access-{action}-{none|form|account}, access-add-question-button, access-question-input-0, access-save-button, access-message. Gate modal testID is 'gate-modal'. Pre-existing seeded data: iteration 11 TEST_*@example.com customers still in DB; custom-324c6765 removed this run.",
+  "rca_of_issue": "N/A — all features from the review request behaved as specified."
+}

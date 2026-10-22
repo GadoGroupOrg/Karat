@@ -33,7 +33,7 @@ export default function LeadsInbox() {
     const t = catalog?.types.find((x) => x.id === l.design?.type);
     return l.design?.name?.trim() || `Custom ${t?.name.toLowerCase() ?? "design"}`;
   };
-  const subtitle = (l: Lead) => (l.kind === "product" ? "Try-on enquiry" : "Custom design request");
+  const subtitle = (l: Lead) => (l.kind === "product" ? "Try-on enquiry" : l.kind === "sketch" ? "Sketch request" : "Custom design request");
 
   const kpis = [
     { label: "Total leads", value: String(data?.total ?? "–"), icon: "inbox" as const },

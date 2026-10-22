@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { fetchBranding } from "@/src/api";
 import { AuthProvider } from "@/src/auth";
 import { setCurrentBranding } from "@/src/branding";
+import { CustomerProvider } from "@/src/customer";
 import { ErrorBoundary } from "@/src/components/error-boundary";
 import { queryClient } from "@/src/query-client";
 import { applyBranding, useTheme } from "@/src/theme";
@@ -63,6 +64,7 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
+          <CustomerProvider>
           <KeyboardProvider>
             <StatusBar style="dark" />
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
@@ -75,6 +77,7 @@ export default function RootLayout() {
               <Stack.Screen name="merchant" options={{ presentation: "modal" }} />
             </Stack>
           </KeyboardProvider>
+          </CustomerProvider>
           </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>

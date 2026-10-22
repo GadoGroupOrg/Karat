@@ -13,6 +13,7 @@ import { Catalog, DesignSpec, OptionGroup, assetUrl, formatPrice, useCatalog, us
 import { DesignCanvas } from "@/src/components/design-canvas";
 import { Charm } from "@/src/components/jewelry-preview";
 import { forWearer, groupVisible } from "@/src/catalog-utils";
+import { useCustomer } from "@/src/customer";
 import { getDesign, newId, upsertDesign } from "@/src/designs";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -206,7 +207,10 @@ function Builder({ catalog }: { catalog: Catalog }) {
     toastTimer.current = setTimeout(() => setToast(null), 2200);
   };
 
+  const { allowed, ensure } = useCustomer();
+  const showPrice = allowed("prices");
   const save = async () => {
+    if (!(await ensure("save_design"))) return;
     const id = editingId ?? newId();
     const name = design.name.trim() || `The ${style.name} ${t.name}`;
     await upsertDesign({ ...design, name, id, price, renderUrl, createdAt: new Date().toISOString() });
@@ -404,7 +408,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
           </Pressable>
         )}
 
-        <Section label="Price breakdown" value="Estimate">
+        {showPrice && <Section label="Price breakdown" value="Estimate">
           <View style={styles.breakdown} testID="price-breakdown">
             {breakdown.lines.map((l) => (
               <View key={l.label} style={styles.bdRow}>
@@ -416,7 +420,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
               <Text style={styles.bdNote}>Alternative material “{design.options.material_request}” priced on request.</Text>
             )}
           </View>
-        </Section>
+        </Section>}
 
         <Section label="Name your piece">
           <TextInput
@@ -435,7 +439,13 @@ function Builder({ catalog }: { catalog: Catalog }) {
       <View style={[styles.bottomBar, { paddingBottom: (wide ? 0 : bottomChrome) + spacing.md }]}>
         <View>
           <Text style={styles.totalLabel}>Estimated total</Text>
-          <Text style={[styles.total, quote.isFetching && { opacity: 0.5 }]} testID="builder-total-price">{quote.data ? formatPrice(price) : "…"}</Text>
+          {showPrice ? (
+            <Text style={[styles.total, quote.isFetching && { opacity: 0.5 }]} testID="builder-total-price">{quote.data ? formatPrice(price) : "…"}</Text>
+          ) : (
+            <Pressable testID="see-price-button" onPress={() => ensure("prices")} hitSlop={8}>
+              <Text style={[styles.total, { textDecorationLine: "underline" }]}>See price</Text>
+            </Pressable>
+          )}
         </View>
         <Pressable testID="save-design-button" onPress={save} style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.85 }]}>
           <Feather name="heart" size={16} color={colors.onSurfaceInverse} />
