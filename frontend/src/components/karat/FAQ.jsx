@@ -2,8 +2,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "..
 import { Eyebrow, MaskLines } from "./Reveal";
 
 const faqs = [
-  ["What do my clients see?", "A design tool on your website where they create a concept from the metals, stones and settings you offer."],
-  ["How does try-on work?", "Clients either upload a photo of their hand or use their live camera to see their design on."],
+  ["What do my clients see?", "Your catalog and a design tool for rings, bracelets, pendants, earrings and more, on your website. They can design something new, start from one of your existing pieces, and leave notes for you."],
+  ["How does try-on work?", "Clients upload a photo or use their live camera to try on their own designs or your existing jewellery — on the hand, wrist, neck or ear."],
   ["What happens when a client finishes a design?", "It arrives in your studio with their details, ready for you to consult, refine and manage in the CRM."],
   ["What is a production-ready brief?", "Once a design is approved, Karat turns it into a complete brief your bench or production partner can work from."],
   ["What does early access cost?", "Early access pricing will be shared with the first jeweler cohort. Join the waitlist to hear first."],

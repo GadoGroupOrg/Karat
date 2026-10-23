@@ -19,7 +19,8 @@ Clarified: Karat is a store/website embed for jewelry businesses so their prospe
 ## Implemented (2026-10-23)
 - Full landing page + waitlist backend, verified at 1440px and 390px
 - User's Karat logos integrated (public/brand/): ivory wordmark w/ gold diamond in nav, "Karat design" in footer, K mark in marquee + final CTA; PNG favicons from K mark (thickened diamond)
-- Simplified per feedback: removed embed code/"one line" messaging, AR size detection, How-it-works, CRM mock board. Structure now: Hero → Marquee → For your clients (Design + Try-on: photo upload / live camera) → For your studio (Design & consult, Client CRM, Production briefs) → FAQ → CTA
+- Catalog card added (6 pieces: rings, tennis bracelet, pendant, earrings; customise / try on / client notes)
+- Multi-category: Design card tabs Rings/Bracelets/Pendants/Earrings (defaults to Pendants), Try-on piece tabs (ring/bracelet/pendant/earrings), marquee K marks on ivory circles removed embed code/"one line" messaging, AR size detection, How-it-works, CRM mock board. Structure now: Hero → Marquee → For your clients (Design + Try-on: photo upload / live camera) → For your studio (Design & consult, Client CRM, Production briefs) → FAQ → CTA
 
 ## Placeholders
 - Contact email [hello@karatdesign.io], embed snippet URL, CRM sample names, product names (Atelier/Mirror/Ledger), generated photos, SVG logo
