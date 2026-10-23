@@ -1,0 +1,32 @@
+{
+  "summary": "Iter 24 PASS (frontend only). Hidden halo is now a standalone add-on section on /build?type=ring, verified at mobile 390x844 and desktop 1440x900. There are 0 option-hidden_halo-* chips anywhere. Section order is RING SIZE -> HIDDEN HALO -> ENGRAVING -> NOTES. The section header reads 'Optional add-on' when off. Tapping addon-hidden-halo-toggle turns it on: the title changes to 'Hidden halo added', the Switch turns on, the header shows '+$277', and the price breakdown gains the line 'Hidden halo · 0.10 ct = $277'. This works for both the 4-Prong Solitaire and Halo settings. Tapping again turns it off, the header goes back to 'Optional add-on' and the line disappears. Selecting the 'Hidden Halo' setting hides the section entirely and drops the line. The toggle state stays on when you switch back to Halo. In 3D (canvas-mode-live, zoomed in), small stones under the centre stone appear when the add-on is on and are absent when off. 3D starts paused (canvas delta about 1.3%, which is noise). Regression checks pass: engraving-input shows the inscription preview ('Forever yours', 'FOREVER YOURS' in the Block font), and design-notes-input accepts text. No page errors and no console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Hidden halo header vs total", "issue": "The header says '+$277' (matching the breakdown line), but the Estimated total only rises by $246 ($7,041 -> $7,287), because the other lines get slightly smaller when the halo is on (gold $1,326->$1,320, setting $373->$371, stone $5,342->$5,319). So the '+$X' shown to customers is not the real change in the total. Halo setting: $8,141 -> $8,388 (+$247).", "affected_testIDs": ["addon-hidden-halo-toggle", "builder-total-price"]},
+      {"flow": "Engraving header vs breakdown (pre-existing)", "issue": "The Engraving section header shows +$40 (t.engraving_price), but the breakdown 'Engraving' line is $74 (from the merchant price sheet). Reference: /app/frontend/app/(tabs)/build.tsx:408", "affected_testIDs": ["engraving-input", "price-breakdown"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "Switch pointerEvents prop", "issue": "<Switch pointerEvents=\"none\"> triggers the RN-web warning 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: /app/frontend/app/(tabs)/build.tsx:402"}
+    ]
+  },
+  "test_report_links": [".screenshots/m_on.jpg", ".screenshots/m_off.jpg", ".screenshots/d_on.jpg", ".screenshots/3d_on.jpg", ".screenshots/3d_off.jpg", ".screenshots/m_eng.jpg"],
+  "action_items": [
+    "Optional: make the Hidden halo header '+$X' reflect the real change in the total (price with the add-on minus price without it), or explain that the price lines are re-balanced. Today it shows +$277 while the total rises by $246.",
+    "Optional: on the Engraving header, show the priced engraving line amount instead of t.engraving_price ($40 shown vs $74 charged).",
+    "Move pointerEvents on the Switch to style={{ pointerEvents: 'none' }} (build.tsx:402) to clear the RN-web deprecation warning."
+  ],
+  "critical_code_review_comments": [
+    "options.hidden_halo='yes' stays in the design state after switching to the 'Hidden Halo' setting. The backend ignores it, so pricing is correct, but saved designs carry a stale flag and it silently comes back when the user switches to another setting (this may be intended).",
+    "The header value is found with breakdown.lines.find(l => l.label.startsWith('Hidden halo')). This works, but it depends on the label string; a stable line id from the backend would be more robust."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not requested)", "frontend": "100%"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Hidden halo add-on: testID addon-hidden-halo-toggle. Its section header is the toggle's parentElement.firstElementChild (innerText 'HIDDEN HALO\\n<value>'). The price breakdown lines are the children of [data-testid=price-breakdown]. Switch from the Photo view to 3D (canvas-mode-live) before toggling to limit studio-photo AI renders; toggling the halo still auto-starts a studio photo render.",
+  "rca_of_issue": "Header vs total mismatch: pricing.finalize appears to re-balance the line amounts when the hidden halo line is added, so line amounts are not purely additive."
+}

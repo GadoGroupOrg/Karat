@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, Switch, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -37,6 +37,9 @@ const AFTER_METAL = ["karat"];
 const tap = () => {
   if (Platform.OS !== "web") Haptics.selectionAsync();
 };
+
+/** Option groups shown as their own add-on sections instead of the generic option list. */
+const ADD_ON_GROUPS = ["engraving_font", "hidden_halo"];
 
 export default function Build() {
   const { data: catalog, isLoading, isError, refetch } = useCatalog();
@@ -115,7 +118,9 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const price = quote.data?.total ?? 0;
   const metal = catalog.metals.find((m) => m.id === design.metalId)!;
   const style = t.styles.find((s) => s.id === design.styleId)!;
-  const groups = (t.option_groups ?? []).filter((g) => g.id !== "engraving_font" && groupVisible(t, g, design));
+  const groups = (t.option_groups ?? []).filter((g) => !ADD_ON_GROUPS.includes(g.id) && groupVisible(t, g, design));
+  const hasHiddenHalo = !!t.option_groups?.some((g) => g.id === "hidden_halo") && design.styleId !== "hidden-halo";
+  const hiddenHaloOn = design.options?.hidden_halo === "yes";
   const fontGroup = t.option_groups?.find((g) => g.id === "engraving_font");
   const styles_ = forWearer(t, design, t.styles);
   const bridal = t.group ? catalog.types.filter((x) => x.group === t.group) : [];
@@ -385,8 +390,23 @@ function Builder({ catalog }: { catalog: Catalog }) {
           </Section>
         )}
 
+        {hasHiddenHalo && (
+          <Section label="Hidden halo"
+            value={hiddenHaloOn && !showPrice ? "Added" : hiddenHaloOn ? `+${formatPrice(breakdown.lines.find((l) => l.label.startsWith("Hidden halo"))?.amount ?? 0)}` : "Optional add-on"}>
+            <Pressable testID="addon-hidden-halo-toggle" onPress={() => setOption("hidden_halo", hiddenHaloOn ? "none" : "yes")}
+              style={[styles.addonRow, hiddenHaloOn && styles.addonRowOn]} accessibilityRole="switch" accessibilityState={{ checked: hiddenHaloOn }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addonTitle}>{hiddenHaloOn ? "Hidden halo added" : "Add a hidden halo"}</Text>
+                <Text style={styles.addonText}>A ring of tiny diamonds tucked under the centre stone. A sparkling surprise seen from the side.</Text>
+              </View>
+              <Switch value={hiddenHaloOn} style={{ pointerEvents: "none" }} trackColor={{ true: colors.brandPrimary, false: colors.surfaceTertiary }} />
+            </Pressable>
+          </Section>
+        )}
+
         {t.engraving_max > 0 && (
-          <Section label="Engraving" value={`+${formatPrice(t.engraving_price)}`}>
+          <Section label="Engraving"
+            value={!design.engraving.trim() ? "Optional add-on" : showPrice ? `+${formatPrice(breakdown.lines.find((l) => l.label.startsWith("Engraving"))?.amount ?? 0)}` : "Added"}>
             <TextInput
               testID="engraving-input"
               value={design.engraving}
@@ -632,6 +652,10 @@ const useStyles = makeStyles((c) => ({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   gridItem: { width: "31.8%" },
   chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  addonRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: c.border },
+  addonRowOn: { borderColor: c.onSurface, backgroundColor: c.surfaceSecondary },
+  addonTitle: { fontFamily: fonts.bold, fontSize: 14, color: c.onSurface },
+  addonText: { fontFamily: fonts.text, fontSize: 12, lineHeight: 17, color: c.muted, marginTop: 2 },
   fontRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
   notesInput: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: "top" },
   input: {
