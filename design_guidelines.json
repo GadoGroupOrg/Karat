@@ -1,0 +1,136 @@
+{
+  "project_info": {
+    "name": "Karat",
+    "domain": "karatdesign.io",
+    "app_type": "landing_page",
+    "target_audience": "B2B - Jewelers, Custom Jewelry Designers, and Luxury Jewelry Stores",
+    "value_proposition": "Turn website browsers into high-value custom jewelry clients with an interactive 3D ring configurator, virtual AR try-on embed, and integrated jeweler CRM.",
+    "selected_theme": "Option B: Dark Onyx Hero with Warm Gold Accents, transitioning into Ivory/Light Editorial Sections"
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Cormorant Garamond, Playfair Display, serif",
+      "h1_hero": "text-4xl sm:text-5xl lg:text-6xl font-serif tracking-tight leading-[1.1]",
+      "h2_section": "text-2xl sm:text-3xl lg:text-4xl font-serif tracking-tight leading-snug",
+      "h3_card": "text-xl sm:text-2xl font-serif font-medium",
+      "rule": "DO NOT use Inter or standard sans for headings. Use elegant serif for luxury authority. Maximum size text-6xl."
+    },
+    "body": {
+      "font_family": "Inter, Plus Jakarta Sans, sans-serif",
+      "size_base": "text-base text-zinc-600 dark:text-zinc-300 leading-relaxed",
+      "size_small": "text-sm text-zinc-500 dark:text-zinc-400"
+    },
+    "meta_code": {
+      "font_family": "JetBrains Mono, Fira Code, monospace",
+      "usage": "Embed code snippets, CAD metrics, carat weights, hallmarking specs"
+    }
+  },
+  "colors": {
+    "dark_hero": {
+      "background_main": "#080A0F",
+      "background_secondary": "#0F1219",
+      "surface_card": "rgba(18, 22, 34, 0.75)",
+      "border": "rgba(212, 175, 55, 0.15)",
+      "text_primary": "#FAF8F5",
+      "text_secondary": "#94A3B8"
+    },
+    "light_sections": {
+      "background_main": "#FAF8F5",
+      "background_secondary": "#F3EFEA",
+      "surface_card": "#FFFFFF",
+      "border": "#E5DECE",
+      "text_primary": "#0F1219",
+      "text_secondary": "#52525B"
+    },
+    "accents": {
+      "primary_gold": "#D4AF37",
+      "champagne_gold": "#E6CA65",
+      "muted_gold": "#997F29",
+      "gold_glow": "rgba(212, 175, 55, 0.25)"
+    }
+  },
+  "layout_and_spacing": {
+    "container_padding": "px-4 sm:px-8 lg:px-16 max-w-7xl mx-auto",
+    "section_gap": "py-20 lg:py-32",
+    "bento_grid": {
+      "mode": "Tetris Grid Asymmetric",
+      "grid_classes": "grid grid-cols-1 md:grid-cols-8 lg:grid-cols-12 gap-6 lg:gap-8",
+      "card_ratios": {
+        "hero_configurator": "col-span-full lg:col-span-8 row-span-2",
+        "ar_try_on": "col-span-full md:col-span-4 row-span-1",
+        "crm_pipeline": "col-span-full md:col-span-4 row-span-1",
+        "embed_code": "col-span-full md:col-span-6",
+        "analytics_card": "col-span-full md:col-span-6"
+      }
+    }
+  },
+  "components_to_build": [
+    {
+      "name": "KaratLogo",
+      "description": "Original SVG brand mark featuring a geometric faceted diamond/karat silhouette in gold gradient."
+    },
+    {
+      "name": "Navbar",
+      "description": "Sticky floating crystal glass bar with backdrop-blur-xl, Karat SVG logo, links (Features, How it Works, AR Fitting, CRM, FAQ), and Early Access waitlist button."
+    },
+    {
+      "name": "HeroSection",
+      "description": "Onyx black dark hero with warm gold spotlight glow, kinetic masked line-by-line headline reveal, subheadline, interactive waitlist email form with toast notification, and 3D ring showcase tilt card with metal/gem selectors."
+    },
+    {
+      "name": "EditorialMarquee",
+      "description": "Slow drift editorial ribbon with categories: Virtual 3D Fitting • Real-Time CAD Pipeline • Custom Embed Snippet • B2B Jewelry CRM • Photorealistic Renders."
+    },
+    {
+      "name": "HowItWorksPipeline",
+      "description": "3-step interactive flow showcase: 1. Copy 1-Line Embed -> 2. Client Designs Ring & AR Try-On -> 3. Jeweler Receives High-Intent Lead & CAD File in CRM."
+    },
+    {
+      "name": "BentoFeatureGrid",
+      "description": "Asymmetrical feature grid showcasing 3D Configurator, AR Virtual Camera Try-On preview, Jeweler CRM lead board, Code Snippet generator, and conversion metrics."
+    },
+    {
+      "name": "ForJewelersMetrics",
+      "description": "B2B performance section showing 3.4x conversion lift, 80% reduction in consultation back-and-forth, and client satisfaction metrics."
+    },
+    {
+      "name": "FAQAccordion",
+      "description": "Clean collapsible Radix accordion covering embed installation, CAD export compatibility (MatrixGold, Rhino), custom branding, and early access pricing."
+    },
+    {
+      "name": "FinalCTACard",
+      "description": "High-impact dark luxury card with gold tracing border effect, compelling waitlist headline, email capture form, and instant confirmation state."
+    },
+    {
+      "name": "Footer",
+      "description": "Minimal luxury footer with large ghosted wordmark, navigation categories, social links, and copyright."
+    }
+  ],
+  "image_urls": {
+    "hero_ring_spotlight": "https://images.unsplash.com/photo-1605100804763-247f67b3557e?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "gold_solitaire_ring": "https://images.unsplash.com/photo-1568219396383-6c8e87dadbe0?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "triple_gold_rings": "https://images.unsplash.com/photo-1543294001-f7cd5d7fb516?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "jeweler_workbench_crafting": "https://images.pexels.com/photos/6262845/pexels-photo-6262845.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "artisan_jeweler_focus": "https://images.pexels.com/photos/6262828/pexels-photo-6262828.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "jeweler_bench_woman": "https://images.unsplash.com/photo-1772442125267-7640b4b5f2fe?crop=entropy&cs=srgb&fm=jpg&q=85"
+  },
+  "testing_attributes": {
+    "hero_email_input": "data-testid=\"hero-email-input\"",
+    "hero_submit_button": "data-testid=\"hero-submit-button\"",
+    "nav_waitlist_button": "data-testid=\"nav-waitlist-button\"",
+    "cta_email_input": "data-testid=\"cta-email-input\"",
+    "cta_submit_button": "data-testid=\"cta-submit-button\"",
+    "metal_selector_gold": "data-testid=\"metal-selector-gold\"",
+    "metal_selector_platinum": "data-testid=\"metal-selector-platinum\"",
+    "metal_selector_rose": "data-testid=\"metal-selector-rose\"",
+    "ar_toggle_button": "data-testid=\"ar-toggle-button\"",
+    "faq_item_trigger": "data-testid=\"faq-item-trigger-1\""
+  },
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Follow Option B theme strictly: Dark Onyx Hero section (#080A0F) with warm gold lighting, transitioning smoothly into ivory/warm beige light sections (#FAF8F5).",
+    "Use Cormorant Garamond or Playfair Display for all major headings. Never use Inter for main headings.",
+    "Add explicit data-testid attributes to all interactive forms, buttons, inputs, and toggles.",
+    "Ensure smooth hover states, micro-interactions with framer-motion, and sonner toasts on waitlist submission.",
+    "Do NOT use pure #000000 or full transparent header backgrounds."
+  ]
+}
