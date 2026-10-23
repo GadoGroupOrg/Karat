@@ -167,15 +167,25 @@ async def generate_render(catalog: dict, design: dict, snapshot: bytes | None) -
     return base64.b64decode(images[0]["data"]), images[0].get("mime_type") or "image/png"
 
 
+ANGLE_VERSION = 2  # bump to discard cached views made with older instructions
 ANGLES = {
-    "front": "straight-on FRONT view, camera level with the centre stone, looking directly at the top of the setting with the band as a circle behind it",
-    "side": "true SIDE PROFILE view at 90°, camera level with the ring, showing the setting height, gallery, basket and how the stone sits above the band",
-    "top": "TOP-DOWN view looking straight down at the ring lying flat, showing the stone's outline, the halo/prongs and band from above",
-    "back": "BACK view from behind and slightly above, showing the inside of the band, the underside of the setting and the gallery",
+    "front": ("FRONT view: the ring stands upright on the bottom of its shank and the camera is at the height of the head, looking "
+              "straight through the finger opening. The band therefore appears as one complete round circle, with the head and centre "
+              "stone sitting on top of the circle, seen from the front so the stone's side silhouette, prongs and halo edge are visible"),
+    "side": ("SIDE PROFILE: the ring stands upright and the camera is at head height, turned 90° from the front view so it looks at the "
+             "side of the ring. The shank is seen edge-on as a slim vertical strip running down from the head, and the head shows its "
+             "full height in profile: gallery, basket, under-halo and how high the stone sits above the finger"),
+    "top": ("TOP-DOWN view: the ring stands upright and the camera looks straight down onto the face of the centre stone, so you see the "
+            "stone's true outline, the prongs and halo from above, and the shank shoulders extending left and right from the head"),
+    "back": ("BACK view: the camera is behind the ring and slightly above, looking through the band opening at the inside of the shank and "
+             "the underside of the head, gallery and basket"),
     "hero": "classic three-quarter hero view from slightly above, the ring upright",
 }
 
-
+ANGLE_RULES = (
+    "Physically correct ring anatomy: one continuous round shank (band) of even width that joins the head at two shoulders; the head "
+    "and centre stone sit on top of the shank; nothing floats or intersects. "
+)
 async def _edit_with_refs(refs: list[bytes], prompt: str, tag: str) -> tuple[bytes, str]:
     chat = LlmChat(api_key=os.environ["EMERGENT_LLM_KEY"], session_id=f"{tag}-{uuid.uuid4()}",
                    system_message="You are a world-class jewelry product photographer and retoucher.")
@@ -187,11 +197,27 @@ async def _edit_with_refs(refs: list[bytes], prompt: str, tag: str) -> tuple[byt
     return base64.b64decode(images[0]["data"]), images[0].get("mime_type") or "image/png"
 
 
-async def generate_angle(base: bytes, angle: str) -> tuple[bytes, str]:
+def design_facts(catalog: dict, design: dict) -> str:
+    """The design specification without the photo framing, used as ground truth for new views."""
+    txt = build_prompt(catalog, design, False, 0)
+    txt = txt[txt.index("Subject:"):] if "Subject:" in txt else txt
+    for drop in ("The ring stands upright, viewed at a three-quarter angle slightly from above so the stone and setting are the focal point. ",
+                 "The band stands upright, viewed at a three-quarter angle slightly from above. ",
+                 "Only the jewelry, no hands, no text, no watermark, no props. Square composition."):
+        txt = txt.replace(drop, "")
+    return txt.strip()
+
+
+async def generate_angle(base: bytes, angle: str, facts: str = "") -> tuple[bytes, str]:
+    is_ring = facts.startswith("Subject: a single engagement ring") or "wedding band" in facts[:80] or " ring in " in facts[:80]
     prompt = (
         "The attached image is a studio photograph of ONE specific piece of fine jewelry. Photograph the EXACT SAME piece from a new "
-        f"camera angle: {ANGLES[angle]}. Keep every design detail identical — same metal colour and finish, same stones (type, colour, "
-        "shape, size, count), same setting, prongs, halo, pavé and band profile. Same seamless soft studio background, same soft lighting, "
+        f"camera angle. {ANGLES[angle]}. "
+        + (f"Design specification (ground truth; if the photo is ambiguous, follow this): {facts} " if facts else "")
+        + (ANGLE_RULES if is_ring or not facts else "")
+        + "Keep every design detail identical: same metal colour and finish, same centre stone shape (a round stone stays round, an oval "
+        "stays oval), same stone colour, size and count, same setting, prongs, halo, milgrain, pavé, filigree and band profile. Do not add "
+        "or invent details that are not in the photo or the specification. Same seamless soft cream studio background and soft lighting, "
         "photoreal macro product photography, sharp focus, square image. Only the camera angle changes. No hands, no text, no watermark."
     )
     return await _edit_with_refs([base], prompt, "angle")

@@ -394,7 +394,7 @@ async def render_image(h: str):
 
 @api_router.get("/renders/{h}/angles/{angle}")
 async def get_angle(h: str, angle: str):
-    doc = await db.render_angles.find_one({"hash": h, "angle": angle})
+    doc = await db.render_angles.find_one({"hash": h, "angle": angle, "v": render_service.ANGLE_VERSION})
     return {"image_url": f"/api/renders/{h}/angles/{angle}/image?v={doc['created_at'][:19]}" if doc else None}
 
 
@@ -405,13 +405,17 @@ async def create_angle(h: str, angle: str, request: Request):
     base = await db.renders.find_one({"hash": h})
     if not base:
         raise HTTPException(404, "Render not found")
-    cached = await db.render_angles.find_one({"hash": h, "angle": angle})
+    cached = await db.render_angles.find_one({"hash": h, "angle": angle, "v": render_service.ANGLE_VERSION})
     if cached:
         return {"image_url": f"/api/renders/{h}/angles/{angle}/image?v={cached['created_at'][:19]}", "cached": True}
     await customers.require("angles", request)
     try:
         data, _ = await run_in_threadpool(render_service.get_object, base["storage_path"])
-        img, mime = await render_service.generate_angle(data, angle)
+        try:
+            facts = render_service.design_facts(await get_catalog(), base["design"])
+        except Exception:
+            facts = ""  # design options changed since the render; fall back to the photo alone
+        img, mime = await render_service.generate_angle(data, angle, facts)
         path = render_service.storage_path()
         await run_in_threadpool(render_service.put_object, path, img, mime)
     except Exception as e:
@@ -420,7 +424,7 @@ async def create_angle(h: str, angle: str, request: Request):
             raise HTTPException(402, "Render credits exhausted. Please top up your balance.")
         raise HTTPException(502, "Couldn't create this view. Please try again.")
     created = datetime.now(timezone.utc).isoformat()
-    await db.render_angles.update_one({"hash": h, "angle": angle}, {"$set": {"storage_path": path, "created_at": created}}, upsert=True)
+    await db.render_angles.update_one({"hash": h, "angle": angle}, {"$set": {"storage_path": path, "created_at": created, "v": render_service.ANGLE_VERSION}}, upsert=True)
     await log_usage("angle")
     return {"image_url": f"/api/renders/{h}/angles/{angle}/image?v={created[:19]}", "cached": False}
 
