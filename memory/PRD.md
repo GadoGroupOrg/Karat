@@ -21,6 +21,7 @@ Clarified: Karat is a store/website embed for jewelry businesses so their prospe
 - User's Karat logos integrated (public/brand/): ivory wordmark w/ gold diamond in nav, "Karat design" in footer, K mark in marquee + final CTA; PNG favicons from K mark (thickened diamond)
 - Hero headline: "Turn browsers' ideas into client design briefs." (animated brief card was added then removed at user request)
 - Removed "limited jeweler cohort" claims (hero, final CTA, FAQ)
+- Design card style options now swap the photo (16 images in public/img/opt/, one per type × style)
 - Catalog card added (6 pieces: rings, tennis bracelet, pendant, earrings; customise / try on / client notes)
 - Multi-category: Design card tabs Rings/Bracelets/Pendants/Earrings (defaults to Pendants), Try-on piece tabs (ring/bracelet/pendant/earrings), marquee K marks on ivory circles removed embed code/"one line" messaging, AR size detection, How-it-works, CRM mock board. Structure now: Hero → Marquee → For your clients (Design + Try-on: photo upload / live camera) → For your studio (Design & consult, Client CRM, Production briefs) → FAQ → CTA
 

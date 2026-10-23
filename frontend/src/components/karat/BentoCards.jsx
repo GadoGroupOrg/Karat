@@ -14,11 +14,13 @@ const Label = ({ name, title, dark }) => (
   </div>
 );
 
+const opt = (key, labels) => labels.map((label) => ({ key: label.toLowerCase(), label, img: `/img/opt/${key}-${label.toLowerCase()}.jpg` }));
+
 const types = [
-  { key: "rings", label: "Rings", img: "/img/rings.jpg", options: ["Round", "Oval", "Emerald", "Pear"] },
-  { key: "bracelets", label: "Bracelets", img: "/img/still-bracelet.jpg", options: ["Tennis", "Bangle", "Chain", "Cuff"] },
-  { key: "pendants", label: "Pendants", img: "/img/still-pendant.jpg", options: ["Solitaire", "Halo", "Drop", "Bar"] },
-  { key: "earrings", label: "Earrings", img: "/img/still-earrings.jpg", options: ["Studs", "Drops", "Hoops", "Climbers"] },
+  { key: "rings", label: "Rings", options: opt("ring", ["Round", "Oval", "Emerald", "Pear"]) },
+  { key: "bracelets", label: "Bracelets", options: opt("br", ["Tennis", "Bangle", "Chain", "Cuff"]) },
+  { key: "pendants", label: "Pendants", options: opt("pd", ["Solitaire", "Halo", "Drop", "Bar"]) },
+  { key: "earrings", label: "Earrings", options: opt("er", ["Studs", "Drops", "Hoops", "Climbers"]) },
 ];
 
 const Tabs = ({ items, value, onChange, prefix, dark }) => (
@@ -43,13 +45,13 @@ const Stack = ({ items, value, alt }) => (
 
 export const DesignCard = () => {
   const [type, setType] = useState("pendants");
-  const [opt, setOpt] = useState("Halo");
+  const [choice, setChoice] = useState("halo");
   const current = types.find((t) => t.key === type);
-  const pick = (k) => { setType(k); setOpt(types.find((t) => t.key === k).options[1]); };
+  const pick = (k) => { setType(k); setChoice(types.find((t) => t.key === k).options[1].key); };
   return (
     <Card testid="card-design" className="flex flex-col">
       <div className="relative h-64 overflow-hidden sm:h-80 lg:h-auto lg:flex-1">
-        <Stack items={types} value={type} alt="Fine jewelry on travertine:" />
+        <Stack key={type} items={current.options} value={choice} alt={`${current.label}:`} />
         <div className="absolute left-4 right-4 top-4 sm:right-auto">
           <Tabs items={types} value={type} onChange={pick} prefix="design-type" />
         </div>
@@ -57,10 +59,10 @@ export const DesignCard = () => {
       <div className="flex flex-col gap-6 p-7 sm:flex-row sm:items-end sm:justify-between">
         <Label name="Design" title="Clients shape their own concept." />
         <div className="flex flex-wrap gap-2 sm:justify-end">
-          {current.options.map((s) => (
-            <button key={s} onClick={() => setOpt(s)} data-testid={`design-option-${s.toLowerCase()}`}
-              className={`rounded-full border px-3 py-1.5 text-xs transition-colors duration-300 ${opt === s ? "border-onyx bg-onyx text-ivory" : "border-sand text-zinc-600 hover:border-onyx"}`}>
-              {s}
+          {current.options.map((o) => (
+            <button key={o.key} onClick={() => setChoice(o.key)} data-testid={`design-option-${o.key}`}
+              className={`rounded-full border px-3 py-1.5 text-xs transition-colors duration-300 ${choice === o.key ? "border-onyx bg-onyx text-ivory" : "border-sand text-zinc-600 hover:border-onyx"}`}>
+              {o.label}
             </button>
           ))}
         </div>
