@@ -1,0 +1,35 @@
+{
+  "summary": "ANGLE_VERSION=3 halo-only-when-halo-selected fix verified end-to-end. Backend: 12/12 pytest pass (9 pure prompt/version tests + 3 real AI generations). build_prompt() for the user's exact buggy config (solitaire-4 + full-pave band + oval Colombian Emerald + 18k YG + earth-diamond accents) now contains 'All pavé accent stones ... earth diamonds', does NOT contain 'halo/pavé', and does contain 'There is NO halo: nothing surrounds the centre stone...'. For halo / hidden-halo / double-halo styles the prompt still contains 'halo/pavé' and does NOT contain 'There is NO halo'. design_facts() preserves both those lines (verified it starts with 'Subject:' and strips framing). ANGLES dict has no 'halo' token in any view description. ANGLE_VERSION constant is 3. GET /api/renders/{h}/angles/{angle} filters by v=ANGLE_VERSION, so a synthetic v2 doc inserted directly into render_angles is correctly ignored and the endpoint returns image_url=null. Real AI generations against the preview backend for USER_BUG hero + top + front and HALO hero + top all succeeded (37s total parallel wall-clock); second POST returns cached=true in every case. Visual review of /app/test_reports/angle_images/userbug_top.png and userbug_front.png confirms: oval Colombian Emerald centre stone, four prongs clearly visible, full-pavé eternity band with small round earth-diamond accents all around the shank, NO halo of accent stones around the centre stone. HALO regression (halo_top.png) still shows the correct full ring of pavé accents framing the oval emerald, confirming the fix does not over-correct. Frontend desktop /build (1440x900) smoke test: Bridal -> Engagement Ring -> 4-Prong Solitaire -> Full Pavé (Eternity) -> Oval -> Colombian Emerald -> 18k Yellow Gold all clickable; builder-screen, builder-preview-canvas, builder-render-photo, canvas-mode-toggle/photo/live, render-status, builder-preview-caption, builder-options-panel, builder-total-price testIDs all present, caption reads '4-Prong Solitaire Engagement Ring · 18k Yellow Gold'; angle bar shows ¾/Front/Side/Top/Back; no console errors or error overlays. Total AI generations consumed in this iteration: 5 (within budget).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_render_angles_v3.py",
+    "/app/test_reports/pytest/iter19_e2e.xml",
+    "/app/test_reports/angle_images/userbug_hero.png",
+    "/app/test_reports/angle_images/userbug_top.png",
+    "/app/test_reports/angle_images/userbug_front.png",
+    "/app/test_reports/angle_images/halo_hero.png",
+    "/app/test_reports/angle_images/halo_top.png"
+  ],
+  "action_items": [
+    "No functional changes required. The fix is correct and the user's reported halo-in-top-view bug is resolved."
+  ],
+  "critical_code_review_comments": [
+    "render_service.build_prompt line 99 uses `'halo/pavé' if 'halo' in style['id'] else 'pavé'` which correctly covers halo, hidden-halo, double-halo (all contain 'halo') and excludes solitaire-4/6, cathedral, bezel, three-stone, toi-et-moi, vintage-milgrain. Verified by prompt-content tests for all three halo styles.",
+    "Line 101-103 adds 'There is NO halo' only when `'halo' not in style['id']` — same substring check keeps the two branches logically consistent. design_facts() reuses build_prompt() so these two sentences are also present in the ground-truth facts fed into generate_angle(), making the AI less likely to re-introduce a halo in a new angle.",
+    "ANGLES text was audited — no occurrence of 'halo' in any of front/side/top/back/hero. Only ANGLE_RULES mentions the token 'halo' indirectly via the generic 'no unrequested halo' sentence inside generate_angle(), which strengthens the fix rather than conflicting with it.",
+    "ANGLE_VERSION bump from 2 -> 3 correctly invalidates any v2 render_angles docs made with the old prompt (verified by inserting a synthetic v:2 doc and getting image_url:null from GET). Both the GET and POST handlers read render_service.ANGLE_VERSION dynamically, so no migration is required."
+  ],
+  "updated_files": ["/app/backend/tests/test_render_angles_v3.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Backend tests create two TEST_ renders (TEST_solitaire4_fullpave_oval + TEST_halo_regression) under tenant gado and five render_angles rows. Hashes are deterministic on the design spec so re-runs reuse the same docs. One synthetic v:2 render_angles doc is inserted and immediately deleted to verify version filtering.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "To re-run: export EXPO_PUBLIC_BACKEND_URL + MONGO_URL=mongodb://localhost:27017 + DB_NAME=test_database, then run `python -m pytest backend/tests/test_render_angles_v3.py -v -s`. Pure/unit tests complete in ~1s and don't burn AI quota. The two e2e classes (TestUserBugEndToEnd + TestHaloTopRegression) consume 5 AI generations total — only run them if you need fresh visual proofs. Angle PNGs saved to /app/test_reports/angle_images/userbug_*.png and halo_*.png for human review. If ANGLE_VERSION is bumped again, update TestAngleVersion3InvalidatesV2 to insert a v:(ANGLE_VERSION-1) doc.",
+  "rca_of_issue": "Original bug: in build_prompt() the single accent-stones sentence was `where = 'halo/pavé' if 'halo' in style['id'] else 'pavé'` BUT it was emitted for every design that had accents, and nothing explicitly told the model there was no halo on non-halo settings. Combined with the generic 'engagement ring' category knowledge, Gemini preferred to add a halo in TOP views for emerald solitaires. Fix: (a) keep the 'halo/pavé' phrasing only for halo-family styles so the model doesn't see the word 'halo' at all in the facts for a solitaire, and (b) add an explicit negative constraint 'There is NO halo: nothing surrounds the centre stone, which is held only by its own prongs/setting with bare metal and open space around it.' for non-halo styles. (c) ANGLE_VERSION bumped to 3 so stale v2 cached top views (made with the old leaky prompt) are regenerated. All three changes verified: prompt-content tests, cache-invalidation test, and real AI top/front images for the user's exact config now show the oval emerald with 4 prongs, full-pavé eternity band and NO halo of accents."
+}

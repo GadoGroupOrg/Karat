@@ -51,7 +51,7 @@ export type GroupOption = {
 export type OptionGroup = {
   id: string; label: string; default: string; options: GroupOption[];
   /** Only show for these styles, or only when the design has halo/pavé accents. */
-  when?: { styles: string[] } | "accents";
+  when?: { styles: string[] } | "accents" | "stack";
 };
 export type StoreInfo = { domain: string; name: string; currency: string; product_count: number; last_synced: string };
 export type Pricing = { gold_karat: string; currency: string };
@@ -69,6 +69,7 @@ export type DesignSpec = {
   sizeId: string;
   addonIds: string[];
   engraving: string;
+  notes?: string;
   name: string;
   options?: Record<string, string>;
 };

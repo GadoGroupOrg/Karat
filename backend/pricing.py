@@ -162,6 +162,21 @@ def ring_quote(sheet: dict, catalog: dict, d, t: dict, style: dict, size: dict, 
                           "cost": gem(sid2, side_ct), "markup": m["centre_stone"]})
     if engraving:
         lines.append({"label": "Engraving", "cost": engr_cost, "markup": m["labor"]})
+    if opt("hidden_halo") == "yes" and "halo" not in style["id"]:
+        hh_ct = 0.1 * hf
+        lines.append({"label": f"Hidden halo · {hh_ct:.2f} ct", "markup": m["accent"],
+                      "cost": hh_ct * sheet["accent_cost_per_ct"] * sheet["accent_stone_factor"].get(accent_stone, 1) + 90})
+    head = opt("head_metal")
+    if head not in ("match", d.metalId):
+        lines.append({"label": f"Two-tone head · {HEAD_NAMES.get(head, head)}", "cost": 220 if head == "platinum" else 70,
+                      "markup": m["labor"]})
+    n = int(opt("stack") or 0)
+    if n:
+        st = opt("stack_style")
+        ct = {"pave": 0.2, "eternity": 0.45}.get(st, 0) * sf
+        one = (2.6 * sf * gold_cost_per_gram(sheet) + {"polished": 90, "pave": 160, "eternity": 240, "milgrain": 130}.get(st, 90)
+               + ct * sheet["accent_cost_per_ct"])
+        lines.append({"label": f"Stack · {n} × {st.title()} band{'s' if n > 1 else ''}", "cost": one * n, "markup": m["gold"]})
     return finalize(sheet, lines, {
         "gold_grams": round(net_g, 2), "gold_grams_with_loss": round(gross_g, 2),
         "gold_cost_per_gram": round(gold_cost_per_gram(sheet), 2), "accent_ct": round(accent_ct, 3),
@@ -170,6 +185,7 @@ def ring_quote(sheet: dict, catalog: dict, d, t: dict, style: dict, size: dict, 
 
 
 _STONE_NAMES = {i: n for i, n, _, _ in STONES}
+HEAD_NAMES = {"yellow-gold": "Yellow gold", "white-gold": "White gold", "rose-gold": "Rose gold", "platinum": "Platinum"}
 
 
 def stone_name(sid: str) -> str:

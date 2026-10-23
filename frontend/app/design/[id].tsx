@@ -99,7 +99,7 @@ export default function DesignDetail() {
         </View>
         <View style={styles.body}>
           <Text style={styles.h1} testID="design-detail-name">{design.name}</Text>
-          <Text style={styles.price} testID="design-detail-price">{formatPrice(price)}</Text>
+          <Text style={styles.price} testID="design-detail-price">Estimated {formatPrice(price)}</Text>
 
           <View style={styles.table}>
             {rows.map(([k, v]) => (

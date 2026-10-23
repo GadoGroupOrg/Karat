@@ -15,6 +15,7 @@ export function hasAccents(t: JewelryType, d: DesignSpec) {
 export function groupVisible(t: JewelryType, g: OptionGroup, d: DesignSpec) {
   if (!g.when) return true;
   if (g.when === "accents") return hasAccents(t, d);
+  if (g.when === "stack") return (d.options?.stack ?? "0") !== "0";
   return g.when.styles.includes(d.styleId);
 }
 

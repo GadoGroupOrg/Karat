@@ -134,6 +134,15 @@ BAND_WIDTHS = [
     ("4", 4.0, ["womens", "mens"]), ("5", 5.0, ["mens"]), ("6", 6.0, ["mens"]), ("7", 7.0, ["mens"]), ("8", 8.0, ["mens"]),
 ]
 
+HEAD_METALS = [
+    {"id": "match", "name": "Same as band", "price": 0},
+    {"id": "yellow-gold", "name": "18k Yellow Gold", "price": 0, "color": "#E8C26A"},
+    {"id": "white-gold", "name": "18k White Gold", "price": 0, "color": "#E4E4E2"},
+    {"id": "rose-gold", "name": "18k Rose Gold", "price": 0, "color": "#E8B4A0"},
+    {"id": "platinum", "name": "Platinum", "price": 0, "color": "#D9DBDE"},
+]
+STACK_STYLES = [("polished", "Polished"), ("pave", "Pavé"), ("eternity", "Eternity"), ("milgrain", "Milgrain")]
+
 TYPES = [
     {
         "id": "ring", "name": "Engagement Ring", "group": "bridal", "group_name": "Bridal",
@@ -174,6 +183,20 @@ TYPES = [
                  {"id": "fine", "name": "Fine", "price": 0},
                  {"id": "exceptional", "name": "Exceptional", "price": 0},
              ]},
+            {"id": "hidden_halo", "label": "Hidden halo", "default": "none",
+             "when": {"styles": [s["id"] for s in RING_SETTINGS if "halo" not in s["id"]]},
+             "options": [{"id": "none", "name": "None", "price": 0},
+                         {"id": "yes", "name": "Add hidden halo", "price": 0}]},
+            {"id": "head_metal", "label": "Head & prong metal", "default": "match", "options": HEAD_METALS},
+            {"id": "stack", "label": "Stacking", "default": "0",
+             "options": [{"id": "0", "name": "Just this ring", "price": 0}] +
+                        [{"id": str(n), "name": f"Stack of {n + 1} (+{n} band{'s' if n > 1 else ''})", "price": 0} for n in range(1, 5)]},
+            {"id": "stack_style", "label": "Stack band style", "default": "polished", "when": "stack",
+             "options": [{"id": i, "name": n, "price": 0} for i, n in STACK_STYLES]},
+            {"id": "stack_metal", "label": "Stack band metal", "default": "match", "when": "stack", "options": HEAD_METALS},
+            {"id": "engraving_font", "label": "Inscription font", "default": "script",
+             "options": [{"id": "script", "name": "Script", "price": 0}, {"id": "block", "name": "Block", "price": 0},
+                         {"id": "roman", "name": "Roman serif", "price": 0}]},
         ],
         "sizes": [{"id": f"{s:g}", "label": f"{s:g}", "price": 0} for s in [x / 2 for x in range(6, 22)]],
     },

@@ -42,7 +42,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
   const fullViewer = useRef<RingViewerHandle>(null);
   const [mode, setMode] = useState<"live" | "photo">("photo");
   const [lastUrl, setLastUrl] = useState<string | null>(initialRenderUrl);
-  const [spin, setSpin] = useState(true);
+  const [spin, setSpin] = useState(false); // still until the customer presses play
   const [fullscreen, setFullscreen] = useState(false);
   const key = specKey(design);
   const [render, setRender] = useState<RenderState>(
@@ -86,6 +86,9 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
       sideColors: [colorOf("side_left"), colorOf("side_right")],
       secondColor: colorOf("second_stone"),
       secondShape: opt("second_shape"),
+      hiddenHalo: opt("hidden_halo") === "yes",
+      headColor: opt("head_metal") && opt("head_metal") !== "match"
+        ? t?.option_groups.find((g) => g.id === "head_metal")?.options.find((o) => o.id === opt("head_metal"))?.color : undefined,
     };
   }, [catalog, design]);
 

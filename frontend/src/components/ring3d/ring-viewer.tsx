@@ -37,8 +37,8 @@ export const RingViewer = forwardRef<RingViewerHandle, Props>(function RingViewe
   const glRef = useRef<GLView>(null);
   const raf = useRef<number | null>(null);
   const motion = useRef({
-    yaw: 0.6, pitch: 0, vel: 0.35, dragging: false, lastX: 0, lastY: 0, energy: 0,
-    zoom: 1, zoomNow: 1, pinchStart: 0, zoomStart: 1, autoSpin: true,
+    yaw: 0.6, pitch: 0, vel: 0, dragging: false, lastX: 0, lastY: 0, energy: 0,
+    zoom: 1, zoomNow: 1, pinchStart: 0, zoomStart: 1, autoSpin: false,
   });
   const specRef = useRef(spec);
   specRef.current = spec;
@@ -123,7 +123,7 @@ export const RingViewer = forwardRef<RingViewerHandle, Props>(function RingViewe
       const m = motion.current;
       m.zoom = 1; m.pitch = 0; m.yaw = 0.6; m.vel = m.autoSpin ? 0.35 : 0;
     },
-    setAutoSpin: (on: boolean) => { motion.current.autoSpin = on; },
+    setAutoSpin: (on: boolean) => { motion.current.autoSpin = on; if (!on) motion.current.vel = 0; },
     snapshot: async () => {
       const e = engine.current;
       if (!e || !glRef.current) return null;

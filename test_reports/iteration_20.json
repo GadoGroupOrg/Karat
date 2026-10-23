@@ -1,0 +1,24 @@
+{
+  "summary": "Verified fix for the user bug 'band options don't respond in 3D view'. All band variants (polished, diamond-cut, partial-pave, three-quarter-pave, full-pave) now produce visible geometry changes in the real-time 3D ring. Pavé melee stones sit proud of the band surface and are clearly visible for partial/3-quarter/full pavé; polished band is plain; diamond-cut band selected without errors. Wedding Band tab tested on desktop: pavé, channel, and eternity all show stones (classic/plain styles correctly show none). Changing Halo & Pavé Stones to Ruby turns the halo pavé red while the centre emerald remains green, confirming accentColor propagation. Mobile viewport 390x844 renders the 3D viewer without any JS console errors and pavé band selections visibly update. The 500/502 errors in console come from the auto-render studio_photo API (expected per handoff note) and are unrelated to the 3D flow.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "build-ring.ts BANDS map keys include 'partial-pave', 'three-quarter-pave', 'full-pave' matching option IDs — mapping is consistent across engagement and wedding builds via WEDDING_3D.",
+    "Pavé melee radius offset (+0.006 above R+2*b.tube) with ds=0.078 reliably lifts stones above the band so they read in 3D at all viewing angles.",
+    "No deprecated expo packages detected in ring3d module; three.js + expo-gl usage is current."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only task)", "frontend": "100%"},
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The 3D ring viewer uses testID='ring-3d-viewer' inside testID='builder-preview-canvas'. Switch to 3D with [data-testid=canvas-mode-live]. Band option testIDs are option-band-{polished|diamond-cut|partial-pave|three-quarter-pave|full-pave}. Halo pavé colour is driven by option-accent_stone-{id} which maps to RingSpec.accentColor and tints the melee material in build-ring.ts. Studio-photo render API returns 500/502 for anonymous users in this preview; this is expected and does NOT affect the 3D canvas.",
+  "rca_of_issue": "Original bug: pavé melee stones were placed 0.012 below the band surface so their crowns (~0.011 tall) were fully occluded by the metal torus — making band changes invisible in 3D. Fix in build-ring.ts lifts the melee to +0.006 above (R + 2*b.tube) and uses ds=0.078 with 1.12 step. Same transform applied to the wedding band pavé/channel/eternity branch. Verified by selecting each band option in both Engagement Ring and Wedding Band tabs on desktop (1440x900) and mobile (390x844); each selection produced the expected visible change."
+}

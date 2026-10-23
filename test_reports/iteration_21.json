@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 21: Designer add-ons (hidden halo, head metal, stack, engraving font, notes) are correctly wired front-to-back. 11/11 backend tests pass. The '3D rotates on activation' bug IS NOT FIXED — the ring viewer still auto-spins the moment the 3D canvas appears and continues to spin even after the user presses the spin-toggle twice to pause.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "RingViewer / design-canvas", "issue": "3D ring auto-rotates immediately on switching to canvas-mode-live. Two screenshots of [data-testid=builder-preview-canvas] taken 2s apart (desktop 1440x900 AND mobile 390x844) are DIFFERENT (ring is still moving), but spec requires them to be IDENTICAL (ring must be still until 'play' is pressed). After pressing spin-toggle twice (play then pause), frames still differ — ie pause does not fully stop rotation either. Root cause: /app/frontend/src/components/ring3d/ring-viewer.tsx:41 initialises motion.autoSpin = true (and vel = 0.35). The parent /app/frontend/src/components/design-canvas.tsx:45 only sets spin=false in local React state but never calls viewer.setAutoSpin(false) at mount, so the GL loop keeps spinning. Also, motion.vel is not forcibly zeroed in setAutoSpin — only the target is set, so momentum carries after pause.", "testID": "spin-toggle-button", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter21_designer_addons.py",
+    "/app/test_reports/pytest/iter21_results.xml",
+    "/app/test_reports/iter21/t0.jpg",
+    "/app/test_reports/iter21/t2.jpg",
+    "/app/test_reports/iter21/mob_t0.jpg",
+    "/app/test_reports/iter21/mob_t2.jpg",
+    "/app/test_reports/iter21/addons_desktop.jpg"
+  ],
+  "action_items": [
+    "Fix 3D auto-spin bug: in /app/frontend/src/components/ring3d/ring-viewer.tsx change motion.current initial autoSpin to false and vel to 0; and in setAutoSpin(on) explicitly set motion.vel = 0 when on=false so pause stops momentum. Alternatively keep autoSpin:true but have design-canvas.tsx call viewer.current?.setAutoSpin(false) in a useEffect after the viewer mounts.",
+    "After fix, re-run the stillness test: take two screenshots of [data-testid=builder-preview-canvas] 2s apart after clicking [data-testid=canvas-mode-live] — they must be byte-identical. Then clicking [data-testid=spin-toggle-button] must change the icon from 'play/rotate-cw' to 'pause' and start movement; clicking again must return to still.",
+    "No other backend/frontend action items — all designer add-on UX (hidden halo chips, head_metal chips, stack chips with gated stack_style & stack_metal, inscription font + preview, design-notes-input, estimate labels, disclaimer) and backend price lines ('Hidden halo', 'Two-tone head · Platinum', 'Stack · 2 × Eternity bands') verified on desktop 1440x900 and mobile 390x844."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/server.py:342-345 design_hash correctly excludes {'name','notes'} so notes do not bust the render cache. Verified by unit test (hashing same spec with 3 different notes strings yields identical hashes, while changing carat does change the hash).",
+    "/app/backend/pricing.py:165-179 ring_quote emits the required lines (Hidden halo, Two-tone head, Stack). Two-tone head is suppressed if head_metal == band metal, which is the correct semantics.",
+    "/app/backend/catalog_data.py:186-199 hidden_halo 'when.styles' is auto-generated as [s for s in RING_SETTINGS if 'halo' not in s['id']] — covers hidden-halo too since its id is 'hidden-halo' (contains 'halo') and is therefore excluded. Good.",
+    "/app/frontend/app/(tabs)/build.tsx:412-416 passes design.options.engraving_font to InscriptionPreview; chips re-select correctly.",
+    "/app/frontend/src/components/ring3d/ring-viewer.tsx:41 defaults autoSpin=true, which contradicts the spec. See HIGH priority bug above."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter21_designer_addons.py (new)"
+  ],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "6/7 flows pass; 3D stillness bug outstanding"},
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Spin bug reproduction: open /build?type=ring, click [data-testid=canvas-mode-live], wait 2s, screenshot [data-testid=builder-preview-canvas], wait 2s, screenshot again — hashes should be identical. Icon on [data-testid=spin-toggle-button] uses Feather glyph (char code 61900 = \\uf1cc) when paused — verify this is a play/rotate-cw icon rather than pause. The admin lead 'Customer notes' row flow was NOT tested because it is gated behind a full quote request flow; the design-notes-input saves to design.notes locally and the backend DesignSpec accepts notes up to 1000 chars (verified).",
+  "rca_of_issue": "ring-viewer.tsx line 41 sets motion.current = { ..., vel: 0.35, autoSpin: true } so the GL render loop (line 224: target = m.autoSpin ? 0.35 : 0; yaw += vel*dt) rotates the ring from the moment the GL context is ready. The parent design-canvas.tsx owns a React state `spin` (default false) but never synchronises the viewer handle with that state at mount; `setAutoSpin` is only called from toggleSpin on user press. Fix: either (a) make the viewer default autoSpin=false and vel=0, or (b) add useEffect(() => { viewer.current?.setAutoSpin(spin); }, [spec]) in design-canvas.tsx so each (re)mount is synced. Option (a) is simplest. Also, setAutoSpin should zero m.vel so pressing pause stops momentum immediately."
+}

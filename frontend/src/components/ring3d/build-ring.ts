@@ -19,6 +19,10 @@ export type RingSpec = {
   secondShape?: string;
   /** Wedding band: no head, band width in mm, accent stone style. */
   weddingBand?: { widthMm: number; style: string };
+  /** Pavé ring under the centre stone, around the basket. */
+  hiddenHalo?: boolean;
+  /** Two-tone: head/prong metal colour (defaults to the band metal). */
+  headColor?: string;
 };
 
 export type RingBuild = { group: THREE.Group; sparkleAnchors: THREE.Vector3[]; stoneSize: number };
@@ -196,7 +200,7 @@ function buildWeddingBand(spec: RingSpec, m: Mats): RingBuild {
     angles.forEach((a, i) => {
       const dir = new THREE.Vector3(Math.cos(a), Math.sin(a), 0);
       const q = new THREE.Quaternion().setFromUnitVectors(up, dir);
-      pave.setMatrixAt(i, new THREE.Matrix4().compose(dir.clone().multiplyScalar(R + 2 * tubeR - 0.012), q, new THREE.Vector3(1, 1, 1)));
+      pave.setMatrixAt(i, new THREE.Matrix4().compose(dir.clone().multiplyScalar(R + 2 * tubeR + 0.006), q, new THREE.Vector3(1, 1, 1)));
       if (i % 6 === 0) anchors.push(dir.clone().multiplyScalar(R + 2 * tubeR));
     });
     group.add(pave);
@@ -214,6 +218,7 @@ export function buildRing(spec: RingSpec): RingBuild {
   if (spec.weddingBand) return buildWeddingBand(spec, m);
   const group = new THREE.Group();
   const b = BANDS[spec.band] ?? BANDS.polished;
+  const head: Mats = spec.headColor ? { ...m, metal: Object.assign(m.metal.clone(), { color: new THREE.Color(spec.headColor) }) } : m;
   const isToiEtMoi = spec.setting === "toi-et-moi";
   spec = { ...spec, setting: isToiEtMoi ? "toi-et-moi" : SETTING_3D[spec.setting] ?? spec.setting };
 
@@ -238,7 +243,7 @@ export function buildRing(spec: RingSpec): RingBuild {
     const c2 = new THREE.Vector3(offset, gy, rz * 0.18);
     const m2 = gemMats(m, spec.secondColor ?? "#FFFFFF");
     addGem(group, cut2, d, c2, m2, -0.12);
-    addProngs(group, c2, (d / 2) * cut2.sx, (d / 2) * cut2.sz, d, 4, topY - 0.03, m);
+    addProngs(group, c2, (d / 2) * cut2.sx, (d / 2) * cut2.sz, d, 4, topY - 0.03, head);
   }
   const anchors: THREE.Vector3[] = [];
   for (let i = 0; i < 9; i++) {
@@ -251,14 +256,28 @@ export function buildRing(spec: RingSpec): RingBuild {
       .map(([x, y]) => new THREE.Vector2(x, y));
     const bez = new THREE.LatheGeometry(prof, cut.segments === 16 || cut.segments === 20 ? 64 : cut.segments, cut.phi);
     bez.scale(d * cut.sx, 1, d * cut.sz);
-    const bezMesh = new THREE.Mesh(bez, m.metal);
+    const bezMesh = new THREE.Mesh(bez, head.metal);
     (bezMesh.material as THREE.Material).side = THREE.DoubleSide;
     group.add(bezMesh);
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(rx * 0.55, 0.1, gy - 0.3 * d - topY + 0.04, 24), m.metal);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(rx * 0.55, 0.1, gy - 0.3 * d - topY + 0.04, 24), head.metal);
     stem.position.y = (gy - 0.3 * d + topY - 0.04) / 2;
     group.add(stem);
   } else {
-    addProngs(group, center, rx, rz, d, spec.setting === "solitaire-6" ? 6 : 4, topY - 0.03, m);
+    addProngs(group, center, rx, rz, d, spec.setting === "solitaire-6" ? 6 : 4, topY - 0.03, head);
+  }
+
+  if (spec.hiddenHalo && spec.setting !== "halo") {
+    const ds = 0.05, hx = rx * 0.72, hz = rz * 0.72, hy = gy - 0.24 * d;
+    const n = Math.floor((Math.PI * (hx + hz)) / (ds * 1.05));
+    const ring = new THREE.InstancedMesh(gemGeometry(cutFor("round"), ds), m.melee, n);
+    const out = new THREE.Vector3();
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      out.set(Math.cos(a), 0.35, Math.sin(a)).normalize();
+      ring.setMatrixAt(i, new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * hx, hy, Math.sin(a) * hz),
+        new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), out), new THREE.Vector3(1, 1, 1)));
+    }
+    group.add(ring);
   }
 
   if (spec.setting === "halo") {
@@ -274,7 +293,7 @@ export function buildRing(spec: RingSpec): RingBuild {
       melee.setMatrixAt(i, mtx);
     }
     group.add(melee);
-    const frame = new THREE.Mesh(new THREE.TorusGeometry(1, 0.035, 10, 72), m.metal);
+    const frame = new THREE.Mesh(new THREE.TorusGeometry(1, 0.035, 10, 72), head.metal);
     frame.rotation.x = Math.PI / 2;
     frame.scale.set(hx, hz, 1);
     frame.position.y = gy - 0.025 * d - 0.035;
@@ -288,7 +307,7 @@ export function buildRing(spec: RingSpec): RingBuild {
       const c2 = new THREE.Vector3(sx, gy - 0.08 * d, 0);
       const sc = spec.sideColors?.[side < 0 ? 0 : 1];
       addGem(group, cut, d2, c2, sc ? gemMats(m, sc) : m, -side * 0.22);
-      addProngs(group, c2, (d2 / 2) * cut.sx, (d2 / 2) * cut.sz, d2, 4, topY - 0.06, m);
+      addProngs(group, c2, (d2 / 2) * cut.sx, (d2 / 2) * cut.sz, d2, 4, topY - 0.06, head);
     }
   }
 
@@ -307,15 +326,17 @@ export function buildRing(spec: RingSpec): RingBuild {
   }
 
   if (b.pave) {
-    const ds = 0.07;
+    // melee sits proud of the band surface (girdle just above the metal) so the crowns read clearly
+    const ds = 0.078;
+    const step = (ds / (R + 2 * b.tube)) * (180 / Math.PI) * 1.12;
     const angles: number[] = [];
-    for (let deg = b.pave[0]; deg <= b.pave[1]; deg += 5.2) if (Math.abs(deg - 90) > 16) angles.push((deg * Math.PI) / 180);
+    for (let deg = b.pave[0]; deg <= b.pave[1]; deg += step) if (Math.abs(deg - 90) > 16) angles.push((deg * Math.PI) / 180);
     const pave = new THREE.InstancedMesh(gemGeometry(cutFor("round"), ds), m.melee, angles.length);
     const up = new THREE.Vector3(0, 1, 0);
     angles.forEach((a, i) => {
       const dir = new THREE.Vector3(Math.cos(a), Math.sin(a), 0);
       const q = new THREE.Quaternion().setFromUnitVectors(up, dir);
-      const p = dir.clone().multiplyScalar(R + 2 * b.tube - 0.012);
+      const p = dir.clone().multiplyScalar(R + 2 * b.tube + 0.006);
       pave.setMatrixAt(i, new THREE.Matrix4().compose(p, q, new THREE.Vector3(1, 1, 1)));
     });
     group.add(pave);

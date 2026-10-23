@@ -112,7 +112,7 @@ export default function Account() {
                   </View>
                   <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
                   <Text style={styles.meta} numberOfLines={1}>{metal?.name}</Text>
-                  <Text style={styles.price}>{formatPrice(item.price)}</Text>
+                  <Text style={styles.price}>Est. {formatPrice(item.price)}</Text>
                 </Pressable>
               </Animated.View>
             );

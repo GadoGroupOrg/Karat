@@ -86,6 +86,7 @@ class DesignSpec(BaseModel):
     engraving: str = ""
     name: str = ""
     options: Dict[str, str] = {}
+    notes: str = Field(default="", max_length=1000)
 
 
 class QuoteCreate(BaseModel):
@@ -339,7 +340,7 @@ async def option_image(key: str):
 
 
 def design_hash(d: DesignSpec) -> str:
-    spec = d.model_dump(exclude={"name"})
+    spec = d.model_dump(exclude={"name", "notes"})
     spec["addonIds"] = sorted(spec["addonIds"])
     return hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:32]
 

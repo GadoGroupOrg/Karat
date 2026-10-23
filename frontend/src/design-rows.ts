@@ -23,5 +23,6 @@ export function designRows(catalog: Catalog, design: DesignSpec, lines: { label:
   if (design.options?.material_request) rows.push(["Material request", design.options.material_request]);
   for (const l of lines) rows.push([l.label, formatPrice(l.amount)]);
   if (design.engraving.trim()) rows.push(["Engraving", `“${design.engraving.trim()}”`]);
+  if (design.notes?.trim()) rows.push(["Customer notes", design.notes.trim()]);
   return { typeName: t.name, rows };
 }

@@ -14,6 +14,7 @@ import { getBranding } from "@/src/branding";
 import { DesignCanvas } from "@/src/components/design-canvas";
 import { Charm } from "@/src/components/jewelry-preview";
 import { forWearer, groupVisible } from "@/src/catalog-utils";
+import { InscriptionPreview } from "@/src/components/inscription-preview";
 import { useCustomer } from "@/src/customer";
 import { getDesign, newId, upsertDesign } from "@/src/designs";
 import { usesNativeTabs } from "@/src/navigation";
@@ -114,7 +115,8 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const price = quote.data?.total ?? 0;
   const metal = catalog.metals.find((m) => m.id === design.metalId)!;
   const style = t.styles.find((s) => s.id === design.styleId)!;
-  const groups = (t.option_groups ?? []).filter((g) => groupVisible(t, g, design));
+  const groups = (t.option_groups ?? []).filter((g) => g.id !== "engraving_font" && groupVisible(t, g, design));
+  const fontGroup = t.option_groups?.find((g) => g.id === "engraving_font");
   const styles_ = forWearer(t, design, t.styles);
   const bridal = t.group ? catalog.types.filter((x) => x.group === t.group) : [];
   const chipTypes = catalog.types.filter((x, i, all) => !x.group || all.findIndex((y) => y.group === x.group) === i);
@@ -395,8 +397,37 @@ function Builder({ catalog }: { catalog: Catalog }) {
               style={styles.input}
               returnKeyType="done"
             />
+            {fontGroup && (
+              <View style={styles.fontRow}>
+                {fontGroup.options.map((o) => {
+                  const sel = (design.options?.engraving_font ?? fontGroup.default) === o.id;
+                  return (
+                    <Pressable key={o.id} testID={`option-engraving_font-${o.id}`} onPress={() => setOption("engraving_font", o.id)} style={[styles.chip, sel && styles.chipSel]}>
+                      <Text style={[styles.chipText, sel && styles.chipTextSel]}>{o.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+            {!!design.engraving.trim() && (
+              <InscriptionPreview text={design.engraving.trim()} font={design.options?.engraving_font ?? fontGroup?.default ?? "script"}
+                metalColor={catalog.metals.find((m) => m.id === design.metalId)?.color ?? "#E8C26A"} />
+            )}
           </Section>
         )}
+
+        <Section label="Notes for your jeweller" value="Optional">
+          <TextInput
+            testID="design-notes-input"
+            value={design.notes ?? ""}
+            onChangeText={(v) => setDesign((d) => ({ ...d, notes: v }))}
+            maxLength={1000}
+            multiline
+            placeholder="Anything we should know: occasion, budget, timeline, stone preferences, inspiration…"
+            placeholderTextColor={colors.muted}
+            style={[styles.input, styles.notesInput]}
+          />
+        </Section>
 
         {t.id === "ring" && bandType && (
           <Pressable testID="add-matching-band-button" onPress={matchBand} style={styles.matchBtn}>
@@ -409,7 +440,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
           </Pressable>
         )}
 
-        {showPrice && <Section label="Price breakdown" value="Estimate">
+        {showPrice && <Section label="Estimated price breakdown" value="Estimate">
           <View style={styles.breakdown} testID="price-breakdown">
             {breakdown.lines.map((l) => (
               <View key={l.label} style={styles.bdRow}>
@@ -420,6 +451,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
             {!!design.options?.material_request && (
               <Text style={styles.bdNote}>Alternative material “{design.options.material_request}” priced on request.</Text>
             )}
+            <Text style={styles.bdNote} testID="estimate-disclaimer">All prices are estimates based on today’s gold price. Your jeweller confirms the final quote.</Text>
           </View>
         </Section>}
 
@@ -600,6 +632,8 @@ const useStyles = makeStyles((c) => ({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   gridItem: { width: "31.8%" },
   chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  fontRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
+  notesInput: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: "top" },
   input: {
     height: 48, borderRadius: radius.md, backgroundColor: c.surfaceSecondary, paddingHorizontal: spacing.lg,
     fontFamily: fonts.text, fontSize: 15, color: c.onSurface, borderWidth: 1, borderColor: c.border,

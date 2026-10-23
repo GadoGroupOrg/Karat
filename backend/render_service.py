@@ -96,10 +96,30 @@ def build_prompt(catalog: dict, d: dict, has_snapshot: bool, product_refs: int) 
                      f"left side stone {sl['name'] if sl else 'diamond'}, right side stone {sr['name'] if sr else 'diamond'}. ")
         if has_accents and accent:
             kind = accent_stone["name"].lower() if accent_stone else "white diamond"
-            desc += f"All halo/pavé accent stones are small {accent['name'].lower()}-cut {kind}s. "
+            where = "halo/pavé" if "halo" in style["id"] else "pavé"
+            desc += f"All {where} accent stones are small {accent['name'].lower()}-cut {kind}s. "
+        hidden = options.get("hidden_halo") == "yes" and "halo" not in style["id"]
+        if hidden:
+            desc += ("Hidden halo: a delicate ring of tiny pavé diamonds wraps the basket directly UNDER the centre stone, visible "
+                     "from the side and three-quarter view only; seen face-up there is no halo around the stone. ")
+        elif "halo" not in style["id"]:
+            desc += ("There is NO halo: nothing surrounds the centre stone, which is held only by its own prongs/setting with bare "
+                     "metal and open space around it. ")
+        head = options.get("head_metal", "match")
+        if head not in ("match", d.get("metalId")):
+            hm = next((m["name"] for m in catalog.get("metals", []) if m["id"] == head), "platinum" if head == "platinum" else head.replace("-", " "))
+            desc += f"Two-tone: the head and prongs are {hm.lower()}, contrasting with the {gold} band. "
+        n = int(options.get("stack", "0") or 0)
+        if n:
+            sm = options.get("stack_metal", "match")
+            smn = gold if sm == "match" else ("platinum" if sm == "platinum" else sm.replace("-", " ").replace("gold", "18k gold"))
+            st = {"pave": "pavé diamond", "eternity": "diamond eternity", "milgrain": "milgrain-edged", "polished": "polished"}.get(options.get("stack_style", "polished"), "polished")
+            desc += (f"Stack: the engagement ring is shown stacked with {n} slim {st} wedding band{'s' if n > 1 else ''} in {smn}, "
+                     "worn snugly side by side as one curated stack. ")
         desc += "The ring stands upright, viewed at a three-quarter angle slightly from above so the stone and setting are the focal point. "
         if engraving:
-            desc += f"Fine script engraving '{engraving}' visible on the inside of the band. "
+            font = {"block": "clean block capitals", "roman": "classic roman serif"}.get(options.get("engraving_font", ""), "fine script")
+            desc += f"Engraving in {font} reading '{engraving}' visible on the inside of the band. "
     elif d["type"] == "band":
         wearer, width, finish = _opt(t, "wearer", options), _opt(t, "width", options), _opt(t, "finish", options)
         accent_stone = _opt(t, "accent_stone", options)
@@ -112,7 +132,8 @@ def build_prompt(catalog: dict, d: dict, has_snapshot: bool, product_refs: int) 
             desc += f"The set stones are small {accent_stone['name'].lower() if accent_stone else 'white diamond'}s. "
         desc += "The band stands upright, viewed at a three-quarter angle slightly from above. "
         if engraving:
-            desc += f"Fine script engraving '{engraving}' visible on the inside of the band. "
+            font = {"block": "clean block capitals", "roman": "classic roman serif"}.get(options.get("engraving_font", ""), "fine script")
+            desc += f"Engraving in {font} reading '{engraving}' visible on the inside of the band. "
     elif d["type"] in ("fashion-ring", "pendant", "tennis"):
         bits = [f"{g['label']}: {_opt(t, g['id'], options)['name']}" for g in t.get("option_groups", []) if _opt(t, g["id"], options)]
         desc = (f"Subject: a single {style['name'].lower()} {t['name'].lower()} in polished {gold}. "
@@ -167,16 +188,16 @@ async def generate_render(catalog: dict, design: dict, snapshot: bytes | None) -
     return base64.b64decode(images[0]["data"]), images[0].get("mime_type") or "image/png"
 
 
-ANGLE_VERSION = 2  # bump to discard cached views made with older instructions
+ANGLE_VERSION = 3  # bump to discard cached views made with older instructions
 ANGLES = {
     "front": ("FRONT view: the ring stands upright on the bottom of its shank and the camera is at the height of the head, looking "
               "straight through the finger opening. The band therefore appears as one complete round circle, with the head and centre "
-              "stone sitting on top of the circle, seen from the front so the stone's side silhouette, prongs and halo edge are visible"),
+              "stone sitting on top of the circle, seen from the front so the stone's side silhouette and its setting are visible"),
     "side": ("SIDE PROFILE: the ring stands upright and the camera is at head height, turned 90° from the front view so it looks at the "
              "side of the ring. The shank is seen edge-on as a slim vertical strip running down from the head, and the head shows its "
-             "full height in profile: gallery, basket, under-halo and how high the stone sits above the finger"),
+             "full height in profile: gallery, basket and how high the stone sits above the finger"),
     "top": ("TOP-DOWN view: the ring stands upright and the camera looks straight down onto the face of the centre stone, so you see the "
-            "stone's true outline, the prongs and halo from above, and the shank shoulders extending left and right from the head"),
+            "stone's true outline and its setting from above, and the shank shoulders extending left and right from the head"),
     "back": ("BACK view: the camera is behind the ring and slightly above, looking through the band opening at the inside of the shank and "
              "the underside of the head, gallery and basket"),
     "hero": "classic three-quarter hero view from slightly above, the ring upright",
@@ -216,8 +237,8 @@ async def generate_angle(base: bytes, angle: str, facts: str = "") -> tuple[byte
         + (f"Design specification (ground truth; if the photo is ambiguous, follow this): {facts} " if facts else "")
         + (ANGLE_RULES if is_ring or not facts else "")
         + "Keep every design detail identical: same metal colour and finish, same centre stone shape (a round stone stays round, an oval "
-        "stays oval), same stone colour, size and count, same setting, prongs, halo, milgrain, pavé, filigree and band profile. Do not add "
-        "or invent details that are not in the photo or the specification. Same seamless soft cream studio background and soft lighting, "
+        "stays oval), same stone colour, size and count, same setting and band exactly as specified. Do not add anything that is not in the photo or specification (no unrequested halo, extra stones, "
+        "milgrain or other ornament). Same seamless soft cream studio background and soft lighting, "
         "photoreal macro product photography, sharp focus, square image. Only the camera angle changes. No hands, no text, no watermark."
     )
     return await _edit_with_refs([base], prompt, "angle")
