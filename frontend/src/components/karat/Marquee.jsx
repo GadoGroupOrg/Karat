@@ -6,8 +6,8 @@ const Row = () => (
   <div className="flex shrink-0 items-center gap-12 pr-12">
     {words.map((w) => (
       <span key={w} className="flex items-center gap-12">
-        <span className="font-display text-5xl font-light italic text-ivory/90 sm:text-7xl">{w}</span>
-        <KaratMark className="h-6 w-6 opacity-70" />
+        <span className="font-display text-5xl font-light italic text-[#FAF8F5]/90 sm:text-7xl">{w}</span>
+        <KaratMark className="h-10 opacity-80" />
       </span>
     ))}
   </div>

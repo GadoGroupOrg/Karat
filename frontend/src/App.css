@@ -60,6 +60,8 @@ html.lenis, html.lenis body { height: auto; }
 
 .spin-slow { animation: spin 18s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.float-slow { animation: floaty 6s ease-in-out infinite; filter: drop-shadow(0 10px 30px rgba(212,175,55,0.35)); }
+@keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 
 ::selection { background: #D4AF37; color: #080A0F; }
 

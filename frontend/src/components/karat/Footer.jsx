@@ -3,7 +3,7 @@ import { KaratLogo } from "./Logo";
 export const Footer = () => (
   <footer data-testid="footer" className="overflow-hidden bg-onyx pt-16 text-ivory">
     <div className="mx-auto flex max-w-7xl flex-col gap-8 border-t border-white/10 px-5 pt-10 sm:px-8 md:flex-row md:items-center md:justify-between lg:px-16">
-      <KaratLogo />
+      <KaratLogo variant="design" className="h-20" />
       <nav className="flex flex-wrap gap-6 text-sm text-zinc-400">
         <a href="#how" data-testid="footer-link-how" className="hover:text-ivory">How it works</a>
         <a href="#studio" data-testid="footer-link-studio" className="hover:text-ivory">Studio</a>
