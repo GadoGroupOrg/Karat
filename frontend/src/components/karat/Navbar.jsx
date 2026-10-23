@@ -2,9 +2,8 @@ import { motion } from "framer-motion";
 import { KaratLogo } from "./Logo";
 
 const links = [
-  ["How it works", "#how"],
-  ["Studio", "#studio"],
-  ["Jewelers", "#jewelers"],
+  ["For clients", "#clients"],
+  ["For your studio", "#studio"],
   ["FAQ", "#faq"],
 ];
 

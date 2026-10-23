@@ -5,7 +5,6 @@ import "@/App.css";
 import { Navbar } from "@/components/karat/Navbar";
 import { Hero } from "@/components/karat/Hero";
 import { Marquee } from "@/components/karat/Marquee";
-import { HowItWorks } from "@/components/karat/HowItWorks";
 import { Bento } from "@/components/karat/Bento";
 import { Jewelers } from "@/components/karat/Jewelers";
 import { FAQ } from "@/components/karat/FAQ";
@@ -28,7 +27,6 @@ function App() {
       <main>
         <Hero />
         <Marquee />
-        <HowItWorks />
         <Bento />
         <Jewelers />
         <FAQ />

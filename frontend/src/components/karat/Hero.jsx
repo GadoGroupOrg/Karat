@@ -16,7 +16,7 @@ export const Hero = () => {
       <div className="relative mx-auto grid max-w-7xl items-center gap-16 px-5 sm:px-8 lg:grid-cols-12 lg:px-16">
         <motion.div style={{ y: textY }} className="lg:col-span-7">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3, duration: 1 }}>
-            <Eyebrow>Karat Studio — for jewelers</Eyebrow>
+            <Eyebrow>Karat — for jewelers</Eyebrow>
           </motion.div>
           <h1 data-testid="hero-headline" className="mt-7 font-display text-[3.2rem] font-light leading-[0.95] tracking-[-0.02em] sm:text-7xl lg:text-[5.6rem] xl:text-[6.4rem]">
             <MaskLines delay={0.35} lines={[
@@ -31,7 +31,7 @@ export const Hero = () => {
             transition={{ delay: 0.9, duration: 1, ease: [0.22, 1, 0.36, 1] }}
             className="mt-8 max-w-lg text-base leading-relaxed text-zinc-300 sm:text-lg"
           >
-            Embed a ring designer and virtual try-on on your store. Prospects shape their own concept, see it on their hand, and land in your CRM — ready to commission.
+            Prospects design and try on their piece on your website. You consult, manage and brief production in one studio.
           </motion.p>
           <motion.div
             id="waitlist"

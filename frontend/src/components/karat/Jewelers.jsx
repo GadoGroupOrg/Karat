@@ -3,9 +3,9 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { FadeUp, MaskLines, Eyebrow } from "./Reveal";
 
 const points = [
-  ["1 line", "of code to add a designer and try-on to your existing store."],
-  ["3 surfaces", "Atelier for clients, Mirror for try-on, Ledger for your team."],
-  ["Your brand", "Your metals, stones, prices and styling — never ours."],
+  ["Design & consult", "Refine each client's concept with them, in one shared workspace."],
+  ["Client CRM", "Every enquiry, design and conversation kept in one client record."],
+  ["Production briefs", "Turn an approved design into a production-ready brief for your bench."],
 ];
 
 export const Jewelers = () => {
@@ -14,7 +14,7 @@ export const Jewelers = () => {
   const y = useTransform(scrollYProgress, [0, 1], ["-8%", "8%"]);
 
   return (
-    <section id="jewelers" ref={ref} data-testid="jewelers-section" className="bg-ivory py-24 text-onyx lg:py-36">
+    <section id="studio" ref={ref} data-testid="studio-section" className="bg-ivory py-24 text-onyx lg:py-36">
       <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 sm:px-8 lg:grid-cols-12 lg:px-16">
         <FadeUp className="lg:col-span-5">
           <div className="relative aspect-[4/5] overflow-hidden rounded-t-full rounded-b-[28px]">
@@ -22,15 +22,15 @@ export const Jewelers = () => {
           </div>
         </FadeUp>
         <div className="lg:col-span-6 lg:col-start-7">
-          <Eyebrow light>Built for the bench</Eyebrow>
+          <Eyebrow light>For your studio</Eyebrow>
           <h2 className="mt-5 font-display text-5xl font-light leading-[1] tracking-tight sm:text-6xl">
-            <MaskLines inView lines={["Less back-and-forth.", <em key="m" className="italic text-gold-deep">More making.</em>]} />
+            <MaskLines inView lines={["From concept", <em key="m" className="italic text-gold-deep">to the bench.</em>]} />
           </h2>
-          <p className="mt-6 max-w-md text-zinc-600">Clients arrive knowing what they want. You spend consultations refining a design — not sketching from scratch.</p>
+          <p className="mt-6 max-w-md text-zinc-600">Behind every concept is a studio for you: design with your client, manage the relationship, and hand over a brief ready for production.</p>
           <dl className="mt-12 divide-y divide-sand border-y border-sand">
             {points.map(([k, v], i) => (
               <FadeUp key={k} delay={i * 0.08}>
-                <div data-testid={`jeweler-point-${i}`} className="grid grid-cols-1 gap-2 py-6 sm:grid-cols-[180px_1fr] sm:gap-8">
+                <div data-testid={`jeweler-point-${i}`} className="grid grid-cols-1 gap-2 py-6 sm:grid-cols-[220px_1fr] sm:gap-8">
                   <dt className="font-display text-3xl italic text-gold-deep">{k}</dt>
                   <dd className="text-zinc-600">{v}</dd>
                 </div>

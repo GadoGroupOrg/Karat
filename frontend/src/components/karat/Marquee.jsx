@@ -1,6 +1,6 @@
 import { KaratMark } from "./Logo";
 
-const words = ["Design it", "Try it on", "Commission it", "Atelier", "Mirror", "Ledger", "Bespoke, at scale"];
+const words = ["Design it", "Try it on", "Consult", "Commission", "Bespoke"];
 
 const Row = () => (
   <div className="flex shrink-0 items-center gap-12 pr-12">

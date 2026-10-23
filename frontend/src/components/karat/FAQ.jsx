@@ -2,10 +2,10 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "..
 import { Eyebrow, MaskLines } from "./Reveal";
 
 const faqs = [
-  ["How does the embed install?", "Paste one script tag into your site. It works with Shopify, WordPress, Squarespace, Wix and custom builds, and inherits your fonts and colours."],
-  ["Can I use my own catalogue and pricing?", "Yes. You define the metals, stones, cuts, settings and price rules your clients can choose from."],
-  ["How does virtual try-on work?", "Clients open their phone or laptop camera and see their concept rendered on their hand in real time — no app download."],
-  ["What happens when a client finishes a design?", "The concept, specs and contact details land in your Karat CRM, where you can follow up, quote and track it to completion."],
+  ["What do my clients see?", "A design tool on your website where they create a concept from the metals, stones and settings you offer."],
+  ["How does try-on work?", "Clients either upload a photo of their hand or use their live camera to see their design on."],
+  ["What happens when a client finishes a design?", "It arrives in your studio with their details, ready for you to consult, refine and manage in the CRM."],
+  ["What is a production-ready brief?", "Once a design is approved, Karat turns it into a complete brief your bench or production partner can work from."],
   ["What does early access cost?", "Early access pricing will be shared with the first jeweler cohort. Join the waitlist to hear first."],
 ];
 
