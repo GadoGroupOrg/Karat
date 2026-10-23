@@ -266,7 +266,7 @@ export function buildRing(spec: RingSpec): RingBuild {
     addProngs(group, center, rx, rz, d, spec.setting === "solitaire-6" ? 6 : 4, topY - 0.03, head);
   }
 
-  if (spec.hiddenHalo && spec.setting !== "halo") {
+  if (spec.hiddenHalo) {
     const ds = 0.05, hx = rx * 0.72, hz = rz * 0.72, hy = gy - 0.24 * d;
     const n = Math.floor((Math.PI * (hx + hz)) / (ds * 1.05));
     const ring = new THREE.InstancedMesh(gemGeometry(cutFor("round"), ds), m.melee, n);

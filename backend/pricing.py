@@ -162,7 +162,7 @@ def ring_quote(sheet: dict, catalog: dict, d, t: dict, style: dict, size: dict, 
                           "cost": gem(sid2, side_ct), "markup": m["centre_stone"]})
     if engraving:
         lines.append({"label": "Engraving", "cost": engr_cost, "markup": m["labor"]})
-    if opt("hidden_halo") == "yes" and "halo" not in style["id"]:
+    if opt("hidden_halo") == "yes" and style["id"] != "hidden-halo":
         hh_ct = 0.1 * hf
         lines.append({"label": f"Hidden halo · {hh_ct:.2f} ct", "markup": m["accent"],
                       "cost": hh_ct * sheet["accent_cost_per_ct"] * sheet["accent_stone_factor"].get(accent_stone, 1) + 90})

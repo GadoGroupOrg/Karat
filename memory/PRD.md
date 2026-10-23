@@ -103,6 +103,7 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - Iteration 18 (Jun 2026): Angle-view fix. generate_angle now receives design_facts() (ground-truth spec from the saved render design) + ring-anatomy rules; ANGLES redefined (front = through finger opening, band as full circle; side = 90° profile, shank edge-on; top = face-up; back). ANGLE_VERSION=2 in render_angles cache so old wrong views regenerate.
 - Iteration 19 (Jun 2026): No-halo fix. build_prompt says "pavé" (not "halo/pavé") for non-halo styles and adds explicit "There is NO halo" line; angle texts no longer mention halo; ANGLE_VERSION=3.
 - Iteration 21 (Jun 2026): Builder add-ons for rings: hidden_halo (non-halo styles), head_metal (two-tone/platinum head), stack (0-4 extra bands) + stack_style + stack_metal (when:"stack"), engraving_font with InscriptionPreview; design.notes ("Notes for your jeweller", excluded from render hash, shown on lead). Pricing lines added in pricing.ring_quote; render prompt describes hidden halo/two-tone/stack/font. 3D: hiddenHalo melee + headColor. 3D viewer starts paused (spin=false). Prices labelled as estimates + disclaimer.
+- Iteration 23 (Jun 2026): hidden_halo available on ALL settings (not charged when style is hidden-halo); InscriptionPreview = SVG ring with curved TextPath inside the band.
 
 
 

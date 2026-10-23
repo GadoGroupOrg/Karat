@@ -184,7 +184,6 @@ TYPES = [
                  {"id": "exceptional", "name": "Exceptional", "price": 0},
              ]},
             {"id": "hidden_halo", "label": "Hidden halo", "default": "none",
-             "when": {"styles": [s["id"] for s in RING_SETTINGS if "halo" not in s["id"]]},
              "options": [{"id": "none", "name": "None", "price": 0},
                          {"id": "yes", "name": "Add hidden halo", "price": 0}]},
             {"id": "head_metal", "label": "Head & prong metal", "default": "match", "options": HEAD_METALS},

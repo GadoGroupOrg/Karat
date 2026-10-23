@@ -1,0 +1,31 @@
+{
+  "summary": "Iter 23 PASS. Backend (8/8 pytest in test_iter23_hidden_halo.py): GET /api/catalog returns ring option group hidden_halo with NO 'when' key (available for every setting) and options none/yes. POST /api/price with styleId 'halo' + options.hidden_halo='yes' includes a 'Hidden halo · 0.40 ct' line; with styleId 'hidden-halo' + 'yes' no 'Hidden halo ·' line appears; same positive behaviour verified for solitaire-4 and double-halo. Frontend (mobile 390x844 + desktop 1440x900 /build?type=ring): option-hidden_halo-yes/-none are rendered for solitaire-4, halo, hidden-halo and double-halo. Typing in engraving-input renders the inscription-preview SVG ring with a curved textPath (href=#inscription-arc) that follows the inside of the band; inscription-preview-text contains the engraving ('Forever yours'/'Always'); switching option-engraving_font-script/block/roman updates the text (block renders UPPERCASE 'FOREVER YOURS', script/roman keep case). Price panel 'Hidden halo · X ct' line toggles correctly in the live UI (visible for halo+yes, disappears when setting switched to hidden-halo). Regression: 3D starts paused (canvas data delta between t0 and t2 ~1.3%, within the sway+sparkle noise band); price estimate labels (18k gold · Xg, Setting & craftsmanship, Earth Diamond · 1.00 ct, Hidden halo · X ct) intact. No console errors, no pageerrors. Only WebGL perf warnings (GL_CLOSE_PATH_NV ReadPixels stall) which are benign and preexisting.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter23_hidden_halo.py",
+    "/app/test_reports/pytest/iter23_results.xml",
+    "/app/test_reports/iter23/mob_hh_solitaire.png",
+    "/app/test_reports/iter23/mob_hh_halo.png",
+    "/app/test_reports/iter23/mob_inscription.png",
+    "/app/test_reports/iter23/desk_inscription.png"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "catalog_data.py:186-188 hidden_halo group correctly has no 'when' key, so groupVisible() returns true for every setting (src/catalog-utils.ts:16).",
+    "pricing.py:165 'if opt(hidden_halo) == yes and style[id] != hidden-halo' correctly avoids double-charging when the setting is already Hidden Halo.",
+    "inscription-preview.tsx:14 the arc path is a FULL circle (two 180° arcs); with startOffset=25% + textAnchor=middle the text centres at the top of the ring, which reads naturally 'looking into the band'. SVG Defs reused across themes and inscription-arc id is static. If two InscriptionPreview components ever mount simultaneously (unlikely here), duplicated #inscription-arc ids would cause TextPath href collisions. Not a bug today, note for future.",
+    "inscription-preview.tsx:36 font family/size/letterSpacing are applied via SvgText props; react-native-svg web backend doesn't surface them as DOM attributes on the <text> node (fontFamily=null in DOM query), but computed style on the SVG shows the font applied correctly in screenshots. Behaviour is correct; the DOM introspection is just not useful on web — visual verification was used instead."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None (no quotes/leads created this iteration).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "test_iter23_hidden_halo.py covers hidden halo + regression for price estimate core lines. For UI verification, prefer visual + text content assertions on inscription-preview-text (textContent + closest('svg')) because react-native-svg on web does not reflect font-family/size as attributes. 3D paused detection via canvas.toDataURL byte-length diff is noisy (sway + sparkles cause ~1-2% churn); use >5% delta threshold for spin vs paused."
+}

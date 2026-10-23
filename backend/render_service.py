@@ -98,10 +98,11 @@ def build_prompt(catalog: dict, d: dict, has_snapshot: bool, product_refs: int) 
             kind = accent_stone["name"].lower() if accent_stone else "white diamond"
             where = "halo/pavé" if "halo" in style["id"] else "pavé"
             desc += f"All {where} accent stones are small {accent['name'].lower()}-cut {kind}s. "
-        hidden = options.get("hidden_halo") == "yes" and "halo" not in style["id"]
+        hidden = options.get("hidden_halo") == "yes" and style["id"] != "hidden-halo"
         if hidden:
+            face = "" if "halo" in style["id"] else "; seen face-up there is no halo around the stone"
             desc += ("Hidden halo: a delicate ring of tiny pavé diamonds wraps the basket directly UNDER the centre stone, visible "
-                     "from the side and three-quarter view only; seen face-up there is no halo around the stone. ")
+                     f"from the side and three-quarter view only{face}. ")
         elif "halo" not in style["id"]:
             desc += ("There is NO halo: nothing surrounds the centre stone, which is held only by its own prongs/setting with bare "
                      "metal and open space around it. ")
