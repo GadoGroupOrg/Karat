@@ -11,7 +11,7 @@ export const FinalCTA = () => (
       <h2 className="mt-5 font-display text-5xl font-light leading-[0.98] tracking-tight sm:text-7xl">
         <MaskLines inView lines={["Give every client", <em key="p" className="text-gold-gradient italic">a pen and a mirror.</em>]} />
       </h2>
-      <p className="mt-6 max-w-md text-zinc-300">We're onboarding a small cohort of independent jewelers first. Reserve your place.</p>
+      <p className="mt-6 max-w-md text-zinc-300">Join the waitlist and be the first to hear when Karat opens.</p>
       <FadeUp className="mt-10 flex w-full justify-start md:justify-center">
         <WaitlistForm id="cta" source="final_cta" />
       </FadeUp>

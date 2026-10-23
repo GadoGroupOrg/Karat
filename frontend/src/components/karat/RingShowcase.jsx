@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { BriefCard } from "./BriefCard";
 
 const metals = [
   { key: "gold", label: "18k Yellow", swatch: "#D4AF37", filter: "none" },
@@ -9,6 +10,12 @@ const metals = [
 
 export const RingShowcase = () => {
   const [metal, setMetal] = useState(metals[0]);
+  const [auto, setAuto] = useState(true);
+  useEffect(() => {
+    if (!auto) return undefined;
+    const t = setInterval(() => setMetal((m) => metals[(metals.indexOf(m) + 1) % metals.length]), 6500);
+    return () => clearInterval(t);
+  }, [auto]);
   const mx = useMotionValue(0);
   const my = useMotionValue(0);
   const rx = useSpring(useTransform(my, [-0.5, 0.5], [9, -9]), { stiffness: 120, damping: 18 });
@@ -48,7 +55,7 @@ export const RingShowcase = () => {
           {metals.map((m) => (
             <button
               key={m.key}
-              onClick={() => setMetal(m)}
+              onClick={() => { setAuto(false); setMetal(m); }}
               data-testid={`metal-selector-${m.key}`}
               className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-2 py-2 text-xs transition-colors duration-300 ${metal.key === m.key ? "bg-white/10 text-ivory" : "text-zinc-400 hover:text-ivory"}`}
             >
@@ -58,6 +65,9 @@ export const RingShowcase = () => {
           ))}
         </div>
       </motion.div>
+      <div className="relative z-10 -mt-6 ml-auto mr-1 w-[82%] max-w-[290px] xl:absolute xl:-left-28 xl:bottom-28 xl:m-0 xl:w-[290px]">
+        <BriefCard metal={metal} />
+      </div>
       <div className="pointer-events-none absolute -inset-10 -z-10 rounded-full bg-gold/10 blur-3xl" />
     </div>
   );

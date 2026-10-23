@@ -41,7 +41,7 @@ export const Hero = () => {
             className="mt-10 scroll-mt-32"
           >
             <WaitlistForm id="hero" source="hero" />
-            <p className="mt-4 font-mono text-xs uppercase tracking-[0.2em] text-zinc-400">Early access · Limited jeweler cohort</p>
+            <p className="mt-4 font-mono text-xs uppercase tracking-[0.2em] text-zinc-400">Early access · Be first to try Karat</p>
           </motion.div>
         </motion.div>
         <motion.div style={{ y: ringY }} className="lg:col-span-5">
