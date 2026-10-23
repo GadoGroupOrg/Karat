@@ -55,12 +55,16 @@ def _oid(lid: str) -> ObjectId:
 
 # ---------- Leads ----------
 @dash.get("/leads")
-async def list_leads(status: str = "", q: str = ""):
+async def list_leads(status: str = "", q: str = "", tag: str = "", assignee: str = ""):
     filt: dict = {}
     if status == "new":
         filt = {"$or": [{"status": "new"}, {"status": {"$exists": False}}]}
     elif status in STATUSES:
         filt = {"status": status}
+    if tag:
+        filt = {"$and": [filt, {"tags": tag}]}
+    if assignee:
+        filt = {"$and": [filt, {"assignee_id": None if assignee == "none" else assignee}]}
     if q.strip():
         rx = {"$regex": re.escape(q.strip()), "$options": "i"}
         filt = {"$and": [filt, {"$or": [{"name": rx}, {"email": rx}, {"phone": rx}, {"design.name": rx}, {"product.title": rx}]}]}
@@ -71,7 +75,45 @@ async def list_leads(status: str = "", q: str = ""):
     pipeline_value = 0
     async for row in _db.quotes.aggregate([{"$match": {"status": {"$nin": ["lost", "won"]}}}, {"$group": {"_id": None, "v": {"$sum": "$price"}}}]):
         pipeline_value = row["v"]
-    return {"leads": items, "counts": counts, "total": sum(counts.values()), "open_value": pipeline_value}
+    tags = sorted(t for t in await _db.quotes.distinct("tags") if t)
+    return {"leads": items, "counts": counts, "total": sum(counts.values()), "open_value": pipeline_value, "tags": tags}
+
+
+class LeadBulk(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=500)
+    action: Literal["status", "delete", "assign", "tag", "untag"]
+    status: Optional[Literal["new", "contacted", "quoted", "won", "lost"]] = None
+    assignee_id: Optional[str] = None  # None = unassign
+    tag: Optional[str] = Field(default=None, min_length=1, max_length=40)
+
+
+@dash.post("/leads/bulk")
+async def bulk_leads(body: LeadBulk, admin: dict = Depends(get_current_admin)):
+    filt = {"_id": {"$in": [ObjectId(i) for i in body.ids if ObjectId.is_valid(i)]}}
+    note = lambda text: {"id": str(uuid.uuid4()), "text": text, "system": True, "author": admin["email"], "created_at": now()}  # noqa: E731
+    if body.action == "delete":
+        r = await _db.quotes.delete_many(filt)
+        return {"ok": True, "count": r.deleted_count}
+    if body.action == "status":
+        if not body.status:
+            raise HTTPException(400, "Choose a status")
+        upd = {"$set": {"status": body.status, "updated_at": now()}, "$push": {"notes": note(f"Status changed to {body.status.title()}")}}
+    elif body.action == "assign":
+        who = None
+        if body.assignee_id:
+            who = await _db.admins.find_one({"id": body.assignee_id, "tenant_id": admin["tenant_id"], "active": True})
+            if not who:
+                raise HTTPException(404, "Team member not found")
+        text = f"Assigned to {who.get('name') or who['email']}" if who else "Unassigned"
+        upd = {"$set": {"assignee_id": body.assignee_id or None, "updated_at": now()}, "$push": {"notes": note(text)}}
+    else:
+        tag = (body.tag or "").strip()
+        if not tag:
+            raise HTTPException(400, "Enter a tag")
+        upd = {"$addToSet": {"tags": tag}} if body.action == "tag" else {"$pull": {"tags": tag}}
+        upd["$set"] = {"updated_at": now()}
+    r = await _db.quotes.update_many(filt, upd)
+    return {"ok": True, "count": r.modified_count}
 
 
 @dash.get("/leads/{lid}")

@@ -4,7 +4,12 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 
-import { Lead, LeadList, LeadStatus, formatPrice, leadImage, useCatalog } from "@/src/api";
+import { useQueryClient } from "@tanstack/react-query";
+
+import { Lead, LeadList, LeadStatus, dashRequest, formatPrice, leadImage, useCatalog } from "@/src/api";
+import { useAuth } from "@/src/auth";
+import { BulkBar, Checkbox, confirmAction, downloadCsv, useSelection } from "@/src/components/admin/bulk";
+import { LeadBulkMode, LeadBulkPanel } from "@/src/components/admin/lead-bulk-panel";
 import { WIDE } from "@/src/components/admin/shell";
 import { STATUSES, StatusPill, formatDate } from "@/src/components/admin/status";
 import { SetupGuide } from "@/src/components/admin/setup-guide";
@@ -18,6 +23,11 @@ export default function LeadsInbox() {
   const { width } = useWindowDimensions();
   const wide = width >= WIDE;
   const [status, setStatus] = useState<LeadStatus | "">("");
+  const [tag, setTag] = useState("");
+  const [mode, setMode] = useState<LeadBulkMode>(null);
+  const [busy, setBusy] = useState(false);
+  const { token } = useAuth();
+  const qc = useQueryClient();
   const [query, setQuery] = useState("");
   const [q, setQ] = useState("");
   useEffect(() => {
@@ -25,8 +35,41 @@ export default function LeadsInbox() {
     return () => clearTimeout(h);
   }, [query]);
   const { data, isLoading, isError, refetch, isRefetching } = useDashQuery<LeadList>(
-    ["leads", status, q], `/leads?status=${status}&q=${encodeURIComponent(q)}`, 30000,
+    ["leads", status, q, tag], `/leads?status=${status}&q=${encodeURIComponent(q)}&tag=${encodeURIComponent(tag)}`, 30000,
   );
+  const { data: teamData } = useDashQuery<{ users: { id: string; name: string; email: string }[] }>(["team"], "/team");
+  const team = teamData?.users ?? [];
+  const who = (id?: string | null) => team.find((m) => m.id === id);
+  const leads = data?.leads ?? [];
+  const sel = useSelection(leads.map((l) => l.id));
+
+  const bulk = async (body: Record<string, unknown>) => {
+    setBusy(true);
+    try {
+      await dashRequest(token!, "/leads/bulk", { method: "POST", body: JSON.stringify({ ids: sel.ids, ...body }) });
+      setMode(null);
+      if (body.action === "delete") sel.clear();
+      await qc.invalidateQueries({ queryKey: ["dash", "leads"] });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const exportCsv = () => {
+    const rows = leads.filter((l) => sel.has(l.id)).map((l) => [
+      title(l), subtitle(l), l.name, l.email, l.phone, l.price, l.status, l.source === "embed" ? "Website" : "App",
+      (l.tags ?? []).join("; "), who(l.assignee_id)?.email ?? "", l.note, l.created_at,
+    ]);
+    downloadCsv(`leads-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Piece", "Type", "Name", "Email", "Phone", "Value", "Status", "Source", "Tags", "Assigned to", "Customer note", "Received"], rows);
+  };
+  const actions = [
+    { id: "status", label: "Status", icon: "flag" as const, onPress: () => setMode(mode === "status" ? null : "status") },
+    { id: "assign", label: "Assign", icon: "user" as const, onPress: () => setMode(mode === "assign" ? null : "assign") },
+    { id: "tag", label: "Tag", icon: "tag" as const, onPress: () => setMode(mode === "tag" ? null : "tag") },
+    { id: "export", label: "Export CSV", icon: "download" as const, onPress: exportCsv },
+    { id: "delete", label: "Delete", icon: "trash-2" as const, danger: true,
+      onPress: async () => (await confirmAction(`Delete ${sel.ids.length} lead${sel.ids.length === 1 ? "" : "s"}? This can't be undone.`)) && bulk({ action: "delete" }) },
+  ];
   const { data: catalog } = useCatalog();
 
   const title = (l: Lead) => {
@@ -71,14 +114,24 @@ export default function LeadsInbox() {
             );
           })}
         </ScrollView>
+        {!!data?.tags.length && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+            {data.tags.map((t) => (
+              <Pressable key={t} testID={`leads-tag-filter-${t}`} onPress={() => setTag(tag === t ? "" : t)} style={[styles.chip, tag === t && styles.chipSel]}>
+                <Text style={[styles.chipText, tag === t && styles.chipTextSel]}># {t}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
         <View style={[styles.search, wide && { width: 280 }]}>
           <Feather name="search" size={16} color={colors.muted} />
           <TextInput testID="leads-search-input" value={query} onChangeText={setQuery} placeholder="Search name, email, piece"
             placeholderTextColor={colors.muted} style={styles.searchInput} />
         </View>
       </View>
-      {wide && (
+      {wide ? (
         <View style={[styles.row, styles.headRow]}>
+          <Checkbox testID="leads-select-all" checked={sel.allSelected} onPress={sel.toggleAll} label="Select all" />
           <Text style={[styles.th, { flex: 2.4 }]}>PIECE</Text>
           <Text style={[styles.th, { flex: 2 }]}>CUSTOMER</Text>
           <Text style={[styles.th, { flex: 1 }]}>VALUE</Text>
@@ -86,9 +139,19 @@ export default function LeadsInbox() {
           <Text style={[styles.th, { flex: 1 }]}>STATUS</Text>
           <Text style={[styles.th, { flex: 1, textAlign: "right" }]}>RECEIVED</Text>
         </View>
+      ) : leads.length > 0 && (
+        <View style={styles.selectAllRow}>
+          <Checkbox testID="leads-select-all" checked={sel.allSelected} onPress={sel.toggleAll} label="Select all" />
+          <Text style={styles.meta}>Select all</Text>
+        </View>
       )}
     </View>
   );
+
+  const extra = (l: Lead) => {
+    const a = who(l.assignee_id);
+    return `${a ? ` · ${a.name || a.email}` : ""}${(l.tags ?? []).map((t) => ` · #${t}`).join("")}`;
+  };
 
   const renderItem = ({ item: l }: { item: Lead }) => {
     const img = leadImage(l);
@@ -100,11 +163,12 @@ export default function LeadsInbox() {
         style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [wide ? styles.row : styles.card, (hovered || pressed) && { backgroundColor: colors.surfaceSecondary }]}>
         {wide ? (
           <>
+            <Checkbox testID={`lead-select-${l.id}`} checked={sel.has(l.id)} onPress={() => sel.toggle(l.id)} />
             <View style={[styles.cell, { flex: 2.4, flexDirection: "row", alignItems: "center", gap: spacing.md }]}>
               {thumb}
               <View style={{ flex: 1 }}>
                 <Text style={styles.piece} numberOfLines={1}>{title(l)}</Text>
-                <Text style={styles.meta} numberOfLines={1}>{subtitle(l)}</Text>
+                <Text style={styles.meta} numberOfLines={1}>{subtitle(l)}{extra(l)}</Text>
               </View>
             </View>
             <View style={[styles.cell, { flex: 2 }]}>
@@ -117,12 +181,13 @@ export default function LeadsInbox() {
             <Text style={[styles.cell, styles.meta, { flex: 1, textAlign: "right" }]}>{formatDate(l.created_at)}</Text>
           </>
         ) : (
-          <View style={{ flexDirection: "row", gap: spacing.md, alignItems: "center" }}>
+          <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "center" }}>
+            <Checkbox testID={`lead-select-${l.id}`} checked={sel.has(l.id)} onPress={() => sel.toggle(l.id)} />
             {thumb}
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={styles.piece} numberOfLines={1}>{title(l)}</Text>
               <Text style={styles.meta} numberOfLines={1}>{l.name} · {formatPrice(l.price)}</Text>
-              <Text style={styles.meta}>{formatDate(l.created_at)} · {l.source === "embed" ? "Website" : "App"}</Text>
+              <Text style={styles.meta}>{formatDate(l.created_at)} · {l.source === "embed" ? "Website" : "App"}{extra(l)}</Text>
             </View>
             <StatusPill status={l.status} />
           </View>
@@ -146,7 +211,7 @@ export default function LeadsInbox() {
           keyExtractor={(l) => l.id}
           renderItem={renderItem}
           ListHeaderComponent={<><SetupGuide />{header}</>}
-          contentContainerStyle={[styles.content, wide && styles.contentWide]}
+          contentContainerStyle={[styles.content, wide && styles.contentWide, sel.ids.length > 0 && { paddingBottom: 200 }]}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.brand} />}
           ListEmptyComponent={
             <View style={styles.empty} testID="leads-empty">
@@ -157,6 +222,13 @@ export default function LeadsInbox() {
           }
         />
       )}
+      <BulkBar count={sel.ids.length} actions={actions} active={mode} onClear={() => { sel.clear(); setMode(null); }}
+        panel={busy ? <ActivityIndicator color={colors.onSurfaceInverse} /> : (
+          <LeadBulkPanel mode={mode} team={team} tags={data?.tags ?? []}
+            onStatus={(s) => bulk({ action: "status", status: s })}
+            onAssign={(id) => bulk({ action: "assign", assignee_id: id })}
+            onTag={(t, remove) => bulk({ action: remove ? "untag" : "tag", tag: t })} />
+        )} />
     </View>
   );
 }
@@ -185,6 +257,7 @@ const useStyles = makeStyles((c) => ({
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, backgroundColor: c.surface, borderBottomWidth: 1, borderBottomColor: c.divider },
   card: { padding: spacing.md, borderRadius: radius.md, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
   cell: {},
+  selectAllRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.xs },
   thumb: { width: 48, height: 48, borderRadius: radius.sm, backgroundColor: c.surfaceSecondary },
   thumbEmpty: { alignItems: "center", justifyContent: "center", backgroundColor: c.brandTertiary },
   piece: { fontFamily: fonts.display, fontSize: 15, color: c.onSurface },

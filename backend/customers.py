@@ -122,6 +122,21 @@ async def list_customers(q: str = ""):
     return {"customers": items, "total": len(items)}
 
 
+class CustomerBulk(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=1000)
+    action: Literal["delete"]
+
+
+@dash.post("/customers/bulk")
+async def bulk_customers(body: CustomerBulk):
+    """Deletes the customer accounts, their sign-in sessions and saved designs (their quote requests stay in Leads)."""
+    filt = {"user_id": {"$in": body.ids}}
+    r = await _db.customers.delete_many(filt)
+    await _db.customer_sessions.delete_many(filt)
+    await _db.customer_designs.delete_many(filt)
+    return {"ok": True, "count": r.deleted_count}
+
+
 @dash.get("/customers/{user_id}/designs")
 async def customer_designs_admin(user_id: str):
     docs = await _db.customer_designs.find({"user_id": user_id}, {"_id": 0}).sort("updated_at", -1).to_list(500)

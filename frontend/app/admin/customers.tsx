@@ -2,6 +2,11 @@ import Feather from "@react-native-vector-icons/feather";
 import { useState } from "react";
 import { ActivityIndicator, FlatList, Linking, Pressable, Text, TextInput, View } from "react-native";
 
+import { useQueryClient } from "@tanstack/react-query";
+
+import { dashRequest } from "@/src/api";
+import { useAuth } from "@/src/auth";
+import { BulkBar, Checkbox, confirmAction, downloadCsv, useSelection } from "@/src/components/admin/bulk";
 import { useDashQuery } from "@/src/components/admin/use-dash";
 import { formatDate } from "@/src/components/admin/status";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -16,13 +21,30 @@ export default function CustomersScreen() {
   const { colors } = useTheme();
   const [q, setQ] = useState("");
   const { data, isLoading } = useDashQuery<{ customers: Cust[]; total: number }>(["customers", q], `/customers?q=${encodeURIComponent(q)}`);
+  const { token } = useAuth();
+  const qc = useQueryClient();
+  const list = data?.customers ?? [];
+  const sel = useSelection(list.map((c) => c.user_id));
+  const exportCsv = () => {
+    const rows = list.filter((c) => sel.has(c.user_id)).map((c) => [
+      c.name ?? "", c.email, c.phone ?? "", c.kind === "account" ? (c.google ? "Google account" : "Account") : "Contact form",
+      c.leads, c.designs, Object.values(c.answers ?? {}).map((a) => `${a.label}: ${a.answer}`).join("; "), c.created_at,
+    ]);
+    downloadCsv(`customers-${new Date().toISOString().slice(0, 10)}.csv`, ["Name", "Email", "Phone", "Type", "Requests", "Saved designs", "Answers", "Joined"], rows);
+  };
+  const remove = async () => {
+    if (!(await confirmAction(`Delete ${sel.ids.length} customer${sel.ids.length === 1 ? "" : "s"}? Their account and saved designs are removed; their requests stay in Leads.`))) return;
+    await dashRequest(token!, "/customers/bulk", { method: "POST", body: JSON.stringify({ ids: sel.ids, action: "delete" }) });
+    sel.clear();
+    qc.invalidateQueries({ queryKey: ["dash", "customers"] });
+  };
 
   return (
     <View style={{ flex: 1 }} testID="admin-customers-screen">
       <FlatList
         data={data?.customers ?? []}
         keyExtractor={(c) => c.user_id}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, sel.ids.length > 0 && { paddingBottom: 140 }]}
         ListHeaderComponent={
           <View style={{ gap: spacing.md, marginBottom: spacing.md }}>
             <Text style={styles.eyebrow}>CUSTOMERS</Text>
@@ -32,12 +54,19 @@ export default function CustomersScreen() {
               <TextInput value={q} onChangeText={setQ} placeholder="Search name, email, phone" placeholderTextColor={colors.muted} style={styles.searchInput} testID="customers-search-input" />
             </View>
             {isLoading && <ActivityIndicator color={colors.brand} />}
+            {list.length > 0 && (
+              <View style={styles.selectAll}>
+                <Checkbox testID="customers-select-all" checked={sel.allSelected} onPress={sel.toggleAll} label="Select all" />
+                <Text style={styles.meta}>Select all ({list.length})</Text>
+              </View>
+            )}
           </View>
         }
         ListEmptyComponent={!isLoading ? <Text style={styles.meta} testID="customers-empty">No customers yet. They appear here when they fill a contact form or create an account.</Text> : null}
         renderItem={({ item: c }) => (
           <View style={styles.card} testID={`customer-row-${c.user_id}`}>
             <View style={styles.rowTop}>
+              <Checkbox testID={`customer-select-${c.user_id}`} checked={sel.has(c.user_id)} onPress={() => sel.toggle(c.user_id)} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{c.name || c.email}</Text>
                 <Text style={styles.meta}>{c.email}{c.phone ? ` · ${c.phone}` : ""}</Text>
@@ -56,6 +85,10 @@ export default function CustomersScreen() {
           </View>
         )}
       />
+      <BulkBar count={sel.ids.length} onClear={sel.clear} actions={[
+        { id: "export", label: "Export CSV", icon: "download", onPress: exportCsv },
+        { id: "delete", label: "Delete", icon: "trash-2", danger: true, onPress: remove },
+      ]} />
     </View>
   );
 }
@@ -74,5 +107,6 @@ const useStyles = makeStyles((c) => ({
   pill: { paddingHorizontal: spacing.md, height: 26, borderRadius: radius.pill, justifyContent: "center", backgroundColor: c.surfaceTertiary },
   pillAcc: { backgroundColor: c.brandTertiary },
   pillText: { fontFamily: fonts.bold, fontSize: 11, color: c.onSurface },
+  selectAll: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   mail: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
 }));

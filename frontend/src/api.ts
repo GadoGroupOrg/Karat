@@ -169,8 +169,9 @@ export type Lead = {
   product: { id: string; title: string; price: number; image: string | null; url: string; product_type: string } | null;
   name: string; email: string; phone: string; note: string; price: number; image_url: string | null;
   source: "app" | "embed"; status: LeadStatus; notes: LeadNote[]; created_at: string;
+  tags?: string[]; assignee_id?: string | null;
 };
-export type LeadList = { leads: Lead[]; counts: Record<LeadStatus, number>; total: number; open_value: number };
+export type LeadList = { leads: Lead[]; counts: Record<LeadStatus, number>; total: number; open_value: number; tags: string[] };
 
 export function dashRequest<T>(token: string, path: string, init?: RequestInit) {
   return request<T>(`/dashboard${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init?.headers || {}) } });
