@@ -18,11 +18,11 @@ export const Hero = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3, duration: 1 }}>
             <Eyebrow>Karat — for jewelers</Eyebrow>
           </motion.div>
-          <h1 data-testid="hero-headline" className="mt-7 font-display text-[3.2rem] font-light leading-[0.95] tracking-[-0.02em] sm:text-7xl lg:text-[5.6rem] xl:text-[6.4rem]">
+          <h1 data-testid="hero-headline" className="mt-7 font-display text-[2.7rem] font-light leading-[0.98] tracking-[-0.02em] sm:text-6xl lg:text-[3.6rem] xl:text-[5.3rem]">
             <MaskLines delay={0.35} lines={[
-              "Where browsers",
-              <span key="b">become <em className="text-gold-gradient italic">bespoke</em></span>,
-              "clients.",
+              "Turn browsers' ideas",
+              "into client",
+              <em key="b" className="text-gold-gradient italic">design briefs.</em>,
             ]} />
           </h1>
           <motion.p
