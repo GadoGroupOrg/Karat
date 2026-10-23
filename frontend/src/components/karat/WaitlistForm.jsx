@@ -32,7 +32,7 @@ export const WaitlistForm = ({ id, source }) => {
     return (
       <div data-testid={`${id}-success`} className="flex items-center gap-3 rounded-full border border-gold/30 bg-gold/10 px-5 py-4 text-ivory">
         <span className="grid h-7 w-7 place-items-center rounded-full bg-gold text-onyx"><Check className="h-4 w-4" /></span>
-        <span className="text-sm">You're in{position ? <> — <span className="font-mono text-gold">#{position}</span> on the list</> : null}. We'll be in touch.</span>
+        <span className="text-sm">You're in{position ? <>, <span className="font-mono text-gold">#{position}</span> on the list</> : null}. We'll be in touch.</span>
       </div>
     );
   }

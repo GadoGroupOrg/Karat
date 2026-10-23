@@ -11,7 +11,7 @@ export const Bento = () => (
             <MaskLines inView lines={["Design it.", <em key="o" className="italic text-gold-deep">Try it on.</em>]} />
           </h2>
         </div>
-        <p className="max-w-sm text-zinc-600">On your website, prospects design rings, bracelets, pendants and earrings — or start from your catalog — then see them on.</p>
+        <p className="max-w-sm text-zinc-600">On your website, prospects design rings, bracelets, pendants and earrings, or start from your catalog, then see them on.</p>
       </div>
       <div className="mt-14 grid grid-cols-1 gap-5 lg:grid-rows-[600px_auto] lg:grid-cols-12">
         <FadeUp className="lg:col-span-7"><DesignCard /></FadeUp>

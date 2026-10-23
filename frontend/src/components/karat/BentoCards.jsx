@@ -73,11 +73,11 @@ export const DesignCard = () => {
 
 const catalog = [
   { name: "The Solène", spec: "Solitaire ring · 18k", img: "/img/hero-ring.jpg", scale: "scale-[1.5]", note: "Could the band be thinner, with an oval stone?" },
-  { name: "The Aurelia", spec: "Cluster ring · Rose", img: "/img/cat-rose.jpg", scale: "scale-100", note: "Love the sapphires — could we try emeralds instead?" },
+  { name: "The Aurelia", spec: "Cluster ring · Rose", img: "/img/cat-rose.jpg", scale: "scale-100", note: "Love the sapphires. Could we try emeralds instead?" },
   { name: "The Lumière", spec: "Tennis bracelet · 18k White", img: "/img/cat-bracelet.jpg", scale: "scale-100", note: "Slightly smaller stones, and sized for a petite wrist." },
   { name: "The Étoile", spec: "Pear pendant · 18k", img: "/img/cat-pendant.jpg", scale: "scale-100", note: "Could the chain be shorter, closer to the collarbone?" },
-  { name: "The Céleste", spec: "Drop earrings · 18k", img: "/img/cat-earrings.jpg", scale: "scale-100", note: "Perfect for the wedding — can these match my ring?" },
-  { name: "The Iris", spec: "Eternity band · Platinum", img: "/img/cat-plat.jpg", scale: "scale-100", note: "Trying this on as-is — is it available in rose gold?" },
+  { name: "The Céleste", spec: "Drop earrings · 18k", img: "/img/cat-earrings.jpg", scale: "scale-100", note: "Perfect for the wedding. Can these match my ring?" },
+  { name: "The Iris", spec: "Eternity band · Platinum", img: "/img/cat-plat.jpg", scale: "scale-100", note: "Trying this on as-is. Is it available in rose gold?" },
 ];
 
 const actions = ["Browse your pieces", "Design from an existing piece", "Leave notes for you", "Try on as-is"];
@@ -159,7 +159,7 @@ export const TryOnCard = () => {
       </div>
       <div className="p-7">
         <Label dark name="Try on" title="See it on, wherever it's worn." />
-        <p className="mt-3 text-sm text-zinc-300">Their own designs or your existing pieces — from a photo they upload, or live through their camera.</p>
+        <p className="mt-3 text-sm text-zinc-300">Their own designs or your existing pieces, from a photo they upload, or live through their camera.</p>
       </div>
     </Card>
   );

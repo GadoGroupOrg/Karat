@@ -16,7 +16,7 @@ export const Hero = () => {
       <div className="relative mx-auto grid max-w-7xl items-center gap-16 px-5 sm:px-8 lg:grid-cols-12 lg:px-16">
         <motion.div style={{ y: textY }} className="lg:col-span-7">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3, duration: 1 }}>
-            <Eyebrow>Karat — for jewelers</Eyebrow>
+            <Eyebrow>Karat · for jewelers</Eyebrow>
           </motion.div>
           <h1 data-testid="hero-headline" className="mt-7 font-display text-[2.7rem] font-light leading-[0.98] tracking-[-0.02em] sm:text-6xl lg:text-[3.6rem] xl:text-[5.3rem]">
             <MaskLines delay={0.35} lines={[
