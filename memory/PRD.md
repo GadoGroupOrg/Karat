@@ -140,6 +140,9 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 
 - Stacking add-on already exists (stack count, band style, band metal; priced, rendered, in job sheet).
 
+## BACKLOG: Jeweller Pro builder mode (user asked to backlog, 2026-06)
+- Staff-only builder mode when jeweller signed in: exact mm/carat inputs driving 3D, price override/custom line items, open & refine a lead's design and save back, use hidden options + see cost vs retail, auto-fill Crafting brief from design. Ask whether iPad in-store too.
+
 ## NEXT (user-approved order)
 3. Consultation Studio (admin): customer profiles (create/edit, ring size, budget, occasion, date, preferences), timeline of designs/sketches/quotes/notes; consult-mode builder inside admin for a customer (no gating, shows cost vs retail/margin, price override); multi-colour annotate (save without AI) or render; share proposal link/PDF
 4. Production: spec sheet PDF (piece, metal, size, widths, stones mm/ct/grade, accents, gold weight, engraving, finish, images/angles/sketches, deadline) + Production board (Design→CAD→Wax/Print→Casting→Setting→Polish→QC→Ready), assignees, due dates, comments
