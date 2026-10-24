@@ -54,7 +54,7 @@ export default function Home() {
             {getBranding()?.logo_url ? (
               <Image source={{ uri: assetUrl(getBranding()!.logo_url!) }} style={styles.heroLogo} contentFit="contain" contentPosition="left" testID="home-brand-logo" />
             ) : (
-              <Text style={styles.brandMark} testID="home-brand-name">{(getBranding()?.store_name ?? "Atelier").toUpperCase()}</Text>
+              <Text style={styles.brandMark} testID="home-brand-name">{(getBranding()?.store_name ?? "Karat").toUpperCase()}</Text>
             )}
             <View>
               <Text style={styles.heroTitle}>Design your{"\n"}forever ring.</Text>

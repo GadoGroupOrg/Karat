@@ -19,7 +19,7 @@ HEX = r"^#[0-9A-Fa-f]{6}$"
 DISPLAY_FONTS = ["playfair", "cormorant", "dmserif", "bodoni"]
 TEXT_FONTS = ["satoshi", "inter", "jost", "montserrat"]
 DEFAULT_BRANDING = {
-    "store_name": "Atelier", "tagline": "Fine jewelry, made yours", "logo_path": None,
+    "store_name": "Karat", "tagline": "Fine jewelry, made yours", "logo_path": None,
     "colors": {"brand": "#C5A059", "ink": "#1A1A18", "surface": "#FCFCFA"},
     "display_font": "playfair", "text_font": "satoshi", "updated_at": None,
 }

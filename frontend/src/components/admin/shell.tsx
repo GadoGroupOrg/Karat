@@ -49,7 +49,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <View style={styles.logoMark}><Text style={styles.logoMarkText}>{(b?.store_name ?? "A").slice(0, 1)}</Text></View>
       )}
       <View style={{ flex: 1 }}>
-        <Text style={styles.storeName} numberOfLines={1}>{b?.store_name ?? "Atelier"}</Text>
+        <Text style={styles.storeName} numberOfLines={1}>{b?.store_name ?? "Karat"}</Text>
         <Text style={styles.storeSub}>{admin?.role === "staff" ? "Staff" : "Store admin"}</Text>
       </View>
     </View>

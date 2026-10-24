@@ -211,7 +211,7 @@ def compute_price(catalog: dict, d: DesignSpec) -> int:
 
 @api_router.get("/")
 async def root():
-    return {"message": "Atelier jewelry builder API"}
+    return {"message": "Karat jewelry builder API"}
 
 
 @api_router.get("/catalog")

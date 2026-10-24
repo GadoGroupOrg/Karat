@@ -233,7 +233,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const stage = (
     <>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Text style={[styles.title, { flex: 1 }]} numberOfLines={1}>{getBranding()?.store_name ?? "Atelier"}</Text>
+        <Text style={[styles.title, { flex: 1 }]} numberOfLines={1}>{getBranding()?.store_name ?? "Karat"}</Text>
         {feat("redesign") && <Pressable testID="builder-redesign-photo-button" onPress={() => router.push("/redesign")} style={styles.redesignBtn}>
           <Feather name="image" size={14} color={colors.onSurface} />
           <Text style={styles.redesignText}>{wide ? "Redesign a photo" : "Redesign"}</Text>

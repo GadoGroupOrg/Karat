@@ -41,7 +41,7 @@ export function AdminLogin() {
   return (
     <KeyboardAwareScrollView style={styles.root} contentContainerStyle={styles.center} keyboardShouldPersistTaps="handled" testID="admin-login-screen">
       <View style={styles.card}>
-        <Text style={styles.eyebrow}>{mode === "up" ? "ATELIER FOR JEWELLERS" : `${(getBranding()?.store_name ?? "Atelier").toUpperCase()} · STORE ADMIN`}</Text>
+        <Text style={styles.eyebrow}>{mode === "up" ? "KARAT FOR JEWELLERS" : `${(getBranding()?.store_name ?? "Karat").toUpperCase()} · STORE ADMIN`}</Text>
         <Text style={styles.title}>{mode === "up" ? "Create your studio" : "Welcome back"}</Text>
         <Text style={styles.sub}>
           {mode === "up"
