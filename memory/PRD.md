@@ -119,6 +119,12 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 ## Feature-off before sign-up gate (2026-06) — tested iteration 29
 - Backend: renders/angles/sketches/tryons check store feature toggle BEFORE customer access gate (403 feature off).
 - Builder: studio photo off → 3D by default, no render buttons, no auto-render; try-on & redesign show "unavailable" with Back to shop / Open builder.
+
+## Shopify embedded admin (2026-06)
+- /api/shopify/app: when opened from Shopify admin (embedded=1/host) returns an App Bridge shell page (CSP frame-ancestors shop + admin.shopify.com) with the /admin dashboard in an iframe (SSO auto-login). Not installed → top-window OAuth via window.open(_top).
+- Generated shopify.app.toml now embedded = true.
+- Pending: user publishes, creates app in Shopify Dev Dashboard, then adds SHOPIFY_API_KEY/SECRET via secrets card.
+
 - Stacking add-on already exists (stack count, band style, band metal; priced, rendered, in job sheet).
 
 ## NEXT (user-approved order)

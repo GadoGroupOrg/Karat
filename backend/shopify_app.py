@@ -2,7 +2,9 @@
 import base64
 import hashlib
 import hmac
+import html
 import io
+import json
 import os
 import re
 import secrets
@@ -12,7 +14,7 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
 import auth
@@ -79,13 +81,34 @@ async def app_home(request: Request):
     key, secret = require_configured()
     params = dict(request.query_params)
     shop = checked_shop(params, secret)
+    embedded = params.get("embedded") == "1" or "host" in params
     doc = await _db.shopify_shops.find_one({"shop": shop, "uninstalled_at": None})
     if not doc:
-        return await install(request)
+        if not embedded:
+            return await install(request)
+        # OAuth can't run inside Shopify's iframe: break out to the top window.
+        state = secrets.token_urlsafe(24)
+        await _db.shopify_states.insert_one({"state": state, "shop": shop, "created_at": datetime.now(timezone.utc)})
+        url = json.dumps(authorize_url(request, key, shop, state))
+        return embedded_page(key, shop, f"<script>window.open({url}, '_top');</script>")
     owner = await _db.admins.find_one({"tenant_id": doc["tenant_id"], "role": "owner", "active": True}, sort=[("created_at", 1)])
     if not owner:
         raise HTTPException(404, "No dashboard account is linked to this store")
-    return RedirectResponse(f"{base_url(request)}/admin?sso={platform_admin.sso_token(owner)}")
+    dashboard = f"{base_url(request)}/admin?sso={platform_admin.sso_token(owner)}"
+    if not embedded:
+        return RedirectResponse(dashboard)
+    src = html.escape(dashboard + "&embedded=1", quote=True)
+    return embedded_page(key, shop, f'<iframe src="{src}" title="Jeweller dashboard" allow="clipboard-write; camera"></iframe>')
+
+
+def embedded_page(key: str, shop: str, body: str) -> HTMLResponse:
+    """App home shell loaded inside the Shopify admin: App Bridge + the jeweller dashboard."""
+    page = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="shopify-api-key" content="{html.escape(key, quote=True)}">
+<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+<style>html,body{{margin:0;height:100%;background:#fff}}iframe{{border:0;width:100%;height:100vh;display:block}}</style>
+</head><body>{body}</body></html>"""
+    return HTMLResponse(page, headers={"Content-Security-Policy": f"frame-ancestors https://{shop} https://admin.shopify.com;"})
 
 
 @public.get("/install")
@@ -238,7 +261,7 @@ def _files(origin: str, client_id: str, slug: str) -> dict[str, str]:
 client_id = "{client_id}"
 name = "Atelier Jewelry Builder"
 application_url = "{u['app_url']}"
-embedded = false
+embedded = true
 
 [access_scopes]
 scopes = "{SCOPES}"
