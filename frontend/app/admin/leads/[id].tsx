@@ -10,6 +10,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Lead, LeadStatus, assetUrl, dashRequest, formatPrice, leadImage, useCatalog, usePrice } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { CraftingBrief } from "@/src/components/admin/crafting-brief";
+import { LeadFiles } from "@/src/components/admin/lead-files";
 import { WIDE } from "@/src/components/admin/shell";
 import { STATUSES, StatusPill, formatDateTime, useStatusColor } from "@/src/components/admin/status";
 import { useDashQuery } from "@/src/components/admin/use-dash";
@@ -70,7 +71,7 @@ export default function LeadDetail() {
   const pieceTitle = lead.kind === "product" ? lead.product?.title ?? "Store product"
     : lead.design?.name?.trim() || (lead.sketch?.uploaded ? "Redesign of customer’s photo" : `Custom ${spec?.typeName.toLowerCase() ?? "design"}`);
   const saveBrief = (brief: Record<string, string>) => mutate("brief", `/leads/${id}/brief`, { method: "PUT", body: JSON.stringify({ brief }) });
-  const brief = <CraftingBrief brief={lead.brief} updatedBy={lead.brief_updated_by} busy={busy === "brief"} onSave={saveBrief} />;
+  const brief = <><CraftingBrief brief={lead.brief} updatedBy={lead.brief_updated_by} busy={busy === "brief"} onSave={saveBrief} /><LeadFiles lead={lead} /></>;
   const pieceRows: [string, string][] = spec?.rows ?? (lead.product ? [["Type", lead.product.product_type], ["Store price", formatPrice(lead.product.price)]] : []);
 
   const piece = (

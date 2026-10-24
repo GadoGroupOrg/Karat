@@ -12,6 +12,8 @@ import { AuthProvider } from "@/src/auth";
 import { setCurrentBranding } from "@/src/branding";
 import { CustomerProvider } from "@/src/customer";
 import { ErrorBoundary } from "@/src/components/error-boundary";
+import { PoweredBy } from "@/src/components/powered-by";
+import { ScreenProtect } from "@/src/components/screen-protect";
 import { queryClient } from "@/src/query-client";
 import { applyBranding, useTheme } from "@/src/theme";
 
@@ -67,6 +69,8 @@ export default function RootLayout() {
           <CustomerProvider>
           <KeyboardProvider>
             <StatusBar style="dark" />
+            <ScreenProtect />
+            <View style={styles.root}>
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="admin" />
@@ -77,6 +81,8 @@ export default function RootLayout() {
               <Stack.Screen name="store-connect" options={{ presentation: "modal" }} />
               <Stack.Screen name="merchant" options={{ presentation: "modal" }} />
             </Stack>
+            </View>
+            <PoweredBy />
           </KeyboardProvider>
           </CustomerProvider>
           </AuthProvider>

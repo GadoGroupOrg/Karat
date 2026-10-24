@@ -2,13 +2,14 @@
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Literal, Optional
+from typing import Dict, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, Field
 
 import auth
+import plans
 import tenancy
 
 _db = None
@@ -18,6 +19,7 @@ public = APIRouter(prefix="/api/platform")
 def init(db):
     global _db
     _db = db
+    plans.init(db)
 
 
 async def get_platform_admin(credentials: HTTPAuthorizationCredentials | None = Depends(auth.security)) -> dict:
@@ -65,7 +67,26 @@ async def tenants(q: Optional[str] = None):
     rows = [await _stats(t, month_start) for t in items]
     return {"tenants": rows, "total": len(rows),
             "totals": {"active": sum(r["status"] == "active" for r in rows), "ai_month": sum(r["ai_total_month"] for r in rows),
-                       "leads": sum(r["leads"] for r in rows)}}
+                       "leads": sum(r["leads"] for r in rows)},
+            "plans": await plans.plan_settings()}
+
+
+class PlanIn(BaseModel):
+    ai: Dict[str, bool]
+    monthly_limit: Optional[int] = Field(default=None, ge=0, le=1_000_000)
+
+
+@dash.get("/plans")
+async def get_plans():
+    return {"plans": await plans.plan_settings(), "ai_features": plans.AI_FEATURES}
+
+
+@dash.put("/plans/{plan}")
+async def put_plan(plan: str, body: PlanIn):
+    if plan not in plans.PLANS:
+        raise HTTPException(404, "Unknown plan")
+    await plans.save_plan(plan, body.ai, body.monthly_limit)
+    return {"plans": await plans.plan_settings(), "ai_features": plans.AI_FEATURES}
 
 
 class TenantIn(BaseModel):

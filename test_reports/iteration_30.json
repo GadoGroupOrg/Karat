@@ -1,0 +1,35 @@
+{
+  "summary": "Tested the design protection and 'Powered by Karat' changes. Backend: 5/5 pytest checks pass. 'protect_designs' is listed in GET /api/dashboard/catalog features with the label 'Design protection (block app screenshots, watermark web images)' and is on by default. GET /api/storefront returns protect_designs=true. Toggling it with PUT /api/dashboard/catalog/features saves and shows in both endpoints without changing the other keys. Unknown keys are ignored, and the PUT needs auth (401/403 without it). Frontend at 390px: with protection ON, the watermark (design-watermark) shows the store name 'Gado Jewellers' repeated diagonally over the studio photo (builder-render-photo) at exactly the photo's size. It also shows over the fullscreen photo and the sketch result image (sketch-result). With protection OFF there is no watermark on the builder or fullscreen; the OFF check covered those two views only. The watermark does not block any builder button: hit-testing the centre of angle-hero/side/top, sketch-start-button, photo-fullscreen-button, rerender-button, canvas-mode-live/photo and sketch-compare-toggle lands on the button itself, and the compare toggle works. Right-clicking the photo is blocked. Powered by Karat (powered-by-karat, 32px bar at the bottom, below the tab bar, no overlap) shows on /?embed=1, /build?embed=1, /shop?embed=1, /account?embed=1, /try-on/<id>?embed=1, /design/<id>?embed=1 and inside an iframe without ?embed. It does not show on / or /build (no embed), /admin?embed=1 or /platform?embed=1. Pressing it calls window.open('https://karatdesign.io','_blank','noopener') and a new tab opens. Admin > Catalog > Builder features shows the feature-protect_designs switch and toggling it sends a PUT that returns 200. No page errors on web; the native screen capture code (expo-screen-capture) does not run on web. No AI generations ran: POST /api/sketches was answered with an existing sketch through Playwright route mocking, and POST /api/renders was mocked with the cached render cbc62c5d1dd57037e9a1bc5b545190ac or blocked. All 13 features were restored to true.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Powered by Karat link target", "issue": "https://karatdesign.io fails the TLS handshake from this container: curl gives SSL_ERROR_SYSCALL on port 443, plain http returns 403, and the new tab Playwright opened ended on chrome-error. The app code is correct. The domain looks parked or has no HTTPS set up; the owner should check DNS/SSL. It may only fail from this sandbox's network.", "affected_testIDs": ["powered-by-karat"]}
+    ],
+    "design_issues": [
+      {"screen": "Builder studio photo (inline)", "issues": ["The watermark is white text at 0.28 opacity, which is very hard to see on light/cream studio photos at phone size. It shows clearly in fullscreen. If it is meant to deter screenshots, consider slightly higher opacity or a dark/light adaptive tint."]},
+      {"screen": "Builder angle bar", "issues": ["Existing issue (not new): the last angle chip ('Back') scrolls under the photo-fullscreen-button at the bottom right of the canvas at 390px."]},
+      {"screen": "Admin > Catalog > Builder features", "issues": ["The long 'Design protection (...)' label makes this item fill a whole row on its own, unlike the 4-column grid. Consider a shorter label, e.g. 'Design protection', with a helper line."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter30_protect_designs.py", "/app/test_reports/pytest/pytest_iter30.xml"],
+  "action_items": [
+    "Check DNS/SSL for https://karatdesign.io: the HTTPS handshake fails from this container, so the Powered by Karat link may open a broken page.",
+    "Optional: make the web watermark a little easier to see on light photos, since 0.28 white is nearly invisible inline.",
+    "Optional: builder-features toggle() has no error handling or rollback. If the PUT fails, the switch stays flipped while the server value is unchanged."
+  ],
+  "critical_code_review_comments": [
+    "watermark.tsx: the outer View has pointerEvents 'auto', so it takes touches and right-clicks over the photo (intended, to block context-menu save). The controls are rendered as later siblings outside photoLayer, so they stay clickable (verified). Blocking right-click alone doesn't stop saving: the image URL is still in the DOM and can be opened directly.",
+    "The fullscreen watermark (pointerEvents auto) sits over the zoomable ScrollView. This only matters on web because Watermark returns null on native.",
+    "builder-features.tsx toggle(): optimistic update with no try/catch or rollback.",
+    "powered-by.tsx: correctly excludes /admin, /platform and /job-sheet. isEmbedded is computed once at module load, which is fine for embeds."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter30_protect_designs.py"],
+  "success_rate": {"backend": "100%", "frontend": "100% (all requested checks passed; 1 external domain/SSL concern)"},
+  "seed_data_creation": "None in DB. A saved design 'TEST_wm1' was injected into the browser localStorage key 'saved_designs' only, in a throwaway Playwright context.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "To test the watermark without spending AI credits, put a saved design in localStorage: key 'saved_designs', value JSON.stringify(JSON.stringify([design])), with renderUrl=<base>/api/renders/cbc62c5d1dd57037e9a1bc5b545190ac/image?v=2026-10-24T15:56:34 and the spec of renders.hash=cbc62c5d... from Mongo. Then open /design/TEST_wm1. Alternatively, mock POST /api/renders with page.route to return that cached id/image_url. Sketch result: switch to 3D, press sketch-start-button, fill sketch-note-input, press sketch-render-button, and mock POST /api/sketches to return sketch id 3cd401b7194879a46fe57dac4207ee25. feature_toggle.sh in backend/tests sets features. A transient 'Failed to load font Feather' #error-toast appeared once and blocked clicks; it did not happen again.",
+  "rca_of_issue": ""
+}

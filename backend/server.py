@@ -354,18 +354,25 @@ class Render(BaseDocument):
 
 @api_router.post("/renders")
 async def create_render(request: Request, design: str = Form(...), force: str = Form("false"), snapshot: Optional[UploadFile] = File(None)):
-    await catalog_admin.require_feature("studio_photo")
-    await customers.require("studio_photo", request)
+    try:
+        await catalog_admin.require_feature("studio_photo")
+        blocked = None
+    except HTTPException as e:
+        blocked = e  # still serve an existing photo below (free), but never generate a new one
+    if not blocked:
+        await customers.require("studio_photo", request)
     try:
         spec = DesignSpec.model_validate_json(design)
     except Exception:
-        raise HTTPException(400, "Invalid design")
+        raise blocked or HTTPException(400, "Invalid design")
     catalog = await get_catalog()
     compute_price(catalog, spec)  # validates the spec
     h = design_hash(spec)
     cached = await db.renders.find_one({"hash": h})
     if cached and force != "true":
         return {"id": h, "image_url": f"/api/renders/{h}/image?v={cached['created_at'][:19]}", "cached": True}
+    if blocked:
+        raise blocked
     snap = await snapshot.read() if snapshot else None
     if snap and len(snap) > 6_000_000:
         snap = None

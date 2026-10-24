@@ -38,12 +38,14 @@ def store_qs() -> str:
 
 
 def set_tenant(t: dict | None):
-    _current.set({"id": t["id"], "slug": t["slug"], "name": t.get("name", ""), "status": t.get("status", "active")} if t else None)
+    _current.set({"id": t["id"], "slug": t["slug"], "name": t.get("name", ""), "status": t.get("status", "active"),
+                  "plan": t.get("plan") or "trial"} if t else None)
 
 
 @contextmanager
 def use(t: dict):
-    token = _current.set({"id": t["id"], "slug": t["slug"], "name": t.get("name", ""), "status": t.get("status", "active")})
+    token = _current.set({"id": t["id"], "slug": t["slug"], "name": t.get("name", ""), "status": t.get("status", "active"),
+                  "plan": t.get("plan") or "trial"})
     try:
         yield
     finally:

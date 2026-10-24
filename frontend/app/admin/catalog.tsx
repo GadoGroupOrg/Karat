@@ -8,7 +8,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, Switch, Text, TextInpu
 import { BASE, assetUrl, dashRequest } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { WIDE } from "@/src/components/admin/shell";
-import { BuilderFeatures } from "@/src/components/admin/builder-features";
+import { BuilderFeatures, type AiPolicy, type Feature } from "@/src/components/admin/builder-features";
 import { useDashQuery } from "@/src/components/admin/use-dash";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { uploadForm } from "@/src/utils/upload";
@@ -18,7 +18,7 @@ type Opt = { id: string; name: string; color: string | null; enabled: boolean; c
 type Group = { key: string; label: string; type: string; has_images: boolean; can_add?: boolean; options: Opt[] };
 type Slot = { key: string; label: string; image: string | null; image_source: Source };
 type Stock = { id: string; label: string; tags: string[]; url: string };
-type AdminCatalog = { types: { id: string; name: string; group?: string; enabled: boolean }[]; groups: Group[]; storefront: Slot[]; stock: Stock[]; features?: { id: string; label: string; enabled: boolean }[] };
+type AdminCatalog = { types: { id: string; name: string; group?: string; enabled: boolean }[]; groups: Group[]; storefront: Slot[]; stock: Stock[]; features?: Feature[]; ai?: AiPolicy };
 
 const SOURCE_LABEL: Record<Source, string> = { brand: "Brand photo", stock: "Stock", ai: "AI studio", default: "Default", none: "No image" };
 
@@ -169,7 +169,7 @@ export default function CatalogScreen() {
           </View>
         )}
 
-        {!!data.features && <BuilderFeatures features={data.features} />}
+        {!!data.features && <BuilderFeatures features={data.features} ai={data.ai} />}
 
         <View style={styles.panel}>
           <Text style={styles.h3}>Builders</Text>

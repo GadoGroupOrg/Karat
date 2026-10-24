@@ -125,6 +125,19 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - Generated shopify.app.toml now embedded = true.
 - Pending: user publishes, creates app in Shopify Dev Dashboard, then adds SHOPIFY_API_KEY/SECRET via secrets card.
 
+## Design protection + Powered by Karat (2026-06) — iteration 30
+- Feature `protect_designs` (default on): native blocks screenshots (expo-screen-capture); web shows store-name watermark over design images.
+- "Powered by Karat" → https://karatdesign.io on all embeds (?embed=1 / iframe), not on /admin|/platform|/job-sheet. Always on (future: paid white-label option).
+
+## Lead files & links (2026-06) — iteration 31
+- Jeweller-only: upload any file (25MB) or add link on lead; images print on job sheet. Served /api/lead-files/{id}?store=slug (unguessable id; non-image/pdf forced download + nosniff + CSP sandbox).
+
+## AI plans & allowance (2026-06) — iteration 31
+- plans.py: per plan (trial/starter/pro/enterprise/founder) which AI tools are included + monthly limit (None = unlimited). Set in /platform "Plans & AI allowance".
+- Effective feature = jeweller switch AND plan AND not exhausted. 1 generated AI image = 1 credit (db.usage); cached re-opens free.
+- Future: Stripe/Shopify billing tied to plans.
+
+
 - Stacking add-on already exists (stack count, band style, band metal; priced, rendered, in job sheet).
 
 ## NEXT (user-approved order)

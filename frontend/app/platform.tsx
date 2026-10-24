@@ -8,12 +8,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { platformApi, type PlatformTenant } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { PlatformLogin } from "@/src/components/platform/platform-login";
+import { PlanSettings, type PlanSetting } from "@/src/components/platform/plan-settings";
 import { TenantCard } from "@/src/components/platform/tenant-card";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { storage } from "@/src/utils/storage";
 
 const KEY = "atelier_platform_token";
-type List = { tenants: PlatformTenant[]; total: number; totals: { active: number; ai_month: number; leads: number } };
+type List = { tenants: PlatformTenant[]; total: number; totals: { active: number; ai_month: number; leads: number }; plans: Record<string, PlanSetting> };
 
 /** Software-supplier console: every business account, usage, pause/resume, support access. */
 export default function PlatformConsole() {
@@ -123,8 +124,18 @@ export default function PlatformConsole() {
         </View>
       </View>
 
+      {!!list.data?.plans && <PlanSettings plans={list.data.plans} onSave={async (plan, s) => {
+        try {
+          await call(`/plans/${plan}`, { method: "PUT", body: JSON.stringify(s) });
+          setMsg(`Saved the ${plan} plan.`);
+          refresh();
+        } catch (e) {
+          setMsg((e as Error).message);
+        }
+      }} />}
+
       <TextInput testID="platform-search" value={q} onChangeText={setQ} placeholder="Search businesses" placeholderTextColor={colors.muted} style={[styles.input, { flex: 0 }]} />
-      {list.isLoading ? <ActivityIndicator color={colors.brand} /> : list.data?.tenants.map((x) => <TenantCard key={x.id} t={x} actions={actions} />)}
+      {list.isLoading ? <ActivityIndicator color={colors.brand} /> : list.data?.tenants.map((x) => <TenantCard key={x.id} t={x} limit={list.data?.plans?.[x.plan]?.monthly_limit ?? null} actions={actions} />)}
     </ScrollView>
   );
 }

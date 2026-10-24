@@ -44,6 +44,10 @@ def lead_out(d: dict) -> dict:
     d.setdefault("status", "new")
     d.setdefault("notes", [])
     d.setdefault("kind", "design" if d.get("design") else "product")
+    slug = tenancy.current()["slug"]
+    d["attachments"] = [{k: v for k, v in a.items() if k != "storage_path"}
+                        | ({"url": f"/api/lead-files/{a['id']}?store={slug}"} if a["kind"] == "file" else {})
+                        for a in d.get("attachments", [])]
     return d
 
 
@@ -186,7 +190,82 @@ async def add_note(lid: str, body: NoteIn, admin: dict = Depends(get_current_adm
     return lead_out(d)
 
 
-# ---------- Branding ----------
+# ---------- Lead attachments (jeweller-only files & links) ----------
+MAX_FILE = 25_000_000
+# Only these open in the browser; everything else (html, svg, scripts…) downloads so it can't run on our domain.
+SAFE_INLINE = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif", "application/pdf", "text/plain"}
+
+
+async def _push_attachment(lid: str, att: dict, admin: dict) -> dict:
+    note = {"id": str(uuid.uuid4()), "text": f"Attached {att['name']}", "system": True, "author": admin["email"], "created_at": now()}
+    d = await _db.quotes.find_one_and_update({"_id": _oid(lid)}, {"$push": {"attachments": att, "notes": note}, "$set": {"updated_at": now()}},
+                                             return_document=True)
+    if not d:
+        raise HTTPException(404, "Lead not found")
+    return lead_out(d)
+
+
+@dash.post("/leads/{lid}/attachments")
+async def upload_attachment(lid: str, file: UploadFile = File(...), admin: dict = Depends(get_current_admin)):
+    if not await _db.quotes.find_one({"_id": _oid(lid)}, {"_id": 1}):
+        raise HTTPException(404, "Lead not found")
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "File is empty")
+    if len(data) > MAX_FILE:
+        raise HTTPException(413, "File is too large (max 25 MB)")
+    name = re.sub(r"[^A-Za-z0-9.\- ()_]", "_", (file.filename or "file").split("/")[-1])[:120] or "file"
+    mime = file.content_type or "application/octet-stream"
+    path = f"{render_service.APP_NAME}/lead-files/{uuid.uuid4()}"
+    await run_in_threadpool(render_service.put_object, path, data, mime)
+    att = {"id": uuid.uuid4().hex + uuid.uuid4().hex[:8], "kind": "file", "name": name, "mime": mime, "size": len(data),
+           "storage_path": path, "author": admin["email"], "created_at": now()}
+    return await _push_attachment(lid, att, admin)
+
+
+class LinkIn(BaseModel):
+    url: str = Field(min_length=4, max_length=2000, pattern=r"^https?://\S+$")
+    label: str = Field(default="", max_length=120)
+
+
+@dash.post("/leads/{lid}/links")
+async def add_link(lid: str, body: LinkIn, admin: dict = Depends(get_current_admin)):
+    att = {"id": uuid.uuid4().hex, "kind": "link", "name": body.label.strip() or body.url, "url": body.url,
+           "author": admin["email"], "created_at": now()}
+    return await _push_attachment(lid, att, admin)
+
+
+@dash.delete("/leads/{lid}/attachments/{aid}")
+async def remove_attachment(lid: str, aid: str, admin: dict = Depends(get_current_admin)):
+    cur = await _db.quotes.find_one({"_id": _oid(lid), "attachments.id": aid}, {"attachments.$": 1})
+    if not cur:
+        raise HTTPException(404, "File not found")
+    a = cur["attachments"][0]
+    note = {"id": str(uuid.uuid4()), "text": f"Removed {a['name']}", "system": True, "author": admin["email"], "created_at": now()}
+    d = await _db.quotes.find_one_and_update({"_id": _oid(lid)}, {"$pull": {"attachments": {"id": aid}}, "$push": {"notes": note},
+                                             "$set": {"updated_at": now()}}, return_document=True)
+    if a.get("storage_path"):
+        try:
+            await run_in_threadpool(render_service.delete_object, a["storage_path"])
+        except Exception:
+            pass  # the record is gone either way; storage cleanup is best-effort
+    return lead_out(d)
+
+
+@public.get("/lead-files/{aid}")
+async def lead_file(aid: str):
+    """Unguessable id; files open in the dashboard, job sheet and new browser tabs (no auth header possible there)."""
+    d = await _db.quotes.find_one({"attachments.id": aid}, {"attachments.$": 1})
+    if not d or d["attachments"][0]["kind"] != "file":
+        raise HTTPException(404, "File not found")
+    a = d["attachments"][0]
+    data, ctype = await run_in_threadpool(render_service.get_object, a["storage_path"])
+    mime = a.get("mime") or ctype
+    safe = mime in SAFE_INLINE
+    return Response(data, media_type=mime if safe else "application/octet-stream",
+                    headers={"Content-Disposition": f'{"inline" if safe else "attachment"}; filename="{a["name"]}"',
+                             "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox; default-src 'none'",
+                             "Cache-Control": "private, max-age=3600"})
 async def get_branding() -> dict:
     doc = await _db.branding.find_one({"key": "default"}, {"_id": 0, "key": 0}) or {}
     b = {**DEFAULT_BRANDING, **doc, "colors": {**DEFAULT_BRANDING["colors"], **(doc.get("colors") or {})}}

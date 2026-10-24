@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DesignSpec, Stroke, assetUrl, createQuote, requestSketch } from "@/src/api";
 import { SketchPad } from "@/src/components/sketch-pad";
+import { Watermark } from "@/src/components/watermark";
 import { useCustomer } from "@/src/customer";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -74,6 +75,7 @@ export function SketchResult({ design, sketch: first, onClose }: Props) {
           ) : (
             <>
               <Image source={{ uri: assetUrl(showSketch ? sketch.sketch_url : sketch.image_url) }} style={styles.img} contentFit="contain" testID="sketch-result-image" />
+              <Watermark />
               <Pressable onPress={() => setShowSketch((v) => !v)} style={styles.toggle} testID="sketch-compare-toggle">
                 <Feather name={showSketch ? "image" : "edit-3"} size={13} color={colors.onSurface} />
                 <Text style={styles.toggleText}>{showSketch ? "Show render" : "Show my sketch"}</Text>

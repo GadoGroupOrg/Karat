@@ -179,7 +179,18 @@ export type Lead = {
   name: string; email: string; phone: string; note: string; price: number; image_url: string | null;
   source: "app" | "embed"; status: LeadStatus; notes: LeadNote[]; created_at: string;
   tags?: string[]; assignee_id?: string | null;
+  attachments?: LeadAttachment[];
 };
+export type LeadAttachment = { id: string; kind: "file" | "link"; name: string; url: string; mime?: string; size?: number; author: string; created_at: string };
+export async function uploadLeadFile(token: string, leadId: string, file: { uri: string; mimeType?: string; name?: string }) {
+  const res = await uploadForm(`${BASE}/dashboard/leads/${leadId}/attachments`, {
+    files: { file: { uri: file.uri, mimeType: file.mimeType || "application/octet-stream", name: file.name || "file" } },
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Upload failed");
+  return body as Lead;
+}
 export type LeadList = { leads: Lead[]; counts: Record<LeadStatus, number>; total: number; open_value: number; tags: string[] };
 
 export function dashRequest<T>(token: string, path: string, init?: RequestInit) {

@@ -1,0 +1,44 @@
+{
+  "summary": "Tested (A) lead files & links and (B) per-plan AI features + monthly AI allowance, backend and frontend. Found and FIXED one CRITICAL bug: tenancy.set_tenant()/use() dropped the tenant's 'plan' from the request context, so plans.policy() always fell back to 'trial'. Every business got the trial plan's AI settings, whatever plan the platform had set. Gado is actually on 'founder', not 'trial'. Before the fix, the dashboard said plan=trial while /platform said founder. After the fix: 16/16 new pytest tests pass, and iter28/iter30 regression tests pass (10/10). Frontend UI flows all pass: lead Files & Links panel (add link with auto https, upload png and pdf through the file chooser, image thumbnail, open link in new tab, remove), job sheet (attached image plus Files & links list), /platform plans panel (toggle chip, set limit, save, tenant card shows 'AI this month: 93 of 10'), /admin/catalog locks ('Not included in your plan' / 'Monthly AI allowance used', locked switch can't be toggled) and /build hiding all AI tools with no AI POSTs. No real AI generations were triggered. Cleanup done and checked: all plans have all AI on and unlimited, all builder features on, no test attachments left. One security issue remains: uploaded HTML is served inline as text/html from the app origin (stored XSS). No deprecated Expo packages found in the reviewed files.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "plans.policy via tenancy.current() (all AI endpoints, /api/dashboard/catalog, /api/storefront)", "issue": "Tenant context had no 'plan' key, so policy always used the 'trial' plan for every tenant. FIXED in tenancy.py (set_tenant + use now carry plan).", "priority": "CRITICAL"}
+    ],
+    "minor": [
+      {"endpoint": "GET /api/lead-files/{aid}", "issue": "SECURITY: the client-supplied mime type is served inline with no restrictions. Uploading an .html file served it as text/html (Content-Disposition inline) on the app origin, which is a stored XSS vector (could read the admin token). Fix: send 'attachment' disposition for anything that isn't an image or PDF, or force application/octet-stream for text/html and svg; add X-Content-Type-Options: nosniff and a CSP sandbox header."},
+      {"endpoint": "POST /api/renders", "issue": "require_feature runs before the cached-hash lookup. When the allowance is used up, re-opening an existing studio photo returns 403 even though it is 'free'. Angles check the cache first, so the two paths behave differently."},
+      {"endpoint": "DELETE /api/dashboard/leads/{lid}/attachments/{aid}", "issue": "The stored object is not deleted (orphan file in storage). No system note is added on removal, while one is added on attach."},
+      {"endpoint": "catalog_admin.require_feature", "issue": "Calls load_config() twice when the feature is off (repeats the plan_settings and usage count queries). The limit check-then-generate can also be exceeded by concurrent requests (small overshoot)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/catalog Builder features", "issues": ["The locked-reason text ('Not included in your plan' / 'Monthly AI allowance used') is 11px muted text on a 0.6-opacity row, so contrast is very low."]},
+      {"screen": "/platform", "issues": ["Plan chips are 36px tall and Save is 40px, below the 44px touch target.", "The tenant card shows 'AI this month: 93 of 10' with no exhausted/over-limit colour or badge.", "The 'Search businesses' input looks very short/squashed on desktop (may be pre-existing)."]},
+      {"screen": "/admin/leads/[id] Files & links", "issues": ["Remove (trash) deletes straight away with no confirmation or undo."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter31_lead_files_plans.py", "/app/test_reports/pytest/iter31.xml"],
+  "action_items": [
+    "Keep the tenancy.py fix (plan in tenant context). Check that nothing else relied on plan defaulting to trial.",
+    "Harden GET /api/lead-files: don't serve text/html or svg inline; add nosniff and a CSP sandbox; use 'attachment' disposition for files that are not images or PDFs.",
+    "Optional: serve cached studio-photo renders before the require_feature check (to match angles), or accept and document that exhausted blocks re-opening too.",
+    "Optional: delete the storage object when an attachment is removed; add a 'Removed X' system note.",
+    "Optional: improve contrast of locked feature rows; show an exhausted badge on the platform tenant card; make plan chips 44px tall."
+  ],
+  "critical_code_review_comments": [
+    "tenancy.py set_tenant/use built the context dict without 'plan', which quietly broke per-plan AI settings (fixed).",
+    "dashboard.py: the lead_file function is followed directly by get_branding with no blank lines (PEP8).",
+    "The public lead-files endpoint has no auth by design (unguessable 40-hex id). Acceptable, but combined with inline HTML it allows XSS."
+  ],
+  "updated_files": ["/app/backend/tenancy.py", "/app/backend/tests/test_iter31_lead_files_plans.py"],
+  "success_rate": {"backend": "100% (16/16 after tenancy fix; plan-policy test failed before the fix)", "frontend": "100% of tested flows"},
+  "seed_data_creation": "None kept. Test attachments (TEST_*) were created on lead 6ad9f29faac432ffa67dae70 and removed. Their 'Attached TEST_...' system notes remain in that lead's notes.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Gado tenant plan is 'founder' (tenant test-iso-fd5e5a is 'trial'). To test locks on Gado, edit the founder plan. Gado has about 93 AI usages this month, so limit 10 means exhausted. To call AI endpoints safely, only call them while locked, or use an invalid design so validation fails with 400. Always restore: PUT every plan to all-on/null and set all catalog features to true.",
+  "rca_of_issue": "Symptom: /api/dashboard/catalog ai.plan='trial' for Gado while /api/platform/tenants showed plan='founder'. Root cause: tenancy.set_tenant() (and tenancy.use()) copied only id/slug/name/status into the ContextVar, and plans.policy() does tenant.get('plan') or 'trial'. Fix: include 'plan' in both context dicts. Verified with test_policy_uses_tenant_plan and the founder-plan lock and limit tests."
+}

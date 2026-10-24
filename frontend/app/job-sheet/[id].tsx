@@ -8,6 +8,7 @@ import { Lead, assetUrl, formatPrice, leadImage, useCatalog, usePrice } from "@/
 import { useAuth } from "@/src/auth";
 import { getBranding } from "@/src/branding";
 import { BRIEF_SECTIONS } from "@/src/components/admin/crafting-brief";
+import { isImage } from "@/src/components/admin/lead-files";
 import { useDashQuery } from "@/src/components/admin/use-dash";
 import { designRows } from "@/src/design-rows";
 
@@ -68,7 +69,18 @@ export default function JobSheet() {
       <View style={s.images}>
         {!!img && <Image source={{ uri: img }} style={s.img} contentFit="contain" testID="job-sheet-image" />}
         {!!lead.sketch && <Image source={{ uri: assetUrl(lead.sketch.sketch_url) }} style={s.img} contentFit="contain" />}
+        {(lead.attachments ?? []).filter(isImage).map((a) => (
+          <Image key={a.id} source={{ uri: assetUrl(a.url) }} style={s.img} contentFit="contain" testID={`job-sheet-attachment-${a.id}`} />
+        ))}
       </View>
+      {(lead.attachments ?? []).some((a) => !isImage(a)) && (
+        <View style={s.section} testID="job-sheet-files">
+          <Text style={s.h3}>Files & links</Text>
+          {(lead.attachments ?? []).filter((a) => !isImage(a)).map((a) => (
+            <View key={a.id} style={s.row}><Text style={s.k}>{a.kind === "link" ? "Link" : "File"}</Text><Text style={s.v}>{a.kind === "link" && a.name !== a.url ? `${a.name} (${a.url})` : a.name}</Text></View>
+          ))}
+        </View>
+      )}
 
       {!!spec?.rows.length && (
         <View style={s.section}>

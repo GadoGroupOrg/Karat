@@ -13,7 +13,7 @@ type Actions = {
   reset: (t: PlatformTenant) => void;
 };
 
-export function TenantCard({ t, actions }: { t: PlatformTenant; actions: Actions }) {
+export function TenantCard({ t, limit, actions }: { t: PlatformTenant; limit: number | null; actions: Actions }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const active = t.status === "active";
@@ -29,7 +29,7 @@ export function TenantCard({ t, actions }: { t: PlatformTenant; actions: Actions
       </View>
       <Text style={styles.meta}>
         {t.leads} leads · {t.customers} customers · {t.team} team · {t.shopify_shop ? `Shopify: ${t.shopify_shop}` : "No Shopify"} ·
-        AI this month: {t.ai_total_month} ({u.render ?? 0} renders, {u.angle ?? 0} angles, {u.sketch ?? 0} sketches, {u.tryon ?? 0} try-ons)
+        AI this month: {t.ai_total_month}{limit != null ? ` of ${limit}` : ""} ({u.render ?? 0} renders, {u.angle ?? 0} angles, {u.sketch ?? 0} sketches, {u.tryon ?? 0} try-ons)
       </Text>
       <View style={styles.plans}>
         {PLANS.map((p) => (

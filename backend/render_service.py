@@ -48,6 +48,12 @@ def get_object(path: str) -> tuple[bytes, str]:
     return resp.content, resp.headers.get("Content-Type", "image/png")
 
 
+def delete_object(path: str) -> None:
+    key = init_storage()
+    requests.delete(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=30)
+
+
+
 def _opt(t: dict, group: str, options: dict) -> dict | None:
     g = next((x for x in t.get("option_groups", []) if x["id"] == group), None)
     if not g:

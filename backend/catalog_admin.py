@@ -9,6 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+import plans
 import render_service
 import tenancy
 from auth import get_current_admin
@@ -67,7 +68,11 @@ def init(db, get_catalog):
 
 async def require_feature(key: str):
     """Server-side guard so a store's switched-off tool can't be used via direct links or API calls."""
-    if not (await load_config())["features"].get(key, True):
+    cfg = await load_config()
+    if not cfg["features"].get(key, True):
+        ai = cfg["ai"] if key in plans.AI_FEATURES else None
+        if ai and ai["exhausted"] and ai["allowed"].get(key):
+            raise HTTPException(403, "This store has used this month's AI allowance")
         raise HTTPException(403, "This feature is turned off for this store")
 
 
@@ -76,13 +81,24 @@ FEATURES = {  # builder features each store can switch on/off (all on by default
     "sketch": "Sketch on design", "redesign": "Redesign a customer photo", "hidden_halo": "Hidden halo add-on",
     "two_tone": "Two-tone head metal", "stacking": "Stacking bands", "inscription": "Engraving & inscription preview",
     "notes": "Notes for your jeweller", "try_on": "Virtual try-on",
+    "protect_designs": "Design protection",
 }
 
 
 async def load_config() -> dict:
     doc = await _db.catalog_config.find_one({"key": "default"}, {"_id": 0}) or {}
-    feats = {k: bool(doc.get("features", {}).get(k, True)) for k in FEATURES}
-    return {"disabled_types": doc.get("disabled_types", []), "disabled": doc.get("disabled", {}), "features": feats}
+    own = {k: bool(doc.get("features", {}).get(k, True)) for k in FEATURES}
+    ai = await plans.policy(tenancy.current())
+    # Effective switch = jeweller's choice AND included in their plan AND monthly AI allowance not used up.
+    feats = {k: own[k] and (k not in plans.AI_FEATURES or (ai["allowed"][k] and not ai["exhausted"])) for k in FEATURES}
+    return {"disabled_types": doc.get("disabled_types", []), "disabled": doc.get("disabled", {}), "features": feats,
+            "own_features": own, "ai": ai}
+
+
+def _lock(k: str, ai: dict) -> Optional[str]:
+    if k not in plans.AI_FEATURES:
+        return None
+    return "plan" if not ai["allowed"][k] else "limit" if ai["exhausted"] else None
 
 
 async def load_slots() -> Dict[str, dict]:
@@ -207,7 +223,8 @@ async def admin_catalog():
     storefront_slots = [{"key": k, "label": labels.get(k, k), "image": v,
                          "image_source": slots.get(k, {}).get("source", "default")} for k, v in sf.items()]
     return {"types": types, "groups": groups, "storefront": storefront_slots, "stock": STOCK,
-            "features": [{"id": k, "label": v, "enabled": cfg["features"][k]} for k, v in FEATURES.items()]}
+            "features": [{"id": k, "label": v, "enabled": cfg["own_features"][k], "locked": _lock(k, cfg["ai"])} for k, v in FEATURES.items()],
+            "ai": cfg["ai"]}
 
 
 class FeaturesIn(BaseModel):
