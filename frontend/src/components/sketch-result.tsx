@@ -9,7 +9,7 @@ import { DesignSpec, assetUrl, createQuote } from "@/src/api";
 import { useCustomer } from "@/src/customer";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
-type Props = { design: DesignSpec; sketch: { id: string; image_url: string; sketch_url: string; note: string }; onClose: () => void };
+type Props = { design: DesignSpec | null; sketch: { id: string; image_url: string; sketch_url: string; note: string }; onClose: () => void };
 
 /** The AI render of a customer's sketch, with "Send to our jewelers" (creates a Sketch request lead). */
 export function SketchResult({ design, sketch, onClose }: Props) {
@@ -28,7 +28,7 @@ export function SketchResult({ design, sketch, onClose }: Props) {
     if (!(await ensure("quote"))) return;
     setState("sending");
     try {
-      await createQuote({ design, sketch_id: sketch.id, name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), note: form.note });
+      await createQuote({ design: design ?? undefined, sketch_id: sketch.id, name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), note: form.note });
       setState("sent");
     } catch (e) {
       setError((e as Error).message);

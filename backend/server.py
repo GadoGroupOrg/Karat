@@ -458,18 +458,36 @@ def _composite(base: bytes, strokes: list) -> bytes:
     return buf.getvalue()
 
 
+def _square(data: bytes) -> bytes:
+    """Pad an uploaded photo to a square (the editor shows it 'contain' in a square, so strokes line up)."""
+    import io
+    from PIL import Image as PILImage
+    img = PILImage.open(io.BytesIO(data)).convert("RGB")
+    side = max(img.size)
+    out = PILImage.new("RGB", (side, side), (246, 243, 238))
+    out.paste(img, ((side - img.width) // 2, (side - img.height) // 2))
+    out.thumbnail((1536, 1536))
+    buf = io.BytesIO()
+    out.save(buf, "PNG")
+    return buf.getvalue()
+
+
 @api_router.post("/sketches")
-async def create_sketch(request: Request, design: str = Form(...), strokes: str = Form(...), note: str = Form(""),
+async def create_sketch(request: Request, design: str = Form(""), strokes: str = Form("[]"), note: str = Form(""),
                         render_id: str = Form(""), snapshot: Optional[UploadFile] = File(None)):
+    """Sketch over a builder design, or (no design) over the customer's own uploaded jewelry photo."""
     await customers.require("sketch", request)
     try:
-        spec = DesignSpec.model_validate_json(design)
+        spec = DesignSpec.model_validate_json(design) if design else None
         lines = json.loads(strokes)
-        assert isinstance(lines, list) and lines
+        assert isinstance(lines, list) and (lines or note.strip())
     except Exception:
-        raise HTTPException(400, "Draw something on the design first")
+        raise HTTPException(400, "Draw on the photo or describe the change first")
     catalog = await get_catalog()
-    compute_price(catalog, spec)
+    if spec:
+        compute_price(catalog, spec)
+    elif not snapshot:
+        raise HTTPException(400, "Upload a photo of the jewelry first")
     base = None
     if render_id:
         r = await db.renders.find_one({"hash": render_id})
@@ -477,11 +495,18 @@ async def create_sketch(request: Request, design: str = Form(...), strokes: str 
             base, _ = await run_in_threadpool(render_service.get_object, r["storage_path"])
     if base is None and snapshot:
         base = await snapshot.read()
+        if len(base) > 12_000_000:
+            raise HTTPException(413, "Photo is too large (max 12 MB)")
+        if not spec:
+            try:
+                base = await run_in_threadpool(_square, base)
+            except Exception:
+                raise HTTPException(400, "Please upload a photo (JPG or PNG)")
     if not base:
         raise HTTPException(400, "No design image to sketch on")
     try:
         comp = await run_in_threadpool(_composite, base, lines)
-        desc = render_service.build_prompt(catalog, spec.model_dump(), False, 0)[:1500]
+        desc = render_service.build_prompt(catalog, spec.model_dump(), False, 0)[:1500] if spec else ""
         img, mime = await render_service.generate_sketch(comp, note[:500], desc)
         sid = secrets.token_hex(16)
         path, cpath = render_service.storage_path(), render_service.storage_path()
@@ -495,7 +520,8 @@ async def create_sketch(request: Request, design: str = Form(...), strokes: str 
             raise HTTPException(402, "Render credits exhausted. Please top up your balance.")
         raise HTTPException(502, "Couldn't render your sketch. Please try again.")
     await log_usage("sketch")
-    await db.sketches.insert_one({"id": sid, "design": spec.model_dump(), "note": note[:500], "storage_path": path,
+    await db.sketches.insert_one({"id": sid, "design": spec.model_dump() if spec else None, "uploaded": not spec,
+                                  "note": note[:500], "storage_path": path,
                                   "sketch_path": cpath, "created_at": datetime.now(timezone.utc).isoformat()})
     return {"id": sid, "image_url": f"/api/sketches/{sid}/image", "sketch_url": f"/api/sketches/{sid}/image?which=sketch"}
 
@@ -554,6 +580,8 @@ async def create_quote(payload: QuoteCreate, request: Request):
     product = None
     if payload.design:
         p = compute_price(await get_catalog(), payload.design)
+    elif payload.sketch_id:
+        p = 0  # redesign of the customer's own photo: priced by the jeweler
     elif payload.product_id:
         sp = await db.store_products.find_one({"id": payload.product_id}, {"_id": 0})
         if not sp:
@@ -568,9 +596,13 @@ async def create_quote(payload: QuoteCreate, request: Request):
     if payload.tryon_id and await db.tryons.find_one({"id": payload.tryon_id, "product_id": payload.product_id}):
         image_url = f"/api/tryons/{payload.tryon_id}/image"
     sketch = None
-    if payload.sketch_id and (sk := await db.sketches.find_one({"id": payload.sketch_id})):
+    sk = await db.sketches.find_one({"id": payload.sketch_id}) if payload.sketch_id else None
+    if payload.sketch_id and not sk:
+        raise HTTPException(404, "Sketch not found")
+    if sk:
         image_url = f"/api/sketches/{payload.sketch_id}/image"
-        sketch = {"id": sk["id"], "note": sk.get("note", ""), "sketch_url": f"/api/sketches/{sk['id']}/image?which=sketch"}
+        sketch = {"id": sk["id"], "note": sk.get("note", ""), "sketch_url": f"/api/sketches/{sk['id']}/image?which=sketch",
+                  "uploaded": bool(sk.get("uploaded"))}
     quote = Quote(
         design=payload.design, product=product, kind="sketch" if sketch else "design" if payload.design else "product", sketch=sketch,
         customer_id=cust["user_id"] if cust else None,

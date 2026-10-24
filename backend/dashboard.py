@@ -2,7 +2,7 @@
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Dict, Literal, Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -134,6 +134,29 @@ async def update_lead(lid: str, body: LeadPatch, admin: dict = Depends(get_curre
         {"_id": _oid(lid)},
         {"$set": {"status": body.status, "updated_at": now()},
          "$push": {"notes": {"id": str(uuid.uuid4()), "text": f"Status changed to {body.status.title()}", "system": True,
+                             "author": admin["email"], "created_at": now()}}},
+        return_document=True)
+    if not d:
+        raise HTTPException(404, "Lead not found")
+    return lead_out(d)
+
+
+BRIEF_KEYS = ("ring_size", "finger_notes", "metal_spec", "center_stone_mm", "carat", "accent_spec", "band_width_mm",
+              "band_thickness_mm", "setting_height_mm", "profile_fit", "finish", "engraving", "due_date", "budget", "crafting_notes")
+
+
+class BriefIn(BaseModel):
+    brief: Dict[str, str]
+
+
+@dash.put("/leads/{lid}/brief")
+async def update_brief(lid: str, body: BriefIn, admin: dict = Depends(get_current_admin)):
+    """Workshop brief: sizing specs and anything important for crafting the piece."""
+    brief = {k: v.strip()[:1000] for k, v in body.brief.items() if k in BRIEF_KEYS and v.strip()}
+    d = await _db.quotes.find_one_and_update(
+        {"_id": _oid(lid)},
+        {"$set": {"brief": brief, "brief_updated_at": now(), "brief_updated_by": admin["email"], "updated_at": now()},
+         "$push": {"notes": {"id": str(uuid.uuid4()), "text": "Crafting brief updated", "system": True,
                              "author": admin["email"], "created_at": now()}}},
         return_document=True)
     if not d:

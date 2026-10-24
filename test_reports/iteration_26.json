@@ -1,0 +1,19 @@
+{
+  "summary": "Iteration 26 - retest of post-iter25 fixes, no AI generations. Backend 7/7 pytest pass: POST /api/sketches with text/garbage/empty snapshot (design='') -> 400 'Please upload a photo (JPG or PNG)'; POST /api/quotes sketch_id='nope' -> 404 'Sketch not found' with no lead created; a valid existing uploaded sketch_id -> 200 kind=sketch, price 0, sketch.uploaded=true; brief PUT/GET persists. Frontend: at 390x844, /build header shows 'Gado Jewellers' in full (scrollWidth==clientWidth, 189px) next to a 105x44 'Redesign' button, and tapping it opens /redesign. At 1920x1080 the button reads 'Redesign a photo' (155x44). /redesign: uploaded a photo with the file chooser, drew a stroke, and one red (#E6142A) path showed on top of sketch-background (Svg position:absolute). Render was not tapped. Admin crafting brief (desktop): after Save the button shows 'Saved' at opacity 1, then goes back to 'Save brief' at 0.5. Values persist after reload and the 'Crafting brief updated' note is there. All TEST leads deleted (2).",
+  "backend_issues": {"critical": [], "minor": [{"endpoint": "db.sketches", "issue": "Still carried over from iter25: sketch docs have no tenant_id, so any tenant can reference any sketch_id (random 32-hex ids, low risk)."}]},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [{"screen": "SketchPad bar", "issues": ["Still carried over from iter25: sketch-undo/sketch-cancel icon buttons are below 44pt (optional)"]}],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter26_redesign_fixes.py", "/app/test_reports/pytest/iter26_results.xml"],
+  "action_items": ["Optional: make sketch-pad undo/cancel icon buttons 44pt; optional tenant_id on sketches"],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_iter26_redesign_fixes.py"],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (4/4 flows)"},
+  "seed_data_creation": "A TEST sketch lead was created from existing sketch e86b0706046e42010130f0d442c9b5d6 and then deleted. No new sketches.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The frontend .env key is EXPO_PUBLIC_BACKEND_URL; tests read it first. Run with -n 0 for single-file runs. The test file uses existing uploaded sketch e86b0706046e42010130f0d442c9b5d6 (override with TEST_SKETCH_ID), so there is no AI cost."
+}

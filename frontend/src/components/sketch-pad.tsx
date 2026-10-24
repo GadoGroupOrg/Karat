@@ -1,6 +1,7 @@
 import Feather from "@react-native-vector-icons/feather";
 import { useRef, useState } from "react";
 import { LayoutChangeEvent, PanResponder, Pressable, Text, TextInput, View } from "react-native";
+import { Image } from "expo-image";
 import Svg, { Path } from "react-native-svg";
 
 import { Stroke } from "@/src/api";
@@ -14,10 +15,12 @@ type Props = {
   busy: boolean;
   onCancel: () => void;
   onSubmit: (strokes: Stroke[], note: string) => void;
+  /** Photo drawn under the strokes, fitted inside the same square the strokes are measured against. */
+  backgroundUri?: string;
 };
 
 /** Finger / mouse drawing layer over the preview. Points are stored normalised (0–1) to the image. */
-export function SketchPad({ square, busy, onCancel, onSubmit }: Props) {
+export function SketchPad({ square, busy, onCancel, onSubmit, backgroundUri }: Props) {
   const styles = useStyles();
   const { colors } = useTheme();
   const [size, setSize] = useState({ w: 1, h: 1 });
@@ -66,7 +69,12 @@ export function SketchPad({ square, busy, onCancel, onSubmit }: Props) {
   return (
     <View style={styles.root} testID="sketch-pad">
       <View style={styles.area} onLayout={onLayout} {...pan.current.panHandlers} testID="sketch-area">
-        <Svg width={size.w} height={size.h} style={{ pointerEvents: "none" }}>
+        {!!backgroundUri && (
+          <View style={{ position: "absolute", left: box.x, top: box.y, width: box.bw, height: box.bh, pointerEvents: "none" }}>
+            <Image source={{ uri: backgroundUri }} contentFit="contain" style={{ width: "100%", height: "100%" }} testID="sketch-background" />
+          </View>
+        )}
+        <Svg width={size.w} height={size.h} style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}>
           {strokes.map((s, i) => <Path key={i} d={d(s.points)} stroke={INK} strokeWidth={sw} fill="none" strokeLinecap="round" strokeLinejoin="round" />)}
           {live.current.length > 0 && <Path d={d(live.current)} stroke={INK} strokeWidth={sw} fill="none" strokeLinecap="round" strokeLinejoin="round" />}
         </Svg>

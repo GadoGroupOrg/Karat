@@ -9,6 +9,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Lead, LeadStatus, assetUrl, dashRequest, formatPrice, leadImage, useCatalog, usePrice } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { CraftingBrief } from "@/src/components/admin/crafting-brief";
 import { WIDE } from "@/src/components/admin/shell";
 import { STATUSES, StatusPill, formatDateTime, useStatusColor } from "@/src/components/admin/status";
 import { useDashQuery } from "@/src/components/admin/use-dash";
@@ -66,7 +67,10 @@ export default function LeadDetail() {
 
   const img = leadImage(lead);
   const spec = lead.design && catalog ? designRows(catalog, lead.design, price.data?.lines ?? []) : null;
-  const pieceTitle = lead.kind === "product" ? lead.product?.title ?? "Store product" : lead.design?.name?.trim() || `Custom ${spec?.typeName.toLowerCase() ?? "design"}`;
+  const pieceTitle = lead.kind === "product" ? lead.product?.title ?? "Store product"
+    : lead.design?.name?.trim() || (lead.sketch?.uploaded ? "Redesign of customer’s photo" : `Custom ${spec?.typeName.toLowerCase() ?? "design"}`);
+  const saveBrief = (brief: Record<string, string>) => mutate("brief", `/leads/${id}/brief`, { method: "PUT", body: JSON.stringify({ brief }) });
+  const brief = <CraftingBrief brief={lead.brief} updatedBy={lead.brief_updated_by} busy={busy === "brief"} onSave={saveBrief} />;
   const pieceRows: [string, string][] = spec?.rows ?? (lead.product ? [["Type", lead.product.product_type], ["Store price", formatPrice(lead.product.price)]] : []);
 
   const piece = (
@@ -75,9 +79,9 @@ export default function LeadDetail() {
         <View style={[styles.hero, styles.heroEmpty]}><Feather name="hexagon" size={32} color={colors.brandPrimary} /><Text style={styles.muted}>No studio photo saved with this request</Text></View>
       )}
       <View style={{ padding: spacing.xl }}>
-        <Text style={styles.eyebrow}>{lead.kind === "product" ? "TRY-ON ENQUIRY" : lead.kind === "sketch" ? "SKETCH REQUEST" : "CUSTOM DESIGN"}</Text>
+        <Text style={styles.eyebrow}>{lead.kind === "product" ? "TRY-ON ENQUIRY" : lead.kind === "sketch" ? (lead.sketch?.uploaded ? "PHOTO REDESIGN" : "SKETCH REQUEST") : "CUSTOM DESIGN"}</Text>
         <Text style={styles.h2} testID="lead-piece-title">{pieceTitle}</Text>
-        <Text style={styles.price}>{formatPrice(lead.price)}</Text>
+        <Text style={styles.price}>{lead.price ? `Est. ${formatPrice(lead.price)}` : "Price to be quoted"}</Text>
         <View style={styles.table}>
           {pieceRows.map(([k, v]) => (
             <View key={k} style={styles.tr}><Text style={styles.tk}>{k}</Text><Text style={styles.tv}>{v}</Text></View>
@@ -85,7 +89,7 @@ export default function LeadDetail() {
         </View>
         {lead.sketch && (
           <View style={styles.quote} testID="lead-sketch">
-            <Text style={styles.quoteLabel}>Customer’s sketch</Text>
+            <Text style={styles.quoteLabel}>{lead.sketch.uploaded ? "Customer’s photo with mark-up" : "Customer’s sketch"}</Text>
             <Image source={{ uri: assetUrl(lead.sketch.sketch_url) }} style={{ width: "100%", aspectRatio: 1, borderRadius: radius.sm, marginTop: spacing.sm }} contentFit="contain" />
             {!!lead.sketch.note && <Text style={styles.quoteText}>“{lead.sketch.note}”</Text>}
           </View>
@@ -183,11 +187,11 @@ export default function LeadDetail() {
       </View>
       {wide ? (
         <View style={{ flexDirection: "row", gap: spacing.xl, alignItems: "flex-start" }}>
-          <View style={{ flex: 1.1 }}>{piece}</View>
+          <View style={{ flex: 1.1 }}>{piece}{brief}</View>
           <View style={{ flex: 1 }}>{customer}</View>
         </View>
       ) : (
-        <View style={{ gap: spacing.lg }}>{customer}{piece}</View>
+        <View style={{ gap: spacing.lg }}>{customer}{piece}{brief}</View>
       )}
     </KeyboardAwareScrollView>
   );

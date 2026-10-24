@@ -99,10 +99,11 @@ export function useCatalog() {
 }
 
 export type Stroke = { points: [number, number][]; w: number };
-export async function requestSketch(design: DesignSpec, strokes: Stroke[], note: string, renderId: string | null, snapshotUri: string | null) {
+/** `design` null = the customer's own uploaded jewelry photo (snapshotUri) is the base. */
+export async function requestSketch(design: DesignSpec | null, strokes: Stroke[], note: string, renderId: string | null, snapshotUri: string | null) {
   const res = await uploadForm(`${BASE}/sketches`, {
-    fields: { design: JSON.stringify(design), strokes: JSON.stringify(strokes), note, render_id: renderId ?? "" },
-    files: snapshotUri && !renderId ? { snapshot: { uri: snapshotUri, name: "preview.png", mimeType: "image/png" } } : {},
+    fields: { design: design ? JSON.stringify(design) : "", strokes: JSON.stringify(strokes), note, render_id: renderId ?? "" },
+    files: snapshotUri && !renderId ? { snapshot: { uri: snapshotUri, name: design ? "preview.png" : "photo.jpg", mimeType: design ? "image/png" : "image/jpeg" } } : {},
     headers: customerHeaders(),
   });
   const body = await res.json().catch(() => ({}));
@@ -166,7 +167,8 @@ export type LeadStatus = "new" | "contacted" | "quoted" | "won" | "lost";
 export type LeadNote = { id: string; text: string; system: boolean; author: string; created_at: string };
 export type Lead = {
   id: string; kind: "design" | "product" | "sketch"; design: DesignSpec | null;
-  sketch?: { id: string; note: string; sketch_url: string } | null;
+  sketch?: { id: string; note: string; sketch_url: string; uploaded?: boolean } | null;
+  brief?: Record<string, string>; brief_updated_by?: string; brief_updated_at?: string;
   product: { id: string; title: string; price: number; image: string | null; url: string; product_type: string } | null;
   name: string; email: string; phone: string; note: string; price: number; image_url: string | null;
   source: "app" | "embed"; status: LeadStatus; notes: LeadNote[]; created_at: string;

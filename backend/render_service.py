@@ -248,7 +248,9 @@ async def generate_angle(base: bytes, angle: str, facts: str = "") -> tuple[byte
 async def generate_sketch(composite: bytes, note: str, design_desc: str) -> tuple[bytes, str]:
     prompt = (
         "The attached image is a photo of a fine-jewelry design with the customer's RED hand-drawn sketch marks drawn over it. "
-        f"Design: {design_desc}. The red strokes show changes or additions the customer wants (for example new stones, a different "
+        + (f"Design: {design_desc}. " if design_desc else "Keep everything about the piece in the photo (metal, stones, setting, "
+           "proportions) unless the marks or note change it. ")
+        + "The red strokes show changes or additions the customer wants (for example new stones, a different "
         "band shape, extra details, engraving or a different silhouette). "
         + (f"The customer's note: \"{note.strip()}\". " if note.strip() else "")
         + "Create a new photoreal studio product photograph of the finished piece that incorporates the sketched idea as real, "

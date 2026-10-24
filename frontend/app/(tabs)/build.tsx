@@ -231,7 +231,11 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const stage = (
     <>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Text style={styles.title} numberOfLines={1}>{getBranding()?.store_name ?? "Atelier"}</Text>
+        <Text style={[styles.title, { flex: 1 }]} numberOfLines={1}>{getBranding()?.store_name ?? "Atelier"}</Text>
+        <Pressable testID="builder-redesign-photo-button" onPress={() => router.push("/redesign")} style={styles.redesignBtn}>
+          <Feather name="image" size={14} color={colors.onSurface} />
+          <Text style={styles.redesignText}>{wide ? "Redesign a photo" : "Redesign"}</Text>
+        </Pressable>
         <Pressable testID="builder-reset-button" hitSlop={10} onPress={() => switchType(design.type)} style={styles.iconBtn}>
           <Feather name="rotate-ccw" size={18} color={colors.onSurface} />
         </Pressable>
@@ -656,6 +660,8 @@ const useStyles = makeStyles((c) => ({
   addonRowOn: { borderColor: c.onSurface, backgroundColor: c.surfaceSecondary },
   addonTitle: { fontFamily: fonts.bold, fontSize: 14, color: c.onSurface },
   addonText: { fontFamily: fonts.text, fontSize: 12, lineHeight: 17, color: c.muted, marginTop: 2 },
+  redesignBtn: { flexDirection: "row", alignItems: "center", gap: 6, height: 44, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: c.border, marginRight: spacing.xs },
+  redesignText: { fontFamily: fonts.bold, fontSize: 12, color: c.onSurface },
   fontRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
   notesInput: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: "top" },
   input: {

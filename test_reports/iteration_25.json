@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 25 - Photo redesign (upload jewelry photo -> mark up -> AI render -> quote) + crafting brief on leads. Backend: 11/12 pytest pass (1 real bug: non-image snapshot -> 500); leads-list assertion fixed in test and verified manually. Frontend: full customer flow on 390x844 works end-to-end (build header button -> /redesign -> upload via file chooser -> draw + note -> Render (~15s) -> result with compare toggle -> send -> sketch-sent). Admin lead detail shows PHOTO REDESIGN / Redesign of customer's photo / Price to be quoted / Customer's photo with mark-up; crafting brief saves ('Saved'), persists after reload, 'Crafting brief updated' note, desktop 1440x900 + mobile 390x844 OK. Found and FIXED one UI bug: drawn strokes were invisible on web (hidden under the background photo). 3 AI sketch generations used in pytest + 1 in UI. All TEST leads bulk-deleted (14).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/sketches", "issue": "Non-image snapshot (e.g. text/plain bytes or HEIC that PIL can't decode) with design='' -> 500 Internal Server Error (PIL.UnidentifiedImageError in _square, server.py:461-468, called outside try at line 501). Should validate content and return 400 'Please upload an image'."},
+      {"endpoint": "POST /api/quotes", "issue": "sketch_id that does not exist (and no design/product) -> 200 creating a junk lead with kind 'product', product null, price 0 (server.py:580-601). Should 404 'Sketch not found' when sketch_id lookup fails."},
+      {"endpoint": "db.sketches", "issue": "Sketch docs carry no tenant_id; any tenant's quote can reference any sketch_id (ids are 32-hex random so low risk)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "SketchPad (web)", "issue": "FIXED: strokes were not visible while drawing on uploaded photo - background photo wrapper is position:absolute, Svg was static so it painted under the photo on web. Added position:absolute/top/left to Svg style (src/components/sketch-pad.tsx:77). Verified strokes now render red over photo; undo works.", "testID": "sketch-area", "priority": "HIGH (fixed)"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/build header (390px)", "issues": ["Store title truncates to 'Gado Jewe...' because of the new 'Redesign a photo' pill", "builder-redesign-photo-button is 155x36 - below 44pt touch target"]},
+      {"screen": "SketchPad bar", "issues": ["sketch-undo/cancel/render buttons are 40x40 / 40 high - below 44pt"]},
+      {"screen": "Admin crafting brief", "issues": ["After save the button shows 'Saved' but at 0.5 opacity (disabled because not dirty), so the confirmation looks greyed out"]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter25_photo_redesign.py", "/app/test_reports/pytest/iter25_results.xml"],
+  "action_items": [
+    "POST /api/sketches: wrap _square/_composite image decode in validation and return 400 for non-image uploads (currently 500)",
+    "POST /api/quotes: return 404 when sketch_id is provided but not found instead of creating a 'product' lead with null product",
+    "Build header: avoid truncating store name on 390px (icon-only or shorter label) and make redesign button >=44pt tall",
+    "Optional: show 'Saved' at full opacity on brief-save-button; sketch-pad icon buttons to 44pt"
+  ],
+  "critical_code_review_comments": [
+    "server.py create_sketch: _square runs before the try block, so PIL decode errors become unhandled 500s",
+    "create_quote: sketch_id branch sets p=0 before verifying the sketch exists",
+    "requestSketch always sends mimeType image/jpeg for uploaded photos; backend relies on PIL decode (HEIC on iOS may fail without pillow-heif if picker returns HEIC)"
+  ],
+  "updated_files": ["/app/frontend/src/components/sketch-pad.tsx", "/app/backend/tests/test_iter25_photo_redesign.py"],
+  "success_rate": {"backend": "92% (11/12; failing test is a real 500 bug)", "frontend": "100% of flows pass after stroke-visibility fix"},
+  "seed_data_creation": "TEST leads created and all bulk-deleted; a TEST_iso_* business created via /api/auth/signup for tenant isolation check (left in place).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "pytest.ini forces -n 2 --dist loadscope, so module fixture uploaded_sketch may run once per worker (AI cost). Test image: /app/test_reports/angle_images/*.png (JPEG 1024x1024); crop to non-square to verify square padding. Lead list response key is 'leads'.",
+  "rca_of_issue": "Stroke invisibility: in sketch-pad.tsx the background <View position:absolute> precedes a static <svg>; in CSS positioned elements paint above non-positioned ones regardless of DOM order, so on web the photo covered the strokes (native unaffected). Fix: make Svg absolutely positioned."
+}
