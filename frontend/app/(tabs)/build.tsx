@@ -9,7 +9,7 @@ import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg from "react-native-svg";
 
-import { Catalog, DesignSpec, OptionGroup, assetUrl, formatPrice, useCatalog, usePrice } from "@/src/api";
+import { Catalog, DesignSpec, OptionGroup, assetUrl, formatPrice, useCatalog, useFeatures, usePrice } from "@/src/api";
 import { getBranding } from "@/src/branding";
 import { DesignCanvas } from "@/src/components/design-canvas";
 import { Charm } from "@/src/components/jewelry-preview";
@@ -118,8 +118,10 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const price = quote.data?.total ?? 0;
   const metal = catalog.metals.find((m) => m.id === design.metalId)!;
   const style = t.styles.find((s) => s.id === design.styleId)!;
-  const groups = (t.option_groups ?? []).filter((g) => !ADD_ON_GROUPS.includes(g.id) && groupVisible(t, g, design));
-  const hasHiddenHalo = !!t.option_groups?.some((g) => g.id === "hidden_halo") && design.styleId !== "hidden-halo";
+  const feat = useFeatures();
+  const groups = (t.option_groups ?? []).filter((g) => !ADD_ON_GROUPS.includes(g.id) && groupVisible(t, g, design)
+    && !(g.id === "head_metal" && !feat("two_tone")) && !(g.id.startsWith("stack") && !feat("stacking")));
+  const hasHiddenHalo = feat("hidden_halo") && !!t.option_groups?.some((g) => g.id === "hidden_halo") && design.styleId !== "hidden-halo";
   const hiddenHaloOn = design.options?.hidden_halo === "yes";
   const fontGroup = t.option_groups?.find((g) => g.id === "engraving_font");
   const styles_ = forWearer(t, design, t.styles);
@@ -216,7 +218,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
   };
 
   const { allowed, ensure } = useCustomer();
-  const showPrice = allowed("prices");
+  const showPrice = allowed("prices") && feat("prices");
   const save = async () => {
     if (!(await ensure("save_design"))) return;
     const id = editingId ?? newId();
@@ -232,10 +234,10 @@ function Builder({ catalog }: { catalog: Catalog }) {
     <>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Text style={[styles.title, { flex: 1 }]} numberOfLines={1}>{getBranding()?.store_name ?? "Atelier"}</Text>
-        <Pressable testID="builder-redesign-photo-button" onPress={() => router.push("/redesign")} style={styles.redesignBtn}>
+        {feat("redesign") && <Pressable testID="builder-redesign-photo-button" onPress={() => router.push("/redesign")} style={styles.redesignBtn}>
           <Feather name="image" size={14} color={colors.onSurface} />
           <Text style={styles.redesignText}>{wide ? "Redesign a photo" : "Redesign"}</Text>
-        </Pressable>
+        </Pressable>}
         <Pressable testID="builder-reset-button" hitSlop={10} onPress={() => switchType(design.type)} style={styles.iconBtn}>
           <Feather name="rotate-ccw" size={18} color={colors.onSurface} />
         </Pressable>
@@ -408,7 +410,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
           </Section>
         )}
 
-        {t.engraving_max > 0 && (
+        {t.engraving_max > 0 && feat("inscription") && (
           <Section label="Engraving"
             value={!design.engraving.trim() ? "Optional add-on" : showPrice ? `+${formatPrice(breakdown.lines.find((l) => l.label.startsWith("Engraving"))?.amount ?? 0)}` : "Added"}>
             <TextInput
@@ -440,7 +442,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
           </Section>
         )}
 
-        <Section label="Notes for your jeweller" value="Optional">
+        {feat("notes") && <Section label="Notes for your jeweller" value="Optional">
           <TextInput
             testID="design-notes-input"
             value={design.notes ?? ""}
@@ -451,7 +453,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
             placeholderTextColor={colors.muted}
             style={[styles.input, styles.notesInput]}
           />
-        </Section>
+        </Section>}
 
         {t.id === "ring" && bandType && (
           <Pressable testID="add-matching-band-button" onPress={matchBand} style={styles.matchBtn}>
@@ -494,7 +496,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
       </KeyboardAwareScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: (wide ? 0 : bottomChrome) + spacing.md }]}>
-        <View>
+        {feat("prices") ? <View>
           <Text style={styles.totalLabel}>Estimated total</Text>
           {showPrice ? (
             <Text style={[styles.total, quote.isFetching && { opacity: 0.5 }]} testID="builder-total-price">{quote.data ? formatPrice(price) : "…"}</Text>
@@ -503,7 +505,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
               <Text style={[styles.total, { textDecorationLine: "underline" }]}>See price</Text>
             </Pressable>
           )}
-        </View>
+        </View> : <View />}
         <Pressable testID="save-design-button" onPress={save} style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.85 }]}>
           <Feather name="heart" size={16} color={colors.onSurfaceInverse} />
           <Text style={styles.saveText}>{editingId ? "Update design" : "Save design"}</Text>

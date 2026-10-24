@@ -89,9 +89,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export type Storefront = { images: Record<string, string>; disabled_types: string[] };
+export type Storefront = { images: Record<string, string>; disabled_types: string[]; features?: Record<string, boolean> };
 export function useStorefront() {
   return useQuery({ queryKey: ["storefront"], queryFn: () => request<Storefront>("/storefront"), staleTime: 1000 * 30 });
+}
+
+/** Builder features the store switched on/off in Admin → Catalog (on by default). */
+export function useFeatures() {
+  const { data } = useStorefront();
+  return (k: string) => data?.features?.[k] ?? true;
 }
 
 export function useCatalog() {
@@ -100,15 +106,15 @@ export function useCatalog() {
 
 export type Stroke = { points: [number, number][]; w: number };
 /** `design` null = the customer's own uploaded jewelry photo (snapshotUri) is the base. */
-export async function requestSketch(design: DesignSpec | null, strokes: Stroke[], note: string, renderId: string | null, snapshotUri: string | null) {
+export async function requestSketch(design: DesignSpec | null, strokes: Stroke[], note: string, renderId: string | null, snapshotUri: string | null, parentId?: string) {
   const res = await uploadForm(`${BASE}/sketches`, {
-    fields: { design: design ? JSON.stringify(design) : "", strokes: JSON.stringify(strokes), note, render_id: renderId ?? "" },
+    fields: { design: design ? JSON.stringify(design) : "", strokes: JSON.stringify(strokes), note, render_id: renderId ?? "", parent_id: parentId ?? "" },
     files: snapshotUri && !renderId ? { snapshot: { uri: snapshotUri, name: design ? "preview.png" : "photo.jpg", mimeType: design ? "image/png" : "image/jpeg" } } : {},
     headers: customerHeaders(),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Sketch render failed");
-  return body as { id: string; image_url: string; sketch_url: string };
+  return body as { id: string; image_url: string; sketch_url: string; round?: number };
 }
 export function requestAngle(renderId: string, angle: string) {
   return request<{ image_url: string }>(`/renders/${renderId}/angles/${angle}`, { method: "POST" });
@@ -167,7 +173,7 @@ export type LeadStatus = "new" | "contacted" | "quoted" | "won" | "lost";
 export type LeadNote = { id: string; text: string; system: boolean; author: string; created_at: string };
 export type Lead = {
   id: string; kind: "design" | "product" | "sketch"; design: DesignSpec | null;
-  sketch?: { id: string; note: string; sketch_url: string; uploaded?: boolean } | null;
+  sketch?: { id: string; note: string; sketch_url: string; uploaded?: boolean; round?: number } | null;
   brief?: Record<string, string>; brief_updated_by?: string; brief_updated_at?: string;
   product: { id: string; title: string; price: number; image: string | null; url: string; product_type: string } | null;
   name: string; email: string; phone: string; note: string; price: number; image_url: string | null;

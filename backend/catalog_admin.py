@@ -65,9 +65,24 @@ def init(db, get_catalog):
     _db, _get_catalog = db, get_catalog
 
 
+async def require_feature(key: str):
+    """Server-side guard so a store's switched-off tool can't be used via direct links or API calls."""
+    if not (await load_config())["features"].get(key, True):
+        raise HTTPException(403, "This feature is turned off for this store")
+
+
+FEATURES = {  # builder features each store can switch on/off (all on by default)
+    "prices": "Price estimates", "three_d": "Live 3D view", "studio_photo": "AI studio photo", "angle_views": "Angle views",
+    "sketch": "Sketch on design", "redesign": "Redesign a customer photo", "hidden_halo": "Hidden halo add-on",
+    "two_tone": "Two-tone head metal", "stacking": "Stacking bands", "inscription": "Engraving & inscription preview",
+    "notes": "Notes for your jeweller", "try_on": "Virtual try-on",
+}
+
+
 async def load_config() -> dict:
     doc = await _db.catalog_config.find_one({"key": "default"}, {"_id": 0}) or {}
-    return {"disabled_types": doc.get("disabled_types", []), "disabled": doc.get("disabled", {})}
+    feats = {k: bool(doc.get("features", {}).get(k, True)) for k in FEATURES}
+    return {"disabled_types": doc.get("disabled_types", []), "disabled": doc.get("disabled", {}), "features": feats}
 
 
 async def load_slots() -> Dict[str, dict]:
@@ -143,7 +158,7 @@ async def storefront_images() -> dict:
 @public.get("/storefront")
 async def storefront():
     cfg = await load_config()
-    return {"images": await storefront_images(), "disabled_types": cfg["disabled_types"]}
+    return {"images": await storefront_images(), "disabled_types": cfg["disabled_types"], "features": cfg["features"]}
 
 
 @public.get("/slot-images/{key}")
@@ -191,7 +206,20 @@ async def admin_catalog():
     labels = {"home:hero": "Home hero"} | {f"type:{t['id']}": f"{t['name']} tile" for t in full["types"]}
     storefront_slots = [{"key": k, "label": labels.get(k, k), "image": v,
                          "image_source": slots.get(k, {}).get("source", "default")} for k, v in sf.items()]
-    return {"types": types, "groups": groups, "storefront": storefront_slots, "stock": STOCK}
+    return {"types": types, "groups": groups, "storefront": storefront_slots, "stock": STOCK,
+            "features": [{"id": k, "label": v, "enabled": cfg["features"][k]} for k, v in FEATURES.items()]}
+
+
+class FeaturesIn(BaseModel):
+    features: Dict[str, bool]
+
+
+@dash.put("/catalog/features")
+async def save_features(body: FeaturesIn):
+    feats = {k: v for k, v in body.features.items() if k in FEATURES}
+    await _db.catalog_config.update_one({"key": "default"}, {"$set": {**{f"features.{k}": v for k, v in feats.items()},
+                                                                       "updated_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+    return {"features": (await load_config())["features"]}
 
 
 class TogglesIn(BaseModel):

@@ -9,6 +9,7 @@ import { Catalog, DesignSpec, Stroke, assetUrl, requestAngle, requestRender, req
 import { SketchPad } from "@/src/components/sketch-pad";
 import { SketchResult } from "@/src/components/sketch-result";
 import { useCustomer } from "@/src/customer";
+import { useFeatures } from "@/src/api";
 import { JewelryPreview } from "@/src/components/jewelry-preview";
 import { RingViewer, type RingViewerHandle } from "@/src/components/ring3d/ring-viewer";
 import type { RingSpec } from "@/src/components/ring3d/build-ring";
@@ -51,7 +52,14 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
   const keyRef = useRef(key);
   keyRef.current = key;
   const isRing = design.type === "ring" || design.type === "band";
-  const hasLive = isRing || ["necklace", "bracelet", "earrings"].includes(design.type);
+  const feat = useFeatures();
+  const hasLive = feat("three_d") && (isRing || ["necklace", "bracelet", "earrings"].includes(design.type));
+  const photoOn = feat("studio_photo");
+  const photoOnRef = useRef(photoOn);
+  photoOnRef.current = photoOn;
+  useEffect(() => {
+    if (!photoOn && hasLive) setMode("live");
+  }, [photoOn, hasLive]);
   const { allowed, ensure } = useCustomer();
   const [angle, setAngle] = useState("hero");
   const [angleUrls, setAngleUrls] = useState<Record<string, string>>({});
@@ -113,8 +121,8 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
     setRender((r) => (r.key === key ? r : { status: "idle" }));
     setAngle("hero");
     setAngleUrls({});
-    if (!autoRender || !allowed("studio_photo")) return;
-    const h = setTimeout(() => run(false), RENDER_DELAY);
+    if (!autoRender || !allowed("studio_photo") || !feat("studio_photo")) return;
+    const h = setTimeout(() => photoOnRef.current && run(false), RENDER_DELAY);
     return () => clearTimeout(h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
@@ -204,6 +212,11 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
             <Image source={{ uri: shownUrl }} style={[styles.photo, StyleSheet.absoluteFill]} contentFit="contain" transition={400} testID="builder-render-photo" />
             {!photoReady && <View style={styles.updatingVeil} />}
           </View>
+        ) : !photoOn ? (
+          <View style={styles.placeholder} testID="photo-unavailable">
+            <Feather name="aperture" size={24} color={colors.muted} />
+            <Text style={[styles.placeholderText, { color: colors.onSurface }]}>Studio photos aren’t available in this store.</Text>
+          </View>
         ) : !allowed("studio_photo") && render.status !== "loading" ? (
           <View style={styles.placeholder} testID="photo-locked">
             <Feather name="aperture" size={24} color={colors.brandPrimary} />
@@ -223,7 +236,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
       </View>
       {!!sketchError && sketching && <Text style={styles.sketchError} testID="sketch-error">{sketchError}</Text>}
 
-      {hasLive && <View style={styles.segment} testID="canvas-mode-toggle">
+      {hasLive && photoOn && <View style={styles.segment} testID="canvas-mode-toggle">
         {(["photo", "live"] as const).map((m) => {
           const sel = mode === m;
           return (
@@ -248,11 +261,11 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
       {isRing && mode === "live" && controls(viewer, false)}
       {!sketching && (mode === "photo" ? !!shownUrl : isRing) && (
         <View style={[styles.controls, mode === "live" && { bottom: "auto", top: spacing["3xl"] + spacing.lg }]}>
-          <CtrlBtn testID="sketch-start-button" icon="edit-3" onPress={startSketch} />
+          {feat("sketch") && <CtrlBtn testID="sketch-start-button" icon="edit-3" onPress={startSketch} />}
           {mode === "photo" && <CtrlBtn testID="photo-fullscreen-button" icon="maximize-2" onPress={() => setFullscreen(true)} />}
         </View>
       )}
-      {!sketching && mode === "photo" && photoReady && !!render.id && (
+      {!sketching && mode === "photo" && photoReady && !!render.id && feat("angle_views") && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.angles} contentContainerStyle={styles.anglesInner} testID="angle-bar">
           {ANGLES.map((a) => {
             const sel = angle === a.id;
@@ -297,7 +310,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
         </View>
       </Modal>
 
-      {!sketching && <View style={[styles.renderChip, mode === "photo" && photoReady && styles.renderChipTop, { pointerEvents: "box-none" }]} testID="render-status">
+      {!sketching && photoOn && <View style={[styles.renderChip, mode === "photo" && photoReady && styles.renderChipTop, { pointerEvents: "box-none" }]} testID="render-status">
         {render.status === "loading" ? (
           <View style={styles.chipInner}>
             <ActivityIndicator size="small" color={colors.brandPrimary} />

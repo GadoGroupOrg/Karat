@@ -106,6 +106,7 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - Iteration 23 (Jun 2026): hidden_halo available on ALL settings (not charged when style is hidden-halo); InscriptionPreview = SVG ring with curved TextPath inside the band.
 - Iteration 24 (Jun 2026): Hidden halo is its own add-on section (toggle + Switch) above Engraving, like engraving (ADD_ON_GROUPS excluded from generic chips). Add-on headers show the actual breakdown line amount (Optional add-on when off; "Added" when prices gated).
 - Iteration 25 (Jun 2026): Photo redesign: /redesign screen (upload or camera with permission flow) -> SketchPad over the photo (backgroundUri, square) + written instructions -> POST /api/sketches with no design (server pads photo to square, design optional, strokes optional if note) -> SketchResult -> quote kind sketch with sketch.uploaded (price 0, "Price to be quoted"). Builder header button "Redesign a photo". Admin lead Crafting brief (PUT /api/dashboard/leads/{id}/brief, BRIEF_KEYS sizing/specs) component crafting-brief.tsx.
+- Iteration 27 (Jun 2026): Builder feature toggles per store (catalog_config.features; PUT /api/dashboard/catalog/features; storefront.features; useFeatures()) gating prices, 3D, studio photo, angles, sketch, redesign, hidden halo, two-tone, stacking, inscription, notes, try-on. Consultation designer: crafting-brief.tsx BRIEF_SECTIONS (sizing, GIA centre stone 4Cs+report, head/prongs/halo/hidden halo/gallery/rail/bridge/cathedral, shoulders/accents/shank/profile/finish, workshop notes) with chips + custom. Printable job sheet /job-sheet/[id] (window.print). Redesign rounds: POST /api/sketches parent_id (base = previous result, round++), SketchResult "Refine further".
 
 
 
@@ -113,6 +114,12 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 
 - New builders: fashion-ring, pendant, tennis (+ bracelet charm/bangle/anklet, earrings huggie/pavé hoop/climber); generic pricing adds option prices; 3D only for ring/band; style toggles per builder (style.<type>) with image slots; custom styles (db.custom_styles) via /api/dashboard/custom-styles
 - Spend controls (caps per AI feature) — user still deciding (explained options A/B/C)
+
+
+## Feature-off before sign-up gate (2026-06) — tested iteration 29
+- Backend: renders/angles/sketches/tryons check store feature toggle BEFORE customer access gate (403 feature off).
+- Builder: studio photo off → 3D by default, no render buttons, no auto-render; try-on & redesign show "unavailable" with Back to shop / Open builder.
+- Stacking add-on already exists (stack count, band style, band metal; priced, rendered, in job sheet).
 
 ## NEXT (user-approved order)
 3. Consultation Studio (admin): customer profiles (create/edit, ring size, budget, occasion, date, preferences), timeline of designs/sketches/quotes/notes; consult-mode builder inside admin for a customer (no gating, shows cost vs retail/margin, price override); multi-colour annotate (save without AI) or render; share proposal link/PDF

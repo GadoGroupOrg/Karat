@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { requestSketch, type Stroke } from "@/src/api";
+import { requestSketch, useFeatures, type Stroke } from "@/src/api";
 import { useCustomer } from "@/src/customer";
 import { SketchPad } from "@/src/components/sketch-pad";
 import { SketchResult } from "@/src/components/sketch-result";
@@ -20,6 +20,7 @@ export default function Redesign() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { ensure } = useCustomer();
+  const feat = useFeatures();
   const [photo, setPhoto] = useState<string | null>(null);
   const [cam, setCam] = useState<"idle" | "explain" | "blocked">("idle");
   const [busy, setBusy] = useState(false);
@@ -72,7 +73,14 @@ export default function Redesign() {
         <View style={styles.iconBtn} />
       </View>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]} keyboardShouldPersistTaps="handled">
-        {!photo ? (
+        {!feat("redesign") ? (
+          <View testID="redesign-unavailable" style={styles.intro}>
+            <Text style={[styles.text, { color: colors.onSurface }]}>Photo redesign isn’t available in this store. Try designing your piece in the builder.</Text>
+            <Pressable testID="redesign-open-builder" onPress={() => router.replace("/build")} style={styles.darkBtn}>
+              <Text style={styles.darkText}>Open builder</Text>
+            </Pressable>
+          </View>
+        ) : !photo ? (
           <View style={styles.intro} testID="redesign-intro">
             <Text style={styles.eyebrow}>BRING YOUR INSPIRATION</Text>
             <Text style={styles.title}>Start from any jewelry photo</Text>

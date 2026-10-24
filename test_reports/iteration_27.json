@@ -1,0 +1,49 @@
+{
+  "summary": "Iteration 27 covered builder feature toggles, the consultation designer brief, the printable job sheet and redesign rounds. I used 2 AI sketch generations: 1 in pytest and 1 in the UI. Backend: 8/8 pytest pass. GET /api/storefront returns all 12 feature keys, true by default. PUT /api/dashboard/catalog/features {prices:false,bogus_key:false} saves prices=false, ignores the unknown key and leaves the other tenant (test-iso-fd5e5a) unaffected. The endpoint returns 401/403 without auth. GET /api/dashboard/catalog lists features as [{id,label,enabled}]. Brief PUT saves every new anatomy and GIA key; unknown keys and blank values are dropped. POST /api/sketches with an unknown parent_id returns 404. With parent_id set to an existing round-1 sketch it returns 200 with round 2, and a quote created from it has sketch.round=2. Frontend: the admin builder-features panel shows 12 feature-<id> switches; tapping one persists after reload. On /build at 390x844, turning off three_d, sketch, redesign, notes, hidden_halo, two_tone, stacking and inscription each removes the matching control (canvas-mode-toggle, sketch-start-button, builder-redesign-photo-button, design-notes-input, addon-hidden-halo-toggle, option-head_metal-*, option-stack*, engraving-input). Turning off try_on removes product-try-on-button, and it comes back when switched on. Bug: with prices off, builder-total-price and price-breakdown are hidden, but the bottom bar still shows the 'Estimated total' label and a 'See price' link (see-price-button) that does nothing. The lead crafting brief shows 'CONSULTATION DESIGNER' with 5 sections. Chips select and deselect, '+ Custom' opens a text input, and Save shows 'Saved'; values persist after reload. Job sheet: lead-job-sheet-button opens /job-sheet/<id>. It shows the title, 'Design as configured' rows, filled brief sections, customer notes plus the mark-up note, 5 sign-off boxes and both images (render and sketch overlay). Print calls window.print and Back returns to the lead. The job sheet works at 1440x900 but its header is broken at 390x844. Redesign rounds: the first render response was MOCKED in Playwright (it returned an existing round-1 sketch) so no AI credit was used. Tapping sketch-refine-button opens the SketchPad over the render. The real Render call sent parent_id, and the image updated with the label 'Refine further · version 2'. Sending created a lead with sketch.round=2. All feature toggles are back to true and both TEST leads are deleted. No deprecated Expo packages were found in the files reviewed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/sketches, POST /api/tryons, POST /api/price", "issue": "Feature toggles only hide UI. The backend does not enforce them, so with sketch/redesign/try_on/prices off the APIs still work and /api/price still returns prices."},
+      {"endpoint": "POST /api/sketches", "issue": "If both parent_id and render_id are sent, render_id silently replaces the parent's image as the base (server.py:497-500), but round still counts as parent+1."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Builder bottom bar (prices feature off)", "issue": "With features.prices=false, the 'Estimated total' label and a 'See price' link (see-price-button) are still shown. Tapping it calls ensure('prices'), which does nothing because the gate is the customer-access rule, not the store feature. Expected: no price area at all. Reference: /app/frontend/app/(tabs)/build.tsx:499-507 (the label at line 500 is outside the showPrice condition; the else branch should check feat('prices')).", "testID": "see-price-button", "priority": "HIGH"},
+      {"component": "Job sheet header on mobile", "issue": "At 390x844 the header is a row with the client box at minWidth 240, which squeezes the title column to about 60px. The title breaks mid-word ('TES / T / Halo / Ring'), the eyebrow and meta wrap letter by letter, and the client box stretches to about 300px tall. Reference: /app/frontend/app/job-sheet/[id].tsx:50 (title View flex:1 with no flexBasis) and line 111 (box minWidth 240). Fix: give the title View flexBasis ~280 and flexGrow 1, and let the box flexGrow so it wraps below.", "testID": "job-sheet-title", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Feature toggles vs direct routes", "issue": "/redesign and /try-on/[id] do not check useFeatures(). With redesign or try_on off, deep links and embeds can still open these tools.", "affected_testIDs": ["redesign-screen"]}
+    ],
+    "design_issues": [
+      {"screen": "Job sheet mobile", "issues": ["Key column has a fixed width of 200px (s.k), leaving about 126px for values at 390px. Use a narrower or percentage key width on small screens."]},
+      {"screen": "Job sheet print", "issues": ["The Back and Print buttons have no print-hide rule, so they appear on the printed page."]},
+      {"screen": "Sketch result refine", "issues": ["The SketchPad (with its note input and buttons) is drawn inside the square imgWrap (overflow hidden, aspectRatio 1), so the drawable image shrinks to about 237px instead of the full 342px width."]},
+      {"screen": "Lead crafting brief", "issues": ["The '+ Custom' text links are about 16px tall (hitSlop 6 gives about 28px), below the 44px touch target. Chip testIDs contain spaces (e.g. 'brief-prong_count-6 prong')."]},
+      {"screen": "Admin lead detail", "issues": ["The lead page does not show the redesign round/version (sketch.round=2 is only in the API), and earlier rounds are not linked."]}
+    ],
+    "react_native_issues": [
+      {"component": "BuilderFeatures switch accessibility", "issue": "accessibilityState={{checked}} on Pressable with role 'switch' does not output aria-checked on web (it is null), so assistive tech and tests cannot read the state. Reference: /app/frontend/src/components/admin/builder-features.tsx:33. There is also no error handling or rollback if the PUT fails (line 19-24)."}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iter27_features_brief_rounds.py", "/app/backend/tests/feature_toggle.sh", "/app/test_reports/pytest/iter27.xml"],
+  "action_items": [
+    "HIGH: build.tsx bottom bar: when feat('prices') is false, hide the 'Estimated total' label and the see-price-button (only show 'See price' when the customer-access gate blocks prices).",
+    "MEDIUM: Fix the job sheet header layout on mobile (title column flexBasis/flexGrow; client box wraps below). Consider a narrower key column under 600px.",
+    "Guard /redesign and /try-on/[id] with useFeatures(), and optionally enforce features on the backend (sketch/redesign -> POST /api/sketches, try_on -> POST /api/tryons, prices -> strip prices from /api/price).",
+    "Optional: hide the Back/Print actions when printing; show the sketch round/version on the admin lead detail; enlarge the '+ Custom' touch target; add aria-checked or use accessibilityRole that maps for web, plus error handling on feature toggles.",
+    "Optional: if both parent_id and render_id are sent to /api/sketches, either reject the request or prefer the parent."
+  ],
+  "critical_code_review_comments": [
+    "build.tsx is 688 lines, close to the 700-line limit. Consider extracting the bottom bar and the add-ons section.",
+    "Feature flags are enforced only on the client; anyone calling the API directly still gets the disabled features.",
+    "useFeatures defaults to true while storefront is loading, so disabled tools can flash briefly before the storefront query resolves."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter27_features_brief_rounds.py", "/app/backend/tests/feature_toggle.sh"],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "~85% (all toggles except prices correct, brief/job sheet/rounds pass; prices bottom bar and mobile job sheet header failing)"},
+  "seed_data_creation": "Created 2 TEST leads and 1 new sketch doc (round 2, id 220f13392c0995358115e29d027bacd6, parent e86b0706046e42010130f0d442c9b5d6) in the UI, plus 2 TEST leads and 1 round-2 sketch in pytest (id 56e6bb5afed64bb3df88872ba7eb95ac). All TEST leads are deleted; the sketch docs remain.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run with: export EXPO_PUBLIC_BACKEND_URL=...; pytest tests/test_iter27_features_brief_rounds.py -n 0. Set RUN_AI=0 to skip the 1 AI sketch call. Toggle features quickly with: bash /app/backend/tests/feature_toggle.sh '{\"prices\":false}' and always reset all to true afterwards. The other tenant slug for the isolation check is test-iso-fd5e5a. The product with try-on is shop-10762101948438; the product page takes about 5-8s to load, so wait for product-detail-title before counting buttons. To test refine without spending 2 AI calls, mock the first POST /api/sketches in Playwright with page.route (use request.post_data_buffer; post_data crashes on multipart). Job sheet sketch images are large PNGs (1.3MB) and take about 5-10s to load.",
+  "rca_of_issue": "Prices toggle: build.tsx line 500 renders <Text>Estimated total</Text> unconditionally, and lines 501-507 fall back to see-price-button whenever showPrice is false. showPrice = allowed('prices') && feat('prices') combines the customer-gate and store-feature cases, so the store-disabled case shows the gate's 'See price' link and tapping it does nothing. Mobile job sheet: the header row uses flexWrap, but the title View has flex:1 (flexBasis 0) while the box has minWidth 240, so at 390px they never wrap and the title gets about 60px."
+}

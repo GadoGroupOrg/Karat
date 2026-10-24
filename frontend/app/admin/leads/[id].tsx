@@ -183,7 +183,13 @@ export default function LeadDetail() {
           <Feather name="arrow-left" size={16} color={colors.onSurface} />
           <Text style={styles.outlineText}>All leads</Text>
         </Pressable>
-        <StatusPill status={lead.status} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          <Pressable testID="lead-job-sheet-button" onPress={() => router.push(`/job-sheet/${id}` as never)} style={styles.outlineBtnSm}>
+            <Feather name="printer" size={14} color={colors.onSurface} />
+            <Text style={styles.outlineText}>Job sheet</Text>
+          </Pressable>
+          <StatusPill status={lead.status} />
+        </View>
       </View>
       {wide ? (
         <View style={{ flexDirection: "row", gap: spacing.xl, alignItems: "flex-start" }}>

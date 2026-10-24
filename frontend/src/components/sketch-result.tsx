@@ -5,14 +5,19 @@ import { ActivityIndicator, Modal, Pressable, Text, TextInput, View } from "reac
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { DesignSpec, assetUrl, createQuote } from "@/src/api";
+import { DesignSpec, Stroke, assetUrl, createQuote, requestSketch } from "@/src/api";
+import { SketchPad } from "@/src/components/sketch-pad";
 import { useCustomer } from "@/src/customer";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
-type Props = { design: DesignSpec | null; sketch: { id: string; image_url: string; sketch_url: string; note: string }; onClose: () => void };
+type Sk = { id: string; image_url: string; sketch_url: string; note: string; round?: number };
+type Props = { design: DesignSpec | null; sketch: Sk; onClose: () => void };
 
 /** The AI render of a customer's sketch, with "Send to our jewelers" (creates a Sketch request lead). */
-export function SketchResult({ design, sketch, onClose }: Props) {
+export function SketchResult({ design, sketch: first, onClose }: Props) {
+  const [sketch, setSketch] = useState<Sk>(first);
+  const [refining, setRefining] = useState(false);
+  const [refineBusy, setRefineBusy] = useState(false);
   const styles = useStyles();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -36,6 +41,23 @@ export function SketchResult({ design, sketch, onClose }: Props) {
     }
   };
 
+  /** Another round: mark up the latest render and render again. */
+  const refine = async (strokes: Stroke[], note: string) => {
+    setRefineBusy(true);
+    setError(null);
+    try {
+      const r = await requestSketch(design, strokes, note, null, null, sketch.id);
+      setSketch({ ...r, note: [sketch.note, note].filter(Boolean).join(" · ") });
+      setForm((f) => ({ ...f, note: [f.note, note].filter(Boolean).join(" · ") }));
+      setRefining(false);
+      setShowSketch(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setRefineBusy(false);
+    }
+  };
+
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAwareScrollView style={styles.root} contentContainerStyle={{ padding: spacing.xl, paddingBottom: insets.bottom + spacing.xl, gap: spacing.md }} testID="sketch-result">
@@ -47,12 +69,24 @@ export function SketchResult({ design, sketch, onClose }: Props) {
           <Pressable onPress={onClose} hitSlop={8} style={styles.close} testID="sketch-result-close"><Feather name="x" size={22} color={colors.onSurface} /></Pressable>
         </View>
         <View style={styles.imgWrap}>
-          <Image source={{ uri: assetUrl(showSketch ? sketch.sketch_url : sketch.image_url) }} style={styles.img} contentFit="contain" testID="sketch-result-image" />
-          <Pressable onPress={() => setShowSketch((v) => !v)} style={styles.toggle} testID="sketch-compare-toggle">
-            <Feather name={showSketch ? "image" : "edit-3"} size={13} color={colors.onSurface} />
-            <Text style={styles.toggleText}>{showSketch ? "Show render" : "Show my sketch"}</Text>
-          </Pressable>
+          {refining ? (
+            <SketchPad square busy={refineBusy} onCancel={() => setRefining(false)} onSubmit={refine} backgroundUri={assetUrl(sketch.image_url)} />
+          ) : (
+            <>
+              <Image source={{ uri: assetUrl(showSketch ? sketch.sketch_url : sketch.image_url) }} style={styles.img} contentFit="contain" testID="sketch-result-image" />
+              <Pressable onPress={() => setShowSketch((v) => !v)} style={styles.toggle} testID="sketch-compare-toggle">
+                <Feather name={showSketch ? "image" : "edit-3"} size={13} color={colors.onSurface} />
+                <Text style={styles.toggleText}>{showSketch ? "Show render" : "Show my sketch"}</Text>
+              </Pressable>
+            </>
+          )}
         </View>
+        {!refining && state !== "sent" && (
+          <Pressable testID="sketch-refine-button" onPress={() => { setShowSketch(false); setRefining(true); }} style={styles.refine}>
+            <Feather name="edit-3" size={14} color={colors.onSurface} />
+            <Text style={styles.refineText}>Refine further{(sketch.round ?? 1) > 1 ? ` · version ${sketch.round}` : ""}</Text>
+          </Pressable>
+        )}
         {state === "sent" ? (
           <View style={styles.sent} testID="sketch-sent">
             <Feather name="check-circle" size={18} color={colors.onSuccess} />
@@ -88,6 +122,8 @@ const useStyles = makeStyles((c) => ({
   imgWrap: { width: "100%", maxWidth: 560, alignSelf: "center", aspectRatio: 1, borderRadius: radius.lg, overflow: "hidden", backgroundColor: c.surfaceSecondary },
   img: { width: "100%", height: "100%" },
   toggle: { position: "absolute", top: spacing.md, right: spacing.md, flexDirection: "row", alignItems: "center", gap: 6, height: 36, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: c.surface },
+  refine: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, height: 44, borderRadius: radius.pill, borderWidth: 1, borderColor: c.borderStrong },
+  refineText: { fontFamily: fonts.bold, fontSize: 14, color: c.onSurface },
   toggleText: { fontFamily: fonts.medium, fontSize: 12, color: c.onSurface },
   sub: { fontFamily: fonts.text, fontSize: 14, lineHeight: 20, color: c.muted },
   input: { height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, paddingHorizontal: spacing.lg, fontFamily: fonts.text, fontSize: 15, color: c.onSurface },

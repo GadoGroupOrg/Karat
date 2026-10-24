@@ -10,7 +10,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { assetUrl, createQuote, requestTryOn, useStoreProduct } from "@/src/api";
+import { assetUrl, createQuote, requestTryOn, useFeatures, useStoreProduct } from "@/src/api";
 import { useCustomer } from "@/src/customer";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -46,6 +46,7 @@ export default function TryOn() {
   const [error, setError] = useState<string | null>(null);
   const [cam, setCam] = useState<CamState>("idle");
   const { ensure } = useCustomer();
+  const feat = useFeatures();
   const [tryonId, setTryonId] = useState<string | null>(null);
   const [enquire, setEnquire] = useState<"closed" | "open" | "sent">("closed");
   const [form, setForm] = useState({ name: "", email: "", phone: "", note: "" });
@@ -138,6 +139,14 @@ export default function TryOn() {
         {!!product?.image && <Image source={{ uri: product.image }} style={styles.thumb} contentFit="cover" />}
       </View>
 
+      {!feat("try_on") ? (
+        <View style={styles.form} testID="try-on-unavailable">
+          <Text style={[styles.placeholderText, { paddingHorizontal: spacing.xl, color: colors.onSurface }]}>Virtual try-on isn’t available in this store.</Text>
+          <Pressable testID="try-on-back-to-shop" onPress={close} style={[styles.outlineBtn, { marginHorizontal: spacing.xl }]}>
+            <Text style={styles.secondaryText}>Back to shop</Text>
+          </Pressable>
+        </View>
+      ) : (
       <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: insets.bottom + spacing.xl }} showsVerticalScrollIndicator={false}>
         <View style={styles.stage} testID="try-on-stage">
           {shown ? (
@@ -252,6 +261,7 @@ export default function TryOn() {
         )}
         <Text style={styles.note}>AI-generated preview. Your photo is only used to create this image.</Text>
       </KeyboardAwareScrollView>
+      )}
     </View>
   );
 }

@@ -354,6 +354,7 @@ class Render(BaseDocument):
 
 @api_router.post("/renders")
 async def create_render(request: Request, design: str = Form(...), force: str = Form("false"), snapshot: Optional[UploadFile] = File(None)):
+    await catalog_admin.require_feature("studio_photo")
     await customers.require("studio_photo", request)
     try:
         spec = DesignSpec.model_validate_json(design)
@@ -409,6 +410,7 @@ async def create_angle(h: str, angle: str, request: Request):
     cached = await db.render_angles.find_one({"hash": h, "angle": angle, "v": render_service.ANGLE_VERSION})
     if cached:
         return {"image_url": f"/api/renders/{h}/angles/{angle}/image?v={cached['created_at'][:19]}", "cached": True}
+    await catalog_admin.require_feature("angle_views")
     await customers.require("angles", request)
     try:
         data, _ = await run_in_threadpool(render_service.get_object, base["storage_path"])
@@ -474,8 +476,9 @@ def _square(data: bytes) -> bytes:
 
 @api_router.post("/sketches")
 async def create_sketch(request: Request, design: str = Form(""), strokes: str = Form("[]"), note: str = Form(""),
-                        render_id: str = Form(""), snapshot: Optional[UploadFile] = File(None)):
+                        render_id: str = Form(""), snapshot: Optional[UploadFile] = File(None), parent_id: str = Form("")):
     """Sketch over a builder design, or (no design) over the customer's own uploaded jewelry photo."""
+    await catalog_admin.require_feature("sketch" if design else "redesign")
     await customers.require("sketch", request)
     try:
         spec = DesignSpec.model_validate_json(design) if design else None
@@ -486,9 +489,14 @@ async def create_sketch(request: Request, design: str = Form(""), strokes: str =
     catalog = await get_catalog()
     if spec:
         compute_price(catalog, spec)
-    elif not snapshot:
+    elif not snapshot and not parent_id:
         raise HTTPException(400, "Upload a photo of the jewelry first")
-    base = None
+    base, parent = None, None
+    if parent_id:  # refine a previous render: the last result becomes the new base
+        parent = await db.sketches.find_one({"id": parent_id})
+        if not parent:
+            raise HTTPException(404, "Previous version not found")
+        base, _ = await run_in_threadpool(render_service.get_object, parent["storage_path"])
     if render_id:
         r = await db.renders.find_one({"hash": render_id})
         if r:
@@ -520,10 +528,13 @@ async def create_sketch(request: Request, design: str = Form(""), strokes: str =
             raise HTTPException(402, "Render credits exhausted. Please top up your balance.")
         raise HTTPException(502, "Couldn't render your sketch. Please try again.")
     await log_usage("sketch")
-    await db.sketches.insert_one({"id": sid, "design": spec.model_dump() if spec else None, "uploaded": not spec,
+    await db.sketches.insert_one({"id": sid, "design": spec.model_dump() if spec else None,
+                                  "uploaded": bool(parent.get("uploaded")) if parent else not spec,
+                                  "parent_id": parent_id or None, "round": (parent.get("round", 1) + 1) if parent else 1,
                                   "note": note[:500], "storage_path": path,
                                   "sketch_path": cpath, "created_at": datetime.now(timezone.utc).isoformat()})
-    return {"id": sid, "image_url": f"/api/sketches/{sid}/image", "sketch_url": f"/api/sketches/{sid}/image?which=sketch"}
+    return {"id": sid, "image_url": f"/api/sketches/{sid}/image", "sketch_url": f"/api/sketches/{sid}/image?which=sketch",
+            "round": (parent.get("round", 1) + 1) if parent else 1}
 
 
 @api_router.get("/sketches/{sid}/image")
@@ -537,6 +548,7 @@ async def sketch_image(sid: str, which: str = "result"):
 
 @api_router.post("/tryons")
 async def create_tryon(request: Request, product_id: str = Form(...), photo: UploadFile = File(...)):
+    await catalog_admin.require_feature("try_on")
     await customers.require("try_on", request)
     product = await db.store_products.find_one({"id": product_id}, {"_id": 0})
     if not product:
@@ -602,7 +614,7 @@ async def create_quote(payload: QuoteCreate, request: Request):
     if sk:
         image_url = f"/api/sketches/{payload.sketch_id}/image"
         sketch = {"id": sk["id"], "note": sk.get("note", ""), "sketch_url": f"/api/sketches/{sk['id']}/image?which=sketch",
-                  "uploaded": bool(sk.get("uploaded"))}
+                  "uploaded": bool(sk.get("uploaded")), "round": sk.get("round", 1)}
     quote = Quote(
         design=payload.design, product=product, kind="sketch" if sketch else "design" if payload.design else "product", sketch=sketch,
         customer_id=cust["user_id"] if cust else None,

@@ -1,0 +1,32 @@
+{
+  "summary": "All requested checks pass. Backend: when a feature is off, POST /api/sketches (sketch and redesign), /api/tryons, /api/renders and /api/renders/{h}/angles/{angle} (uncached) all return 403 'This feature is turned off for this store', even when the access rule for that action requires an account. With features on and the gate set, every endpoint returns 'gate:account'. With no gate, they return validation errors (400 Invalid design / 404 / 400). A cached angle view is still served (200, cached) when angle_views is off. Frontend at 390px: with studio_photo off, the ring and band builders open in 3D with no Photo/3D toggle, no render-now-button and no 'Create studio photo' button. Pendant, fashion-ring, and ring with three_d also off show photo-unavailable. With studio_photo on, the toggle, unlock button and render chip come back. With try_on off, try-on-unavailable shows and try-on-back-to-shop goes to /shop. With redesign off, redesign-unavailable shows and redesign-open-builder goes to /build. Both screens are normal again when the features are back on. One minor frontend race was found: the builder can send POST /api/renders while studio_photo is off. The backend rejects it with 403, so no credits are used. All 12 features were restored to true and the access rules to their original values (all 'none', no questions). No AI generations ran.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "DesignCanvas auto-render", "issue": "With studio_photo off, a fresh load of /build (ring or band, access rule 'none') still sent POST /api/renders in 2 of 3 page loads. The backend returned 403, so no credits were used, but the request should never be sent. Cause: useFeatures() returns true while /api/storefront is still loading. The auto-render effect (design-canvas.tsx:118-126, deps [key]) checks feat('studio_photo') only when it schedules the 1200ms timer, and the timer callback does not check again. Fix: keep photoOn in a ref and check it inside the setTimeout callback, or add photoOn to the effect deps or wait until storefront data has loaded.", "testID": "builder-preview-canvas", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/build pendant / fashion-ring (studio_photo off)", "issues": ["The canvas is a large empty grey box (about 340px) with one muted line 'Studio photos aren't available in this store.' There is no visual of the piece. Consider showing the 2D JewelryPreview or the selected style's catalog image."]},
+      {"screen": "/redesign and /try-on unavailable states", "issues": ["The message is light grey on a near-white background, which looks low-contrast. Consider using onSurface or a darker muted colour."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter29_feature_before_gate.py", "/app/backend/tests/test_iter28_feature_enforcement.py", "/app/test_reports/pytest/iter29.xml"],
+  "action_items": [
+    "LOW: Stop the auto-render timer from sending POST /api/renders when studio_photo is off. Check the feature again inside the setTimeout callback, or wait until storefront features have loaded (design-canvas.tsx:118-126).",
+    "Optional: show a 2D preview or catalog image instead of an empty box for builder types without 3D when studio_photo is off.",
+    "Optional: raise the text contrast in the redesign-unavailable and try-on-unavailable messages."
+  ],
+  "critical_code_review_comments": [
+    "server.py: the feature guard now runs before customers.require in create_render (357), create_angle (413, after the cache and 404 checks, which is intended), create_sketch (481) and create_tryon (551). The order is correct.",
+    "useFeatures() returns true by default while loading (api.ts:100). This is fine for showing UI, but any side effect that depends on it (auto-render) should wait until the data has loaded."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter29_feature_before_gate.py"],
+  "success_rate": {"backend": "100% (15/15, iter28 + iter29)", "frontend": "100% of requested flows (6/6); 1 minor race found"},
+  "seed_data_creation": "None. Access rules were temporarily set to 'account' for studio_photo, angles, try_on and sketch, then restored to all 'none' with no questions.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && EXPO_PUBLIC_BACKEND_URL=<url> python -m pytest tests/test_iter29_feature_before_gate.py tests/test_iter28_feature_enforcement.py -n 0. They restore features and access rules on teardown. Render hash 1fb0f99bac76cfdbca79146cca436500 has no angle views; a83bdc0a08b7cf2a8849e40f1f6f02f0 has a cached 'top' (v3). Builder types: ring, band, fashion-ring, pendant (/build?type=X). Try-on product: shop-10762101948438. To check the ON state without spending render credits, set the studio_photo access rule to 'account'.",
+  "rca_of_issue": "Stray render request: DesignCanvas schedules the auto-render on mount, when the storefront query has not resolved yet and feat('studio_photo') falls back to true. The pending timer then fires after the features load as off. Reproduced by turning off studio_photo, loading /build?type=ring or ?type=band fresh and watching network requests: POST /api/renders comes back 403 about 1.2 to 4s after load."
+}

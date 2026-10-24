@@ -5,7 +5,7 @@ import * as WebBrowser from "expo-web-browser";
 import { ActivityIndicator, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { formatPrice, useCatalog, useStoreProduct } from "@/src/api";
+import { formatPrice, useCatalog, useFeatures, useStoreProduct } from "@/src/api";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 const USES = [
@@ -19,6 +19,7 @@ export default function ProductDetail() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const feat = useFeatures();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: p, isLoading, isError } = useStoreProduct(id);
   const { data: catalog } = useCatalog();
@@ -57,7 +58,7 @@ export default function ProductDetail() {
             </Text>
             {!p.available && <Text style={styles.soldOut}>Currently sold out</Text>}
 
-            {!!p.image && <Pressable testID="product-try-on-button" onPress={() => router.push(`/try-on/${p.id}`)} style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.85 }]}>
+            {!!p.image && feat("try_on") && <Pressable testID="product-try-on-button" onPress={() => router.push(`/try-on/${p.id}`)} style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.85 }]}>
               <Feather name="camera" size={18} color={colors.onSurfaceInverse} />
               <Text style={styles.primaryText}>Try it on</Text>
             </Pressable>}

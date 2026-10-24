@@ -141,8 +141,16 @@ async def update_lead(lid: str, body: LeadPatch, admin: dict = Depends(get_curre
     return lead_out(d)
 
 
-BRIEF_KEYS = ("ring_size", "finger_notes", "metal_spec", "center_stone_mm", "carat", "accent_spec", "band_width_mm",
-              "band_thickness_mm", "setting_height_mm", "profile_fit", "finish", "engraving", "due_date", "budget", "crafting_notes")
+BRIEF_KEYS = (
+    "ring_size", "finger_notes", "metal_spec", "due_date", "budget",
+    # centre stone (GIA 4Cs + report)
+    "cs_type", "cs_shape", "center_stone_mm", "carat", "cs_color", "cs_clarity", "cs_cut", "cs_lab", "cs_report", "cs_origin",
+    # head: prongs, halo, hidden halo, gallery, gallery rail, bridge, cathedral
+    "prong_count", "prong_style", "halo_spec", "hidden_halo_spec", "gallery_style", "gallery_rail", "bridge", "cathedral",
+    "setting_height_mm",
+    # shoulders, accents, shank, sizing area
+    "shoulder_style", "accent_spec", "accent_setting", "shank_style", "band_width_mm", "band_thickness_mm", "profile_fit",
+    "sizing_area", "finish", "engraving", "crafting_notes")
 
 
 class BriefIn(BaseModel):

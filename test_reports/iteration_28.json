@@ -1,0 +1,27 @@
+{
+  "summary": "Retest of iteration 27 fixes: all pass. Turning prices off in admin hides the 'Estimated total' label and the see-price-button and leaves the save button working, and turning it back on shows the total again ($7,041). On a 390px screen the job sheet title wraps at word boundaries and the client box sits below the title; desktop is unchanged. Print hides the Back/Print buttons while window.print runs. The backend returns 403 'This feature is turned off for this store' for redesign, sketch and try_on when each is off. /redesign shows redesign-unavailable when redesign is off. All 20 '+ Custom' links are 44px tall. All 12 feature toggles were restored to true. No AI calls were made.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/redesign (feature off)", "issues": ["The unavailable state is only muted text with no button to open the builder (only the X close). Optional: add an 'Open builder' CTA."]},
+      {"screen": "/admin/catalog Builder features", "issues": ["The feature-* Pressables still have no aria-checked/aria-selected state on web (an optional accessibility item from iteration 27)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter28_feature_enforcement.py", "/app/test_reports/pytest/iter28.xml"],
+  "action_items": [
+    "Optional: add an 'Open builder' CTA to the redesign-unavailable state.",
+    "Optional: expose the toggle state of the feature-* switches to accessibility (aria-checked)."
+  ],
+  "critical_code_review_comments": [
+    "POST /api/sketches checks the customer-access gate (customers.require) before the feature guard. If a store gates sketch behind a level and also switches the feature off, visitors get 'gate:<level>' instead of the feature-off 403. Consider checking the feature first."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter28_feature_enforcement.py"],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (6/6 flows)"},
+  "seed_data_creation": "None. Clicking save-design-button once in the /build test saved a design as an anonymous visitor.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run: cd /app/backend && EXPO_PUBLIC_BACKEND_URL=<url> python -m pytest tests/test_iter28_feature_enforcement.py -n 0. It restores all features to true. Job sheet test leads: 6ad9f29faac432ffa67dae70 (design) and 6ad8bd759e524deeaccb1201 (product, long title). The '+ Custom' links are on /admin/leads/<id> (testID brief-<key>-custom)."
+}
