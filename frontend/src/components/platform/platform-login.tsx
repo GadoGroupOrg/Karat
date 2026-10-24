@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-nativ
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { platformApi } from "@/src/api";
+import { KaratLogo } from "@/src/components/karat-logo";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 export function PlatformLogin({ onSignedIn }: { onSignedIn: (token: string) => void }) {
@@ -28,7 +29,8 @@ export function PlatformLogin({ onSignedIn }: { onSignedIn: (token: string) => v
   return (
     <KeyboardAwareScrollView style={styles.root} contentContainerStyle={styles.center} keyboardShouldPersistTaps="handled" testID="platform-login">
       <View style={styles.card}>
-        <Text style={styles.eyebrow}>ATELIER PLATFORM</Text>
+        <KaratLogo height={44} />
+        <Text style={styles.eyebrow}>KARAT PLATFORM</Text>
         <Text style={styles.title}>Supplier console</Text>
         <TextInput testID="platform-email-input" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address"
           placeholder="Email" placeholderTextColor={colors.muted} style={styles.input} />

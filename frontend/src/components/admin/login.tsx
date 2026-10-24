@@ -6,6 +6,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { useAuth } from "@/src/auth";
 import { getBranding } from "@/src/branding";
+import { KaratLogo } from "@/src/components/karat-logo";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 export function AdminLogin() {
@@ -41,6 +42,7 @@ export function AdminLogin() {
   return (
     <KeyboardAwareScrollView style={styles.root} contentContainerStyle={styles.center} keyboardShouldPersistTaps="handled" testID="admin-login-screen">
       <View style={styles.card}>
+        {mode === "up" && <KaratLogo height={44} />}
         <Text style={styles.eyebrow}>{mode === "up" ? "KARAT FOR JEWELLERS" : `${(getBranding()?.store_name ?? "Karat").toUpperCase()} · STORE ADMIN`}</Text>
         <Text style={styles.title}>{mode === "up" ? "Create your studio" : "Welcome back"}</Text>
         <Text style={styles.sub}>

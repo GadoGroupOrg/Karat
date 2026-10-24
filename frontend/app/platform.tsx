@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { platformApi, type PlatformTenant } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { KaratLogo } from "@/src/components/karat-logo";
 import { PlatformLogin } from "@/src/components/platform/platform-login";
 import { PlanSettings, type PlanSetting } from "@/src/components/platform/plan-settings";
 import { TenantCard } from "@/src/components/platform/tenant-card";
@@ -95,7 +96,8 @@ export default function PlatformConsole() {
     <ScrollView style={styles.root} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.xl }]} testID="platform-console">
       <View style={styles.headRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>ATELIER PLATFORM</Text>
+          <KaratLogo height={36} />
+          <Text style={styles.eyebrow}>KARAT PLATFORM</Text>
           <Text style={styles.h1}>Businesses</Text>
         </View>
         <Pressable testID="platform-sign-out" onPress={signOut} style={styles.outline}>
