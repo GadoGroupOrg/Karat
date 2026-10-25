@@ -1,4 +1,5 @@
 import Feather from "@react-native-vector-icons/feather";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -9,8 +10,10 @@ import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg from "react-native-svg";
 
-import { Catalog, DesignSpec, OptionGroup, assetUrl, formatPrice, useCatalog, useFeatures, usePrice } from "@/src/api";
+import { Catalog, DesignSpec, Lead, OptionGroup, assetUrl, dashRequest, formatPrice, useCatalog, useFeatures, usePrice } from "@/src/api";
+import { useAuth } from "@/src/auth";
 import { getBranding } from "@/src/branding";
+import { ProPanel, emptyPro, pricingBody, quotedTotal, type ProState } from "@/src/components/admin/pro-panel";
 import { DesignCanvas } from "@/src/components/design-canvas";
 import { Charm } from "@/src/components/jewelry-preview";
 import { forWearer, groupVisible } from "@/src/catalog-utils";
@@ -71,7 +74,12 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ type?: string; designId?: string; addId?: string; nonce?: string }>();
+  const params = useLocalSearchParams<{ type?: string; designId?: string; addId?: string; nonce?: string; leadId?: string }>();
+  const { token } = useAuth();
+  const proLeadId = token && params.leadId ? params.leadId : null;
+  const [pro, setPro] = useState<ProState>(emptyPro);
+  const [proBusy, setProBusy] = useState(false);
+  const qc = useQueryClient();
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
   const { width: winW, height: winH } = useWindowDimensions();
   const wide = winW >= WIDE_BREAKPOINT;
@@ -92,7 +100,22 @@ function Builder({ catalog }: { catalog: Catalog }) {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (params.designId) {
+    if (proLeadId) {
+      dashRequest<Lead>(token!, `/leads/${proLeadId}`).then((lead) => {
+        if (lead.design) {
+          const base = defaults(catalog, lead.design.type);
+          setDesign({ ...base, ...lead.design, options: { ...base.options, ...(lead.design.options ?? {}) } });
+        }
+        const b = lead.brief ?? {};
+        setPro({
+          sizes: Object.fromEntries(["carat", "center_stone_mm", "ring_size", "band_width_mm", "band_thickness_mm"].filter((k) => b[k]).map((k) => [k, b[k].replace(/\s*ct$/i, "")])),
+          lines: (lead.pricing?.lines ?? []).map((l) => ({ label: l.label, amount: String(l.amount) })),
+          override: lead.pricing?.total_override != null ? String(lead.pricing.total_override) : "",
+          note: lead.pricing?.note ?? "",
+        });
+        setEditingId(null);
+      }).catch(() => setToast("Couldn't open this lead"));
+    } else if (params.designId) {
       getDesign(params.designId).then((d) => {
         if (d) {
           const { id, price, createdAt, renderUrl: _r, ...spec } = d;
@@ -107,7 +130,7 @@ function Builder({ catalog }: { catalog: Catalog }) {
       setDesign(valid ? { ...base, addonIds: [params.addId as string] } : base);
       setEditingId(null);
     }
-  }, [params.type, params.designId, params.addId, params.nonce, catalog]);
+  }, [params.type, params.designId, params.addId, params.nonce, params.leadId, catalog]);
 
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
@@ -218,7 +241,26 @@ function Builder({ catalog }: { catalog: Catalog }) {
   };
 
   const { allowed, ensure } = useCustomer();
-  const showPrice = allowed("prices") && feat("prices");
+  const showPrice = !!proLeadId || (allowed("prices") && feat("prices"));
+  const saveToLead = async () => {
+    if (!proLeadId) return;
+    setProBusy(true);
+    try {
+      const name = design.name.trim() || `The ${style.name} ${t.name}`;
+      await dashRequest(token!, `/leads/${proLeadId}/design`, {
+        method: "PUT",
+        body: JSON.stringify({ design: { ...design, name }, sizes: pro.sizes, render_url: renderUrl?.replace(/^https?:\/\/[^/]+/, "") ?? null }),
+      });
+      const lead = await dashRequest<Lead>(token!, `/leads/${proLeadId}/pricing`, { method: "PUT", body: JSON.stringify(pricingBody(pro)) });
+      qc.setQueryData(["dash", "lead", proLeadId], lead);
+      qc.invalidateQueries({ queryKey: ["dash", "leads"] });
+      showToast("Saved to the lead");
+    } catch (e) {
+      showToast((e as Error).message || "Couldn't save to the lead");
+    } finally {
+      setProBusy(false);
+    }
+  };
   const save = async () => {
     if (!(await ensure("save_design"))) return;
     const id = editingId ?? newId();
@@ -267,7 +309,8 @@ function Builder({ catalog }: { catalog: Catalog }) {
         </View>
       )}
 
-      <DesignCanvas catalog={catalog} design={design} height={wide ? undefined : stageH} onRenderChange={setRenderUrl} />
+      <DesignCanvas catalog={catalog} design={design} height={wide ? undefined : stageH} onRenderChange={setRenderUrl} autoRender={!proLeadId}
+        overrides={proLeadId ? { carat: parseFloat(pro.sizes.carat ?? "") || null, bandWidthMm: parseFloat(pro.sizes.band_width_mm ?? "") || null } : undefined} />
       <Text style={styles.canvasCaption} testID="builder-preview-caption" numberOfLines={1}>
         {style.name} {t.name} · {metal.name}
       </Text>
@@ -466,6 +509,8 @@ function Builder({ catalog }: { catalog: Catalog }) {
           </Pressable>
         )}
 
+        {!!proLeadId && <ProPanel type={design.type} value={pro} onChange={setPro} estimate={price} />}
+
         {showPrice && <Section label="Estimated price breakdown" value="Estimate">
           <View style={styles.breakdown} testID="price-breakdown">
             {breakdown.lines.map((l) => (
@@ -496,7 +541,10 @@ function Builder({ catalog }: { catalog: Catalog }) {
       </KeyboardAwareScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: (wide ? 0 : bottomChrome) + spacing.md }]}>
-        {feat("prices") ? <View>
+        {proLeadId ? <View>
+          <Text style={styles.totalLabel}>Quoted price</Text>
+          <Text style={[styles.total, quote.isFetching && { opacity: 0.5 }]} testID="builder-total-price">{quote.data ? formatPrice(quotedTotal(pro, price)) : "…"}</Text>
+        </View> : feat("prices") ? <View>
           <Text style={styles.totalLabel}>Estimated total</Text>
           {showPrice ? (
             <Text style={[styles.total, quote.isFetching && { opacity: 0.5 }]} testID="builder-total-price">{quote.data ? formatPrice(price) : "…"}</Text>
@@ -506,10 +554,20 @@ function Builder({ catalog }: { catalog: Catalog }) {
             </Pressable>
           )}
         </View> : <View />}
-        <Pressable testID="save-design-button" onPress={save} style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.85 }]}>
+        {proLeadId ? (
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <Pressable testID="pro-back-to-lead-button" onPress={() => (router.canGoBack() ? router.back() : router.replace(`/admin/leads/${proLeadId}` as never))} style={styles.outlineBtn}>
+              <Text style={styles.outlineBtnText}>Lead</Text>
+            </Pressable>
+            <Pressable testID="pro-save-to-lead-button" onPress={saveToLead} disabled={proBusy} style={({ pressed }) => [styles.saveBtn, (pressed || proBusy) && { opacity: 0.85 }]}>
+              {proBusy ? <ActivityIndicator size="small" color={colors.onSurfaceInverse} /> : <Feather name="check" size={16} color={colors.onSurfaceInverse} />}
+              <Text style={styles.saveText}>Save to lead</Text>
+            </Pressable>
+          </View>
+        ) : <Pressable testID="save-design-button" onPress={save} style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.85 }]}>
           <Feather name="heart" size={16} color={colors.onSurfaceInverse} />
           <Text style={styles.saveText}>{editingId ? "Update design" : "Save design"}</Text>
-        </Pressable>
+        </Pressable>}
       </View>
     </>
   );

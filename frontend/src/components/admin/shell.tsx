@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { assetUrl } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { getBranding } from "@/src/branding";
+import { UsageAlert } from "@/src/components/admin/usage-alert";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 type Nav = { href: string; label: string; icon: React.ComponentProps<typeof Feather>["name"]; match: (p: string) => boolean };
@@ -100,7 +101,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <Text style={styles.navText}>Sign out</Text>
           </Pressable>
         </View>
-        <View style={styles.main}>{children}</View>
+        <View style={styles.main}><UsageAlert />{children}</View>
       </View>
       </View>
     );
@@ -118,7 +119,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipBar} contentContainerStyle={styles.chipBarContent}>
         {items}
       </ScrollView>
-      <View style={{ flex: 1 }}>{children}</View>
+      <View style={{ flex: 1 }}><UsageAlert />{children}</View>
     </View>
   );
 }

@@ -5,6 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 import os
 import re
+import uuid
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, BeforeValidator, ConfigDict, EmailStr
@@ -632,6 +633,44 @@ async def create_quote(payload: QuoteCreate, request: Request):
     res = await db.quotes.insert_one(quote.to_mongo())
     quote.id = str(res.inserted_id)
     return quote
+
+
+class LeadDesignIn(BaseModel):
+    design: DesignSpec
+    sizes: Dict[str, str] = Field(default_factory=dict)  # exact measurements → merged into the crafting brief
+    render_url: Optional[str] = None
+
+
+PRO_SIZE_KEYS = {"carat", "center_stone_mm", "ring_size", "band_width_mm", "band_thickness_mm"}
+
+
+@api_router.put("/dashboard/leads/{lid}/design")
+async def refine_lead_design(lid: str, body: LeadDesignIn, admin: dict = Depends(auth.get_current_admin)):
+    """Pro builder: the jeweller refines a lead's design; the previous version is kept in design_history."""
+    cur = await db.quotes.find_one({"_id": dashboard._oid(lid)})
+    if not cur:
+        raise HTTPException(404, "Lead not found")
+    price_now = compute_price(await get_catalog(), body.design)
+    stamp = datetime.now(timezone.utc).isoformat()
+    upd = {"design": body.design.model_dump(), "price": price_now, "kind": "design", "updated_at": stamp}
+    sizes = {k: v.strip()[:60] for k, v in body.sizes.items() if k in PRO_SIZE_KEYS}
+    if sizes:
+        upd["brief"] = {**(cur.get("brief") or {}), **sizes}
+        upd["brief_updated_by"], upd["brief_updated_at"] = admin["email"], stamp
+    if body.render_url and re.match(r"^/api/renders/[a-f0-9]{32}/image", body.render_url):
+        upd["image_url"] = body.render_url
+    ops = {"$set": upd, "$push": {}}
+    changed = cur.get("design") != upd["design"] or any((cur.get("brief") or {}).get(k) != v for k, v in sizes.items())
+    if changed:
+        ops["$push"]["notes"] = {"id": str(uuid.uuid4()), "text": "Design refined in the Pro builder", "system": True,
+                                 "author": admin["email"], "created_at": stamp}
+    if cur.get("design") and cur["design"] != upd["design"]:
+        ops["$push"]["design_history"] = {"design": cur["design"], "price": cur.get("price", 0), "image_url": cur.get("image_url"), "replaced_at": stamp}
+    if not ops["$push"]:
+        ops.pop("$push")
+    d = await db.quotes.find_one_and_update({"_id": cur["_id"]}, ops, return_document=True)
+    return dashboard.lead_out(d)
+
 
 
 class StoreConnect(BaseModel):

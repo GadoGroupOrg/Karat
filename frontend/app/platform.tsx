@@ -60,6 +60,10 @@ export default function PlatformConsole() {
     }
   };
   const actions = {
+    dismiss: async (t: PlatformTenant) => {
+      await call(`/tenants/${t.id}/upgrade-request/dismiss`, { method: "POST" });
+      refresh();
+    },
     toggle: async (t: PlatformTenant) => {
       await call(`/tenants/${t.id}`, { method: "PATCH", body: JSON.stringify({ status: t.status === "active" ? "paused" : "active" }) });
       refresh();

@@ -120,6 +120,13 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - Backend: renders/angles/sketches/tryons check store feature toggle BEFORE customer access gate (403 feature off).
 - Builder: studio photo off → 3D by default, no render buttons, no auto-render; try-on & redesign show "unavailable" with Back to shop / Open builder.
 
+## Usage alerts + Pro builder + embed diamond (2026-06) — iteration 32
+- Dashboard banner (usage-alert) at ≥80% of plan monthly limit; "Request upgrade" → raw.upgrade_requests; shown on platform tenant card (dismiss / plan change resolves).
+- Pro builder: /build?leadId=X when jeweller signed in → loads lead design, ProPanel (exact sizes → brief + 3D carat/band width; custom price lines / final price / note), "Save to lead" → PUT /api/dashboard/leads/{id}/design + /pricing. quoted_price shown on lead + customer account. No auto AI render in Pro mode.
+- Powered by Karat shows gold diamond (assets/images/karat-diamond.png).
+- Shopify dev app keys set (SHOPIFY_API_KEY/SECRET); dev URLs use preview domain.
+
+
 ## Shopify embedded admin (2026-06)
 - /api/shopify/app: when opened from Shopify admin (embedded=1/host) returns an App Bridge shell page (CSP frame-ancestors shop + admin.shopify.com) with the /admin dashboard in an iframe (SSO auto-login). Not installed → top-window OAuth via window.open(_top).
 - Generated shopify.app.toml now embedded = true.

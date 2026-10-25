@@ -1,0 +1,48 @@
+{
+  "summary": "Iteration 32: tested (1) Powered-by-Karat diamond on embeds, (2) AI usage alerts and upgrade requests, (3) Jeweller Pro builder (refining a lead's design, exact sizes, price overrides). Backend: 15 of 16 pytest pass. The one failure is minor: a $0 final price shows the estimate to the customer. Frontend: every requested flow works at 375x667 (embed credit and diamond; no credit without embed; banner at 83%; Request upgrade -> Upgrade requested, which persists after reload; used-up message at limit 100; no banner at 1000 or unlimited; platform upgrade notice and Dismiss; Pro builder fills in the lead's sizes and lines, live quoted total, override, Save -> 'Saved to the lead' toast, lead page shows the quoted price and its lines; without admin login /build?leadId shows the normal builder; 3D carat and band-width overrides re-render with no page errors). Side effect: opening the Pro builder started one real AI studio-photo render (Gado usage went 124 -> 125). No deprecated Expo packages found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/customers/quotes", "issue": "price = q.get('quoted_price') or q.get('price') treats total_override=0 as missing, so the customer sees the estimate (e.g. 2167) while quoted:true. Use `q['quoted_price'] if q.get('quoted_price') is not None else q.get('price', 0)`. Ref: /app/backend/customers.py:283"},
+      {"endpoint": "PUT /api/dashboard/leads/{lid}/pricing", "issue": "Each Pro-builder save adds a system note even when nothing changed. With no pricing it adds 'Custom quote removed' although there never was a quote (seen on lead 6ad9f29f...). Only add the note when quoted_price changes. Ref: dashboard.py:261"},
+      {"endpoint": "PUT /api/dashboard/leads/{lid}/design", "issue": "Each save pushes a design_history entry and a 'Design refined in the Pro builder' note even if the design is unchanged, so history fills with duplicates. Skip the push when the design is the same. Ref: server.py:662-665"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Pro builder - Photo mode on load", "issue": "/build?leadId opens in Photo mode. For a design with no cached photo this starts a real AI studio-photo render ('Crafting your studio photo'), which uses the jeweller's allowance (Gado 124 -> 125 during this test). Pro mode should default to 3D or not auto-render.", "testID": "pro-panel", "priority": "MEDIUM"},
+      {"component": "Builder toast in Pro mode", "issue": "The 'Saved to the lead' toast is pale, semi-transparent and sits over the caption '6-Prong Solitaire ... 18k Yellow Gold', so it is hard to read (pro_saved screenshot).", "testID": "pro-save-to-lead-button", "priority": "LOW"},
+      {"component": "3D canvas side controls", "issue": "In 3D mode the edit (pencil) button overlaps the zoom-out button in the right-hand control column at 375px.", "testID": "design-canvas", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Pro builder Save -> lead studio photo", "issue": "A render that was still in progress at save time is not attached (render_url null), so the lead keeps 'No studio photo saved with this request' while the design changed. The old image_url also stays when the design changes.", "affected_testIDs": ["pro-save-to-lead-button"]},
+      {"flow": "Lead page after Pro builder", "issue": "The lead page spec table shows the design options (Ring size 3, Carat 1.00 ct) while the brief has the exact sizes (US 6.25, 1.8 ct), so the page contradicts itself. The price also ignores the exact carat (the estimate still uses option carat=1). Consider showing the brief sizes in the spec rows or labelling them.", "affected_testIDs": ["lead-quoted-price"]},
+      {"flow": "Pro builder 'Lead' button", "issue": "router.replace back to /admin/leads/<id> leaves a second, hidden lead screen mounted (lead-quoted-price matched 2 DOM nodes, the first hidden), so the back stack has a duplicate.", "affected_testIDs": ["pro-back-to-lead-button", "lead-quoted-price"]}
+    ],
+    "design_issues": [
+      {"screen": "Usage alert", "issues": ["When the limit is below current usage it reads '124 of 100 AI images', which looks odd. Consider 'limit reached (100)'.", "Request upgrade has no error handling: if the POST fails, the rejection is unhandled and the user gets no feedback (usage-alert.tsx:23-29)."]},
+      {"screen": "Embed footer", "issues": ["The powered-by-karat link is 32px tall, below the 44px minimum touch target (acceptable for a subtle credit)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter32_usage_alerts_pro_builder.py", "/app/backend/tests/iter32_setup.sh", "/app/test_reports/pytest/iter32.xml"],
+  "action_items": [
+    "customers.py:283 - treat quoted_price 0 as a valid quote (use an `is not None` check instead of `or`).",
+    "Stop the Pro builder from auto-starting a real AI studio render on open (default to 3D in pro mode, or render only on request).",
+    "Avoid noise notes: only add 'Custom quote removed' / 'Quoted price set' when quoted_price changes, and only push design_history when the design changed.",
+    "Optional: make the 'Saved to the lead' toast readable, fix the pencil/zoom overlap in 3D controls, show the brief's exact sizes on the lead spec rows, and handle errors in usage-alert request()."
+  ],
+  "critical_code_review_comments": [
+    "Usage-alert threshold logic is correct (hidden when limit is null or used < 80%); the query refetches every 5 min.",
+    "Pro mode is gated on admin token plus leadId, and the backend design and pricing routes require admin and are tenant-scoped (another tenant gets 404). Verified.",
+    "render_url is restricted to the /api/renders/<hex32>/image pattern; external URLs are rejected. Verified.",
+    "build.tsx is 746 lines (>700); consider moving the pro-mode logic (load-lead effect, saveToLead, bottom bar) into a hook or component."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter32_usage_alerts_pro_builder.py (new)", "/app/backend/tests/iter32_setup.sh (new helper)"],
+  "success_rate": {"backend": "94% (15/16)", "frontend": "100% of requested flows (UX issues noted)"},
+  "seed_data_creation": "Pytest creates a TEST_ customer (test_pro_*) and a lead, and deletes both in fixture teardown. Lead 6ad9f29faac432ffa67dae70 was refined in the UI: brief now carat 1.8, band_width_mm 2.4, ring_size 'US 6.25', and 1 extra design_history entry; its pricing was cleared afterwards.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Cleanup done: founder plan monthly_limit=null with all AI on; Gado upgrade request dismissed; pricing cleared on lead 6ad9f29f. Gado AI usage this month is 125. Run pytest with `-n 0` (pytest.ini uses xdist, and the parallel classes share founder plan state). Admin login testIDs: admin-login-email-input / admin-login-password-input / admin-login-submit-button. Platform login: two inputs inside [data-testid=platform-login] plus platform-login-submit. On the lead page use :visible for lead-quoted-price.",
+  "rca_of_issue": "Override-0 bug: customers.py my_quotes uses a Python `or` fallback, so a falsy 0 quoted_price falls back to the estimate."
+}

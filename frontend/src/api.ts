@@ -141,7 +141,7 @@ export const customerApi = {
 };
 export type MyQuote = {
   id: string; kind: string; price: number; status: string; created_at: string; image_url: string | null;
-  note: string; title: string; product_image: string | null;
+  note: string; title: string; product_image: string | null; quoted?: boolean;
 };
 
 export type QuoteBody = {
@@ -180,6 +180,9 @@ export type Lead = {
   source: "app" | "embed"; status: LeadStatus; notes: LeadNote[]; created_at: string;
   tags?: string[]; assignee_id?: string | null;
   attachments?: LeadAttachment[];
+  quoted_price?: number | null;
+  pricing?: { lines: { label: string; amount: number }[]; total_override: number | null; note: string; by: string; at: string } | null;
+  design_history?: { design: DesignSpec; price: number; replaced_at: string }[];
 };
 export type LeadAttachment = { id: string; kind: "file" | "link"; name: string; url: string; mime?: string; size?: number; author: string; created_at: string };
 export async function uploadLeadFile(token: string, leadId: string, file: { uri: string; mimeType?: string; name?: string }) {
@@ -233,6 +236,7 @@ export type PlatformTenant = {
   id: string; slug: string; name: string; status: "active" | "paused"; plan: string; created_at: string;
   owner_email: string | null; team: number; leads: number; customers: number; shopify_shop: string | null;
   ai_usage_month: Record<string, number>; ai_total_month: number;
+  upgrade_request?: { created_at: string; by: string; note: string } | null;
 };
 export const platformApi = {
   login: (email: string, password: string) =>

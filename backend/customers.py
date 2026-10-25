@@ -280,7 +280,7 @@ async def delete_my_design(design_id: str, request: Request):
 async def my_quotes(request: Request):
     c = await signed_in(request)
     docs = await _db.quotes.find({"$or": [{"customer_id": c["user_id"]}, {"email": c["email"]}]}).sort("created_at", -1).to_list(200)
-    return {"quotes": [{"id": str(q["_id"]), "kind": q.get("kind", "design"), "price": q.get("price", 0), "status": q.get("status", "new"),
+    return {"quotes": [{"id": str(q["_id"]), "kind": q.get("kind", "design"), "price": q["quoted_price"] if q.get("quoted_price") is not None else q.get("price", 0), "quoted": q.get("quoted_price") is not None, "status": q.get("status", "new"),
                         "created_at": q["created_at"], "image_url": q.get("image_url"), "note": q.get("note", ""),
                         "title": (q.get("design") or {}).get("name") or (q.get("product") or {}).get("title") or "Custom design",
                         "product_image": (q.get("product") or {}).get("image")} for q in docs]}

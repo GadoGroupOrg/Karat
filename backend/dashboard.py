@@ -10,6 +10,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+import plans
 import render_service
 import tenancy
 from auth import get_current_admin
@@ -233,6 +234,63 @@ async def add_link(lid: str, body: LinkIn, admin: dict = Depends(get_current_adm
     att = {"id": uuid.uuid4().hex, "kind": "link", "name": body.label.strip() or body.url, "url": body.url,
            "author": admin["email"], "created_at": now()}
     return await _push_attachment(lid, att, admin)
+
+# ---------- Pro builder: jeweller's price override ----------
+class PriceLine(BaseModel):
+    label: str = Field(min_length=1, max_length=80)
+    amount: int = Field(ge=-1_000_000, le=10_000_000)
+
+
+class PricingIn(BaseModel):
+    lines: list[PriceLine] = Field(default_factory=list, max_length=20)
+    total_override: Optional[int] = Field(default=None, ge=0, le=100_000_000)
+    note: str = Field(default="", max_length=500)
+
+
+@dash.put("/leads/{lid}/pricing")
+async def set_pricing(lid: str, body: PricingIn, admin: dict = Depends(get_current_admin)):
+    cur = await _db.quotes.find_one({"_id": _oid(lid)}, {"price": 1, "pricing": 1, "quoted_price": 1})
+    if not cur:
+        raise HTTPException(404, "Lead not found")
+    lines = [ln.model_dump() for ln in body.lines]
+    clear = not lines and body.total_override is None
+    quoted = None if clear else (body.total_override if body.total_override is not None
+                                 else cur.get("price", 0) + sum(ln["amount"] for ln in lines))
+    old = cur.get("pricing") or {}
+    if clear and not old or (not clear and old.get("lines") == lines and old.get("total_override") == body.total_override
+                             and old.get("note", "") == body.note.strip() and cur.get("quoted_price") == quoted):
+        return lead_out(await _db.quotes.find_one({"_id": _oid(lid)}))  # nothing changed: no note
+    pricing = None if clear else {"lines": lines, "total_override": body.total_override, "note": body.note.strip(),
+                                  "by": admin["email"], "at": now()}
+    text = "Custom quote removed" if clear else f"Quoted price set to {quoted:,}"
+    d = await _db.quotes.find_one_and_update({"_id": _oid(lid)}, {
+        "$set": {"pricing": pricing, "quoted_price": quoted, "updated_at": now()},
+        "$push": {"notes": {"id": str(uuid.uuid4()), "text": text, "system": True, "author": admin["email"], "created_at": now()}}},
+        return_document=True)
+    return lead_out(d)
+
+
+# ---------- AI allowance + upgrade requests ----------
+@dash.get("/ai-usage")
+async def ai_usage():
+    t = tenancy.current()
+    req = await _db.raw.upgrade_requests.find_one({"tenant_id": t["id"], "resolved": False}, {"_id": 0}, sort=[("created_at", -1)])
+    return {**(await plans.policy(t)), "upgrade_requested_at": req["created_at"] if req else None}
+
+
+class UpgradeIn(BaseModel):
+    note: str = Field(default="", max_length=500)
+
+
+@dash.post("/upgrade-request")
+async def request_upgrade(body: UpgradeIn, admin: dict = Depends(get_current_admin)):
+    t = tenancy.current()
+    pol = await plans.policy(t)
+    await _db.raw.upgrade_requests.insert_one({"tenant_id": t["id"], "plan": pol["plan"], "used": pol["used"], "limit": pol["limit"],
+                                               "note": body.note.strip(), "by": admin["email"], "created_at": now(), "resolved": False})
+    return await ai_usage()
+
+
 
 
 @dash.delete("/leads/{lid}/attachments/{aid}")

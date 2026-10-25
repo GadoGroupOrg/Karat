@@ -72,7 +72,10 @@ export default function LeadDetail() {
     : lead.design?.name?.trim() || (lead.sketch?.uploaded ? "Redesign of customer’s photo" : `Custom ${spec?.typeName.toLowerCase() ?? "design"}`);
   const saveBrief = (brief: Record<string, string>) => mutate("brief", `/leads/${id}/brief`, { method: "PUT", body: JSON.stringify({ brief }) });
   const brief = <><CraftingBrief brief={lead.brief} updatedBy={lead.brief_updated_by} busy={busy === "brief"} onSave={saveBrief} /><LeadFiles lead={lead} /></>;
-  const pieceRows: [string, string][] = spec?.rows ?? (lead.product ? [["Type", lead.product.product_type], ["Store price", formatPrice(lead.product.price)]] : []);
+  const exact: [string, string][] = ([["carat", "Exact carat"], ["center_stone_mm", "Exact stone size (mm)"], ["ring_size", "Exact ring size"],
+    ["band_width_mm", "Exact band width (mm)"], ["band_thickness_mm", "Exact band thickness (mm)"]] as const)
+    .filter(([k]) => lead.brief?.[k]).map(([k, l]) => [l, lead.brief![k]]);
+  const pieceRows: [string, string][] = [...(spec?.rows ?? (lead.product ? [["Type", lead.product.product_type], ["Store price", formatPrice(lead.product.price)]] : [])), ...exact];
 
   const piece = (
     <View style={styles.panel} testID="lead-piece-panel">
@@ -82,7 +85,16 @@ export default function LeadDetail() {
       <View style={{ padding: spacing.xl }}>
         <Text style={styles.eyebrow}>{lead.kind === "product" ? "TRY-ON ENQUIRY" : lead.kind === "sketch" ? (lead.sketch?.uploaded ? "PHOTO REDESIGN" : "SKETCH REQUEST") : "CUSTOM DESIGN"}</Text>
         <Text style={styles.h2} testID="lead-piece-title">{pieceTitle}</Text>
-        <Text style={styles.price}>{lead.price ? `Est. ${formatPrice(lead.price)}` : "Price to be quoted"}</Text>
+        {lead.quoted_price != null ? (
+          <View testID="lead-quoted-price">
+            <Text style={styles.price}>Quoted {formatPrice(lead.quoted_price)}</Text>
+            <Text style={styles.muted}>
+              {[lead.price ? `Estimate ${formatPrice(lead.price)}` : null, ...(lead.pricing?.lines ?? []).map((l) => `${l.label} ${l.amount >= 0 ? "+" : ""}${formatPrice(l.amount)}`),
+                lead.pricing?.total_override != null ? "final price set manually" : null].filter(Boolean).join(" · ")}
+            </Text>
+            {!!lead.pricing?.note && <Text style={styles.muted}>“{lead.pricing.note}”</Text>}
+          </View>
+        ) : <Text style={styles.price}>{lead.price ? `Est. ${formatPrice(lead.price)}` : "Price to be quoted"}</Text>}
         <View style={styles.table}>
           {pieceRows.map(([k, v]) => (
             <View key={k} style={styles.tr}><Text style={styles.tk}>{k}</Text><Text style={styles.tv}>{v}</Text></View>
@@ -185,6 +197,12 @@ export default function LeadDetail() {
           <Text style={styles.outlineText}>All leads</Text>
         </Pressable>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          {lead.kind !== "product" && (
+            <Pressable testID="lead-pro-builder-button" onPress={() => router.push(lead.design ? `/build?leadId=${id}` as never : `/build?type=ring&leadId=${id}` as never)} style={styles.outlineBtnSm}>
+              <Feather name="tool" size={14} color={colors.onSurface} />
+              <Text style={styles.outlineText}>Pro builder</Text>
+            </Pressable>
+          )}
           <Pressable testID="lead-job-sheet-button" onPress={() => router.push(`/job-sheet/${id}` as never)} style={styles.outlineBtnSm}>
             <Feather name="printer" size={14} color={colors.onSurface} />
             <Text style={styles.outlineText}>Job sheet</Text>

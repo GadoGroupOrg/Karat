@@ -18,7 +18,7 @@ export function QuoteRow({ q }: { q: MyQuote }) {
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={styles.title} numberOfLines={1}>{q.title}</Text>
-        <Text style={styles.meta}>{new Date(q.created_at).toLocaleDateString()} · Est. {formatPrice(q.price)}</Text>
+        <Text style={styles.meta}>{new Date(q.created_at).toLocaleDateString()} · {q.quoted ? "Quote" : "Est."} {formatPrice(q.price)}</Text>
         {!!q.note && <Text style={styles.meta} numberOfLines={2}>“{q.note}”</Text>}
       </View>
       <View style={[styles.pill, q.status === "won" && styles.pillWon]}>

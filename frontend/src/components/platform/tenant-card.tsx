@@ -11,6 +11,7 @@ type Actions = {
   plan: (t: PlatformTenant, plan: string) => void;
   open: (t: PlatformTenant) => void;
   reset: (t: PlatformTenant) => void;
+  dismiss: (t: PlatformTenant) => void;
 };
 
 export function TenantCard({ t, limit, actions }: { t: PlatformTenant; limit: number | null; actions: Actions }) {
@@ -31,6 +32,17 @@ export function TenantCard({ t, limit, actions }: { t: PlatformTenant; limit: nu
         {t.leads} leads · {t.customers} customers · {t.team} team · {t.shopify_shop ? `Shopify: ${t.shopify_shop}` : "No Shopify"} ·
         AI this month: {t.ai_total_month}{limit != null ? ` of ${limit}` : ""} ({u.render ?? 0} renders, {u.angle ?? 0} angles, {u.sketch ?? 0} sketches, {u.tryon ?? 0} try-ons)
       </Text>
+      {!!t.upgrade_request && (
+        <View style={styles.upgrade} testID={`platform-upgrade-${t.slug}`}>
+          <Feather name="trending-up" size={14} color={colors.brandPrimary} />
+          <Text style={[styles.meta, { flex: 1, color: colors.onSurface }]}>
+            Upgrade requested by {t.upgrade_request.by} on {new Date(t.upgrade_request.created_at).toLocaleDateString()}. Choose a new plan below to answer it.
+          </Text>
+          <Pressable testID={`platform-upgrade-dismiss-${t.slug}`} onPress={() => actions.dismiss(t)} style={styles.outline}>
+            <Text style={styles.outlineText}>Dismiss</Text>
+          </Pressable>
+        </View>
+      )}
       <View style={styles.plans}>
         {PLANS.map((p) => (
           <Pressable key={p} testID={`platform-plan-${t.slug}-${p}`} onPress={() => actions.plan(t, p)} style={[styles.chip, t.plan === p && styles.chipOn]}>
@@ -65,6 +77,7 @@ const useStyles = makeStyles((c) => ({
   pillOff: { backgroundColor: c.surfaceTertiary },
   pillText: { fontFamily: fonts.bold, fontSize: 11, color: c.onSurface },
   plans: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  upgrade: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: c.brandPrimary },
   chip: { height: 32, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: c.border, justifyContent: "center" },
   chipOn: { backgroundColor: c.surfaceInverse, borderColor: c.surfaceInverse },
   chipText: { fontFamily: fonts.medium, fontSize: 12, color: c.onSurface, textTransform: "capitalize" },

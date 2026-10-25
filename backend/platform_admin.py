@@ -53,7 +53,9 @@ async def _stats(t: dict, month_start: str) -> dict:
     shop = await raw.shopify_shops.find_one({**q, "uninstalled_at": None})
     usage = {k: await raw.usage.count_documents({**q, "kind": k, "created_at": {"$gte": month_start}})
              for k in ("render", "angle", "sketch", "tryon")}
+    req = await raw.upgrade_requests.find_one({**q, "resolved": False}, {"_id": 0, "created_at": 1, "note": 1, "by": 1}, sort=[("created_at", -1)])
     return {**t, "owner_email": owner["email"] if owner else None, "owner_id": owner["id"] if owner else None,
+            "upgrade_request": req,
             "team": await raw.admins.count_documents({**q, "active": True}),
             "leads": await raw.quotes.count_documents(q), "customers": await raw.customers.count_documents(q),
             "shopify_shop": shop["shop"] if shop else None, "ai_usage_month": usage, "ai_total_month": sum(usage.values())}
@@ -125,7 +127,15 @@ async def update_tenant(tid: str, body: TenantPatch):
     upd = body.model_dump(exclude_none=True)
     if upd:
         await _db.raw.tenants.update_one({"id": tid}, {"$set": upd})
+    if "plan" in upd:  # changing a business's plan answers its upgrade request
+        await _db.raw.upgrade_requests.update_many({"tenant_id": tid, "resolved": False}, {"$set": {"resolved": True}})
     return await _tenant(tid)
+
+
+@dash.post("/tenants/{tid}/upgrade-request/dismiss")
+async def dismiss_upgrade(tid: str):
+    await _db.raw.upgrade_requests.update_many({"tenant_id": tid, "resolved": False}, {"$set": {"resolved": True}})
+    return {"ok": True}
 
 
 async def _owner(tid: str) -> dict:

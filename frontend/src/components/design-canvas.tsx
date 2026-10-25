@@ -34,9 +34,11 @@ type Props = {
   onRenderChange?: (url: string | null) => void;
   initialRenderUrl?: string | null;
   autoRender?: boolean;
+  /** Pro builder exact measurements that drive the 3D view. */
+  overrides?: { carat?: number | null; bandWidthMm?: number | null };
 };
 
-export function DesignCanvas({ catalog, design, height, onRenderChange, initialRenderUrl = null, autoRender = true }: Props) {
+export function DesignCanvas({ catalog, design, height, onRenderChange, initialRenderUrl = null, autoRender = true, overrides }: Props) {
   const styles = useStyles();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -80,14 +82,14 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
       const w = t?.option_groups.find((g) => g.id === "width")?.options.find((o) => o.id === opt("width"));
       return {
         setting: "none", band: "polished", shape: "round", carat: 1, metalColor, stoneColor: "#FFFFFF", isDiamond: true,
-        accentColor: colorOf("accent_stone"), weddingBand: { widthMm: w?.mm ?? parseFloat(opt("width") || "2"), style: design.styleId },
+        accentColor: colorOf("accent_stone"), weddingBand: { widthMm: overrides?.bandWidthMm || w?.mm || parseFloat(opt("width") || "2"), style: design.styleId },
       };
     }
     return {
       setting: design.styleId,
       band: opt("band"),
       shape: opt("shape"),
-      carat: parseFloat(opt("carat") || "1"),
+      carat: overrides?.carat || parseFloat(opt("carat") || "1"),
       metalColor,
       stoneColor: stone?.color ?? "#FFFFFF",
       isDiamond: !stone || stone.id.includes("diamond"),
@@ -99,7 +101,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
       headColor: opt("head_metal") && opt("head_metal") !== "match"
         ? t?.option_groups.find((g) => g.id === "head_metal")?.options.find((o) => o.id === opt("head_metal"))?.color : undefined,
     };
-  }, [catalog, design]);
+  }, [catalog, design, overrides?.carat, overrides?.bandWidthMm]);
 
   const run = async (force = false) => {
     const k = keyRef.current;
