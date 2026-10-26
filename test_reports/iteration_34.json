@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend-only retest of the DashboardReturn bar after the switch to router.dismissTo('/admin'). The iteration-33 stacking bug is FIXED. In the Open builder flow (admin-nav-open-builder, then back-to-dashboard-button, 5 round trips at 1280x800), there was always 1 admin-shell, 1 admin-nav-open-builder and history.length stayed at 3. In the lead flow (lead row, then lead-pro-builder-button, then /build?leadId, then back, 4 round trips), there was always 1 admin-shell and the bar returns straight to /admin, not the lead page. Direct deep link with a fresh load of /build (no /admin in the stack) shows the bar, and pressing it lands on /admin with 1 shell and history.length unchanged, so it acts as a replace. /build?leadId deep link works the same way. The bar is exactly 44px tall at y=0. The hint stays on one line and is cut off with an ellipsis. The bar is hidden on /admin, /admin/catalog, /admin/leads/<id>, /platform and /job-sheet/<id>, and for logged-out users on /build. It is visible on /, /shop and /build?leadId. Minor issues: (1) in the lead flow, history.length grows by 1 per round trip and Back on /admin stays on /admin for several presses, because duplicate /admin history entries pile up (the open-builder flow is clean); (2) at 320px width the 'Back to dashboard' label wraps to 2 lines.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "DashboardReturn (lead flow browser history)", "issue": "Path tested: /admin, then lead (push), then /build (push), then dismissTo('/admin'). Each round trip adds one browser history entry (history.length 3,4,5,6,7) while only 1 admin-shell stays mounted. After the cycles, pressing browser Back twice on /admin stays on /admin, so the history has stacked /admin entries. This is cosmetic and minor, and is expo-router web dismissTo behaviour when popping more than one screen across nested stacks. The open-builder flow (one screen popped) has no growth. Reference: /app/frontend/src/components/dashboard-return.tsx:16", "testID": "back-to-dashboard-button", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "DashboardReturn bar at 320px width", "issues": ["The 'Back to dashboard' label wraps to 2 lines (label height 34px versus 17px at 360px and wider) because the label can shrink. Add numberOfLines={1} and flexShrink:0 to the label so only the hint gets cut off. The bar still stays 44px. It is fine at 360, 375 and 390px."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Low) Add numberOfLines={1} and style flexShrink:0 to the 'Back to dashboard' label so it does not wrap on 320px screens.",
+    "(Optional, low) If clean browser Back after the lead flow matters, consider: if the router can go back and the current stack was entered from an /admin route, use router.dismissTo; otherwise fall back. Or simply accept the current behaviour, since the extra entries are only redundant /admin history entries and nothing is mounted twice."
+  ],
+  "critical_code_review_comments": [
+    "dashboard-return.tsx is clean. dismissTo removes the stacked-screen leak. The regex /^\\/(admin|platform|job-sheet)(\\/|$)/ is correct. minHeight 44 and the hint's numberOfLines/flexShrink are applied as intended."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100% of requested checks pass (2 minor cosmetic notes)"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Admin login at /admin: fill the first input with the email, fill input[type=password], press Enter, then wait for [data-testid=admin-shell]. Lead row testID is lead-row-6ad9f29faac432ffa67dae70. Count [data-testid=admin-shell] to detect stacking (it should be 1).",
+  "rca_of_issue": "Iteration 33 stacking was fixed by using dismissTo. The leftover history growth in the lead flow comes from expo-router web dismissTo popping 2 screens (build and lead) across a nested stack, which leaves a replaced /admin entry in browser history."
+}

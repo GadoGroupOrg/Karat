@@ -1,0 +1,33 @@
+{
+  "summary": "Frontend-only test of the DashboardReturn bar (testID back-to-dashboard-button). PASS: when a jeweller admin is signed in, the bar shows at the top of /build, /, /shop, /account, /try-on/<id>, /product/<id>, /merchant and /build?leadId=6ad9f29faac432ffa67dae70 at both 390x844 and 1280x800. It is the topmost element (elementFromPoint), sits in the normal layout (40px tall, y=0), and does not cover builder content or the tab bar: the document height equals the viewport, the tab bar bottom is 838.5/844 and 787.5/800, and the Save design CTA and tabs are visible. Pressing it goes to /admin and the admin-shell shows. Hidden on /admin, /admin/catalog, /admin/leads/<id>, /platform, /job-sheet/<id> and for logged-out visitors on /build. Iframe scenario passed: the app was loaded at /admin?embedded=1 inside a host-page iframe. Sign-in worked, and both Open builder (admin-nav-open-builder) and lead Pro builder (lead-pro-builder-button) reached /build with the bar visible; the bar returned to /admin each time, so no refresh is needed. ONE REAL BUG: the bar calls router.replace('/admin'), so each dashboard->builder->back cycle adds another mounted admin screen to the stack. The admin-shell count went 2→3→4→5 over 4 cycles and history.length grew too. This leaves duplicate hidden admin screens with duplicate testIDs and extra query subscriptions, and makes browser Back behave oddly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "DashboardReturn", "issue": "router.replace('/admin') stacks a new admin screen on top of the existing one, which stays mounted but hidden. After N round-trips there are N+1 mounted AdminShell instances (measured 2,3,4,5). This leaks memory and polling queries and duplicates testIDs: the first [data-testid=admin-nav-open-builder] became a hidden element. Reference: /app/frontend/src/components/dashboard-return.tsx:16", "testID": "back-to-dashboard-button", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "DashboardReturn bar", "issues": ["minHeight 40 is below the 44pt touch-target minimum. Use 44 or add hitSlop.", "The bar loads in after the async admin session restore (fetchMe), so storefront content jumps down 40px on first paint for signed-in admins (minor layout shift).", "Row has no flexShrink/numberOfLines on the hint text, so on very narrow widths (<340px) the hint could overflow. Add numberOfLines={1} and flexShrink:1 to the hint."]},
+      {"screen": "/try-on/[id] at 1280x800 (pre-existing, not caused by the bar)", "issues": ["Stage is full width with aspectRatio 0.8, so on desktop it is about 1500px tall and the Take/Upload photo buttons sit at y≈1660, far below the fold. Cap the stage at a maxWidth or maxHeight on wide screens."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "In DashboardReturn, replace router.replace('/admin') with router.dismissTo('/admin' as never) (available in expo-router 57) so it pops back to the existing admin screen instead of stacking a new one. Alternatively: if canGoBack and the previous route is /admin*, call router.back(); otherwise replace. Then re-check that admin-shell count stays 1 after several round-trips.",
+    "Raise the bar's minHeight to 44 (touch target), and add numberOfLines={1} and flexShrink:1 to the hint text.",
+    "(Optional, pre-existing) Constrain the try-on stage height on desktop widths."
+  ],
+  "critical_code_review_comments": [
+    "dashboard-return.tsx: The hide regex /^\\/(admin|platform|job-sheet)/ is correct for current routes, but it would also match a hypothetical '/administrator' route. /^\\/(admin|platform|job-sheet)(\\/|$)/ is safer.",
+    "The bar depends only on the admin AuthProvider session, so customers (customer session) never see it. This matches the requirement.",
+    "The ?embedded=1 query param is not read anywhere in the frontend and is dropped on return (/admin). This is harmless now; note it if embedded-specific behaviour is planned."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "95% (all visibility, navigation and layout checks pass; stack-growth bug on return)"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Admin login at /admin: first input = email, input[type=password], press Enter; wait for [data-testid=admin-shell]. After a back-to-dashboard round-trip, multiple admin-shell nodes exist (bug), so use :visible selectors. Lead id 6ad9f29faac432ffa67dae70 and product id shop-10762101948438 are valid. For the iframe test, use page.set_content with <iframe src=BASE/admin?embedded=1> and frame_locator('#f'). No AI generations were triggered.",
+  "rca_of_issue": "Reproduction: sign in at /admin, then Open builder, then Back to dashboard, repeated N times. Count [data-testid=admin-shell] nodes: you get N+1. Root cause: the admin screen pushes /build, and router.replace('/admin') swaps /build for a NEW admin route instead of popping to the existing one. Mitigation: router.dismissTo('/admin')."
+}
