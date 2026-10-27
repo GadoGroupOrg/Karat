@@ -1,0 +1,25 @@
+{
+  "summary": "Frontend retest of the iteration 36 HIGH bug, where the builder stayed on builder-loading forever when a jeweller was signed in. FIXED. The fix is in src/auth.tsx: adopt() now calls invalidateQueries() instead of clear(). Tested signed in as admin@gadojewellers.com. Top-level /build: 3/3 loads rendered builder-screen in about 1s with no delay, and 3/3 in about 4s with a 3s /api/catalog delay. Top-level /build?embed=1&store=gado: 2/2 without delay and 2/2 with delay. Inline embed iframe on a fake heathenandheretic.myshopify.com page (sign-in done through an /admin?embedded=1 iframe on the same origin; atelier_admin_token confirmed in the iframe storage): 3/3 without delay and 2/2 with the 3s delay. Popup embed: rendered with and without delay. Regressions all pass: sign-in, sign-out (token removed, login screen shown), SSO switch (/admin?sso=<token of another business> re-brands to TEST Iter37 Jewels and sets sessionStorage atelier_store), signing back in as Gado re-brands to Gado, dashboard calls return 200 (ai-usage, leads, team, shopify) and leads render, no 4xx/5xx. Back-to-dashboard bar: shows (390x44) in the /admin?embedded=1 -> Open builder flow and returns to admin-shell when tapped. It is hidden on ?embed=1 at top level, in the inline iframe and in the popup. Popup corners: mobile 390px box has border-radius 0 at 390x844; desktop 1920px box has 16px at 440x900.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "LOW (optional): embed.js popup picks the border radius once, at first open (innerWidth<=440). If the window is resized or the phone is rotated, the radius is not updated. Could use a CSS media query or recompute it on reopen.",
+    "LOW (optional): on native, switchStore() returns false and does not reload. With invalidateQueries() instead of clear(), the previous business's cached data stays visible until the refetch finishes. Consider clearing or removing queries only when the tenant slug actually changes on native."
+  ],
+  "critical_code_review_comments": [
+    "src/auth.tsx adopt(): invalidateQueries() refetches active observers and keeps in-flight queries, so the startup race is gone. On web, a tenant change still triggers a full reload via switchStore, so stale data from another tenant is not an issue there."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend only)", "frontend": "100%"},
+  "seed_data_creation": "Created business 'TEST Iter37 Jewels' (slug test-iter37-jewels) with owner test_iter37@example.com / Password123 through /api/auth/signup, to test the SSO business switch.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Simulate the storefront with page.route('https://heathenandheretic.myshopify.com/**') serving an inline or popup snippet that loads {BASE}/api/embed.js?store=gado&cb=<ts>. To be signed in inside the embed iframe, first sign in through an iframe of {BASE}/admin?embedded=1 on the same fake origin (Chromium partitions storage). Slow catalog: page.route('**/api/catalog*') wait 3s then continue. SSO test: /admin?sso=<access_token from /api/auth/login>.",
+  "rca_of_issue": "Iteration 36 root cause: queryClient.clear() ran during the startup token restore and wiped the in-flight ['catalog'] query. Mitigation: invalidateQueries(). Verified fixed."
+}

@@ -120,6 +120,14 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - Backend: renders/angles/sketches/tryons check store feature toggle BEFORE customer access gate (403 feature off).
 - Builder: studio photo off → 3D by default, no render buttons, no auto-render; try-on & redesign show "unavailable" with Back to shop / Open builder.
 
+## Shopify live install (2026-06) — iterations 33-37
+- heathenandheretic.myshopify.com installed; duplicate tenant merged into Gado (backup backups/merged_tenant_98916715.json); info@gadojewellers.com now Gado owner.
+- Theme: Custom Liquid snippet (inline/popup) works; theme app blocks need `npx @shopify/cli app deploy` of downloaded package (user wants walkthrough later).
+- Back-to-dashboard bar on storefront pages for signed-in jeweller (web, hidden in ?embed=1 shopper embed).
+- auth adopt(): clear cache only when business changes, else invalidate (fixed builder stuck loading).
+- Pending: operator console rebuild (custom plans w/ price+features, value report, MRR, per-business overrides, CSV export, troubleshooting) + self-hosting on karatdesign.com.
+
+
 ## Usage alerts + Pro builder + embed diamond (2026-06) — iteration 32
 - Dashboard banner (usage-alert) at ≥80% of plan monthly limit; "Request upgrade" → raw.upgrade_requests; shown on platform tenant card (dismiss / plan change resolves).
 - Pro builder: /build?leadId=X when jeweller signed in → loads lead design, ProPanel (exact sizes → brief + 3D carat/band width; custom price lines / final price / note), "Save to lead" → PUT /api/dashboard/leads/{id}/design + /pricing. quoted_price shown on lead + customer account. No auto AI render in Pro mode.

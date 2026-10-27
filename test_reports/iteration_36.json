@@ -1,0 +1,31 @@
+{
+  "summary": "Frontend retest of iteration 35 fixes, using a fake Shopify admin page (admin.shopify.com, Playwright route) and a fake storefront page (heathenandheretic.myshopify.com) with a cache-busted embed.js. Every requested item passed: (1) Back-to-dashboard bar: shows in the Shopify admin iframe flow (/admin?embedded=1 -> sign in -> admin-nav-open-builder -> /build). The bar is 44px tall and full width, and tapping it returns to /admin (admin-shell). It does not show on /admin. It is hidden on /build?embed=1 at top level and in the inline iframe, even with the admin token in the iframe's storage partition (atelier_admin_token confirmed). (2) Popup: the Close bar is 44px and full width at the top of the box. The iframe fills the rest of the box (desktop box 440x900, iframe 440x856; mobile 390x844, iframe 390x800). The builder's reset icon is no longer covered. Close hides the overlay, reopening reuses the same iframe with the builder still loaded, and clicking the backdrop closes it. (3) Inline is unchanged: 820px iframe at /build?embed=1&store=gado with 'Powered by Karat'. NEW BUG: when an admin token is stored, a fresh load of /build can stay on the builder-loading spinner forever. It happens every time in iframe embeds when the admin is signed in on the same top-level site, and at top level when /api/catalog is slow. Signed-out shoppers are not affected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Builder (app/(tabs)/build.tsx) + AuthProvider (src/auth.tsx adopt)", "issue": "When an admin token is stored, a fresh load of /build can stay on the builder-loading spinner forever. /api/catalog returns 200 but the useCatalog observer never leaves isLoading. Happens every time in the inline/popup/plain iframe (/build?embed=1&store=gado) when the jeweller is signed in in that browser partition. At top level it reproduces when /api/catalog is delayed 3s. /shop?embed=1 is not affected.", "testID": "builder-loading", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "embed.js popup (mobile 390x844)", "issues": ["The box keeps border-radius:16px even when it fills the whole viewport. Minor cosmetic issue: corners look rounded or clipped on full-screen phones. Consider radius 0 when the viewport is 440px wide or less."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "HIGH: Fix the race in src/auth.tsx adopt(): queryClient.clear() runs after /auth/me resolves on startup, which wipes the in-flight ['catalog'] query and leaves the mounted Builder stuck on builder-loading. Fix: skip clear() on the initial session restore (only clear when the tenant actually changes or on an interactive sign-in/out), or use queryClient.resetQueries()/invalidateQueries(), which refetch active observers. Then re-verify a signed-in jeweller loading /build?embed=1&store=gado in an iframe, and top-level /build with a slow catalog.",
+    "LOW: Popup box: drop the border-radius when the box fills the viewport (mobile)."
+  ],
+  "critical_code_review_comments": [
+    "dashboard-return.tsx: the isStorefrontEmbed check (?embed query param) is correct. The bar is hidden for ?embed=1 and shown in a non-embed iframe.",
+    "embed.js popup: the Close button is a full-width 44px flex:none header with aria-label='Close'. The iframe uses flex:1. Good.",
+    "src/auth.tsx: queryClient.clear() inside adopt() also runs during the startup token restore. It is the root cause of the stuck builder (see rca_of_issue)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend only)", "frontend": "90% (all requested checks pass; 1 new HIGH bug: builder spinner when signed in)"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Simulate the Shopify admin with page.route('https://admin.shopify.com/**') serving an iframe of {BASE}/admin?embedded=1. Simulate the storefront with page.route('https://heathenandheretic.myshopify.com/**') serving the snippet with embed.js?store=gado&cb=<ts>. Chromium partitions iframe storage by top-level site, so to test a signed-in admin inside the storefront embed, sign in through an /admin?embedded=1 iframe on the SAME fake myshopify origin first. Check for the stuck spinner via [data-testid=builder-loading] inside the embed frame. Never call real Shopify APIs.",
+  "rca_of_issue": "Repro: on fake https://heathenandheretic.myshopify.com/login, sign in inside an iframe of /admin?embedded=1. Then load a page with an inline embed (/build?embed=1&store=gado). The builder-loading spinner stays forever (checked 48s+, 3 loads, plain iframe too). Network: /api/branding, /api/storefront, /api/auth/me, /api/catalog (200), /api/access all succeed. Signed out, the same page renders the builder. At top level, signed in with /api/catalog delayed 3s via route: stuck. Without the delay: renders. Signed out with the delay: renders. So the bug only happens with a stored admin token and depends on timing. Cause: on AuthProvider mount, fetchMe(saved) resolves, then adopt() calls queryClient.clear() while the Builder's ['catalog'] query is in flight. clear() removes the query from the cache, and the mounted useQuery observer stays on the removed query in pending state and never re-subscribes. Mitigation: don't clear() on the initial restore when the tenant is unchanged, or use resetQueries()/invalidateQueries()."
+}

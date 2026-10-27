@@ -19,9 +19,10 @@ const PAGES: { id: Page; label: string }[] = [
 ];
 const PLATFORMS = [
   { name: "Shopify", icon: "shopping-bag", steps: [
-    "Online Store → Themes → Customize.",
-    "Pop-up on every page: ⋯ → Edit code → layout/theme.liquid → paste just before </body> → Save.",
-    "Inline on one page: open the page (e.g. “Design your ring”) → Add section → Custom Liquid → paste → Save.",
+    "Easiest, builder on its own page: choose “Inline” above and copy the snippet.",
+    "Shopify admin → Online Store → Pages → Add page, e.g. “Design your ring” → Save.",
+    "Online Store → Themes → Customize → page selector at the top → Pages → Create template (or open the page's template) → Add section → Custom Liquid → paste → Save. Then assign that template to your page.",
+    "Pop-up button on every page instead: choose “Pop-up”, then Themes → ⋯ → Edit code → layout/theme.liquid → paste just before </body> → Save.",
   ] },
   { name: "WordPress", icon: "globe", steps: ["Edit the page → add a “Custom HTML” block → paste → Update."] },
   { name: "Wix", icon: "layout", steps: ["Settings → Custom code → + Add custom code → paste → load on all pages (pop-up) or Add → Embed code (inline)."] },

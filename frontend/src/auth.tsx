@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
 
 import { fetchMe, login, signup, type AdminSession } from "@/src/api";
@@ -36,13 +36,17 @@ function takeSsoToken(): string | null {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [session, setSession] = useState<AdminSession | null>(null);
+  const sessionRef = useRef<AdminSession | null>(null);
   const [loading, setLoading] = useState(true);
 
   /** Persist, then make the storefront follow the signed-in business (web reloads to re-brand). */
   const adopt = useCallback(async (t: string, s: AdminSession) => {
     await storage.secureSet(KEY, t);
     if (switchStore(s.tenant.slug)) return;
-    queryClient.clear();
+    // Different business (native, no reload): drop its cached data; same business: just refetch, keep in-flight requests.
+    if (sessionRef.current && sessionRef.current.tenant.id !== s.tenant.id) queryClient.clear();
+    else queryClient.invalidateQueries();
+    sessionRef.current = s;
     setSession(s);
     setToken(t);
   }, []);
@@ -78,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     await storage.secureRemove(KEY);
     setToken(null);
+    sessionRef.current = null;
     setSession(null);
   }, []);
 

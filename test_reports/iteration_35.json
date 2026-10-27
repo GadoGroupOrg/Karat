@@ -1,0 +1,31 @@
+{
+  "summary": "Shopify link fix + Custom Liquid embed verified. DB (read-only): shopify_shops heathenandheretic.myshopify.com -> tenant 314d725a (gado), uninstalled_at None; duplicate tenant 98916715 gone, no orphan docs with that tenant_id in any collection; info@gadojewellers.com is owner on Gado; tenant count stays 2 after all requests. GET /api/shopify/app (valid HMAC, embedded=1&host=x) returns 200 App Bridge shell (shopify-api-key meta, app-bridge.js, CSP frame-ancestors shop+admin.shopify.com) with iframe src {BASE}/admin?sso=...&embedded=1; the SSO token works on /api/auth/me and logs into Gado Jewellers (owner admin@gadojewellers.com, the oldest owner). Non-embedded -> redirect to /admin?sso=; bad HMAC 401; bad shop 400. /api/embed.js?store=gado 200 application/javascript. UI /admin/embed (desktop 1920 + mobile 390): popup snippet has data-store=\"gado\"; Inline gives <div id=\"atelier-builder\"></div> + script with data-target; the 4 new Shopify steps show; 'Installed on heathenandheretic.myshopify.com' badge shows; Preview opens the storefront builder with no error/502. Snippets placed on a simulated Shopify page (Playwright route on https://heathenandheretic.myshopify.com): inline renders an 820px iframe /build?embed=1&store=gado showing Gado Jewellers builder + 'Powered by Karat'; popup shows a 'Design your own' button (47px tall) that opens the builder overlay (desktop and mobile), Close hides it. No Shopify APIs called.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "embed.js popup close button", "issue": "Close (x) is absolute top:8px right:8px over the iframe and covers the builder header's reset/refresh icon (desktop and mobile). It's also 36x36, under 44px. Reference: /app/backend/dashboard.py:407", "testID": "n/a (embed.js)", "priority": "low"},
+      {"component": "DashboardReturn banner inside 3rd-party embed", "issue": "When the jeweller is signed in to the Karat admin in the same browser, the embedded builder (embed=1) on the store site shows 'Back to dashboard · you're previewing your storefront', and the popup X overlaps it. Tapping it would load the dashboard inside the store page's iframe. Customers never see it. Suggest hiding it when embed=1 and the parent isn't admin.shopify.com. Reference: /app/frontend/src/components/dashboard-return.tsx:14", "testID": "back-to-dashboard-button", "priority": "low"}
+    ],
+    "integration_issues": [],
+    "design_issues": [{"screen": "/admin/embed", "issues": ["Segment pills (embed-mode-*, embed-page-*) are 40px tall, under the 44px minimum"]}],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter35_shopify_link_embed.py", "/app/backend/tests/check_iter35_db.py", "/app/test_reports/pytest/iter35.xml"],
+  "action_items": [
+    "Optional: move the embed.js popup close button so it doesn't cover the builder's top-right reset icon (e.g. outside the box, or reserve header space), and make it 44px",
+    "Optional: hide DashboardReturn when embed=1 inside a non-Shopify-admin parent",
+    "Optional: remove leftover test tenant 'test-iso-fd5e5a' (TEST Iso fd5e5a) from an earlier iteration"
+  ],
+  "critical_code_review_comments": [
+    "shopify_app.app_home: the SSO owner is the oldest active owner, so Shopify SSO signs in as admin@gadojewellers.com, not info@gadojewellers.com (the Shopify shop email). Fine if intended.",
+    "Stored scope on shopify_shops is a long list (write_themes etc.) while SCOPES='read_products'. The Partner app config grants more scopes than the code requests. Check that this is intended.",
+    "Inline Custom Liquid: async <script> runs on the live storefront, but in Shopify's theme-editor preview, sections re-rendered via innerHTML won't run scripts until the page reloads. Consider telling merchants to save and view the live page."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter35_shopify_link_embed.py (new)", "/app/backend/tests/check_iter35_db.py (new, read-only)"],
+  "success_rate": {"backend": "100% (6 passed, 1 skipped: platform tenant-list count unavailable via API; tenant count verified via DB = 2 unchanged)", "frontend": "100%"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run with -n0 (pytest.ini uses xdist). Login returns access_token (not token). Simulate a Shopify storefront with page.route('https://heathenandheretic.myshopify.com/...') and fulfil HTML containing the snippet. Never call Shopify APIs, callback, or uninstall webhooks for heathenandheretic.",
+  "rca_of_issue": "The earlier 502 on Preview came from the preview server restarting. Now Preview opens /s/gado/build -> builder with no error."
+}

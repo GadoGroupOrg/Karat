@@ -402,11 +402,11 @@ EMBED_JS = r"""(function(){
   b.style.cssText='position:fixed;right:24px;bottom:24px;z-index:2147483000;padding:14px 22px;border:0;border-radius:999px;cursor:pointer;font:600 15px system-ui,sans-serif;color:#fff;background:'+color+';box-shadow:0 8px 24px rgba(0,0,0,.18)';
   var ov=null; b.onclick=function(){ if(ov){ov.style.display='flex';return;}
     ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;z-index:2147483001;background:rgba(20,20,18,.55);display:flex;align-items:center;justify-content:center';
-    var box=document.createElement('div');box.style.cssText='position:relative;width:min(440px,100vw);height:min(900px,100vh);background:#fff;border-radius:16px;overflow:hidden';
-    var x=document.createElement('button');x.type='button';x.setAttribute('aria-label','Close');x.innerHTML='&times;';
-    x.style.cssText='position:absolute;top:8px;right:8px;z-index:2;width:36px;height:36px;border:0;border-radius:50%;background:rgba(255,255,255,.9);font-size:22px;cursor:pointer';
+    var box=document.createElement('div');box.style.cssText='position:relative;width:min(440px,100vw);height:min(900px,100vh);background:#fff;border-radius:'+(innerWidth<=440?'0':'16px')+';overflow:hidden;display:flex;flex-direction:column';
+    var x=document.createElement('button');x.type='button';x.setAttribute('aria-label','Close');x.innerHTML='&times;&nbsp; Close';
+    x.style.cssText='flex:none;height:44px;width:100%;border:0;border-bottom:1px solid #eee;background:#fff;font:600 14px system-ui,sans-serif;color:#111;cursor:pointer';
     x.onclick=function(){ov.style.display='none';}; ov.onclick=function(e){if(e.target===ov)ov.style.display='none';};
-    var f=frame('100%');f.style.borderRadius='0';box.appendChild(f);box.appendChild(x);ov.appendChild(box);document.body.appendChild(ov);};
+    var f=frame('100%');f.style.borderRadius='0';f.style.flex='1';f.style.height='auto';box.appendChild(x);box.appendChild(f);ov.appendChild(box);document.body.appendChild(ov);};
   (document.body||document.documentElement).appendChild(b);
 })();"""
 

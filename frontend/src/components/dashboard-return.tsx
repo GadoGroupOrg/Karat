@@ -3,6 +3,7 @@ import { usePathname, useRouter } from "expo-router";
 import { Platform, Pressable, StyleSheet, Text } from "react-native";
 
 import { useAuth } from "@/src/auth";
+import { isStorefrontEmbed } from "@/src/embed";
 import { fonts, spacing, useTheme } from "@/src/theme";
 
 /** When a signed-in jeweller previews the storefront/builder (e.g. inside the Shopify admin), a way back to their dashboard. */
@@ -11,7 +12,7 @@ export function DashboardReturn() {
   const { admin } = useAuth();
   const path = usePathname();
   const router = useRouter();
-  if (Platform.OS !== "web" || !admin || /^\/(admin|platform|job-sheet)(\/|$)/.test(path)) return null;
+  if (Platform.OS !== "web" || !admin || isStorefrontEmbed || /^\/(admin|platform|job-sheet)(\/|$)/.test(path)) return null;
   return (
     <Pressable testID="back-to-dashboard-button" onPress={() => router.dismissTo("/admin" as never)} accessibilityRole="button"
       style={[styles.bar, { backgroundColor: colors.surfaceInverse }]}>
