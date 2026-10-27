@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { isEmbedded } from "@/src/embed";
-import { tenantHeaders } from "@/src/tenant";
+import { forgetStore, tenantHeaders } from "@/src/tenant";
 import { uploadForm } from "@/src/utils/upload";
 
 export const BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
@@ -82,6 +82,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const detail = typeof body.detail === "string" ? body.detail : "Something went wrong";
+    if (res.status === 404 && detail === "Store not found" && forgetStore()) return new Promise<T>(() => {}); // reloading on the default store
     const err = new Error(detail) as Error & { status?: number };
     err.status = res.status;
     throw err;

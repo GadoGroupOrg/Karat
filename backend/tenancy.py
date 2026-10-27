@@ -199,7 +199,7 @@ async def migrate():
     return gado
 
 
-OPEN_PATHS = ("/api/auth/", "/api/platform", "/api/shopify/webhooks", "/api/shopify/callback", "/api/shopify/app",
+OPEN_PATHS = ("/api/auth/", "/api/platform/", "/api/shopify/webhooks", "/api/shopify/callback", "/api/shopify/app",
               "/api/shopify/install")
 
 
@@ -207,6 +207,8 @@ async def resolve_tenant(request: Request):
     """App-wide dependency: pick the business from the X-Tenant header or ?store= (default: the first business)."""
     slug = (request.headers.get("x-tenant") or request.query_params.get("store") or DEFAULT_SLUG).strip().lower()
     t = await get_by_slug(slug)
+    if not t and request.url.path.startswith(OPEN_PATHS):
+        t = await get_by_slug(DEFAULT_SLUG)  # stale/removed store remembered by a browser must never block sign-in
     if not t:
         raise HTTPException(404, "Store not found")
     set_tenant(t)

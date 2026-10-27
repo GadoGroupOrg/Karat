@@ -1,0 +1,19 @@
+{
+  "summary": "Stale/removed store slug fix verified end-to-end. Backend: 18/18 pytest pass - POST /api/auth/login, /api/auth/me, /api/platform/login with X-Tenant (or ?store=) 'gado-jewellers-18k-gold-colombian-emeral' fall back to Gado and return token/tenant slug 'gado'; /api/shopify/(app|install|callback|webhooks) never return 'Store not found'; /api/branding, /catalog, /storefront, /access, /dashboard/leads still 404 'Store not found' for unknown slug; wrong password still 401. Frontend: with sessionStorage atelier_store=<bad slug>, /admin loads, gets exactly one /api/branding 404, clears the stored store, reloads once on the default store (2 document loads in total, no loop), login works and shows the Gado Jewellers dashboard. Same result inside an iframe (cross-origin parent page with the app in an iframe). /s/nonexistent-store/build goes to /build (Gado builder) and /build?store=nonexistent goes to /build, each with a single recovery reload and no further reloads after 5s+. Regression: /build?store=gado, /s/gado (goes to /), /s/gado/build (goes to /build), /build?embed=1&store=gado (embed renders with 'Powered by Karat') and /s/test-iter37-jewels load with no 404s and the correct sessionStorage. Signing in as the Gado admin while on the test-iter37-jewels store switches sessionStorage to 'gado' and shows the Gado dashboard. No deprecated Expo packages were checked or found in the files in scope.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": ["/app/backend/tests/test_iter38_stale_tenant.py", "/app/test_reports/pytest/pytest_iter38.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "tenancy.OPEN_PATHS uses prefix '/api/platform' without trailing slash, so any future route starting with '/api/platform...' (e.g. /api/platformfoo) would also bypass the unknown-store 404. Harmless today; consider ('/api/platform/', '/api/platform') exact handling.",
+    "Fallback also covers /api/auth/session (customer Google sign-in): with a stale slug the customer session is created under the default business. This is consistent because the next non-open request triggers forgetStore and a reload on the default, but note the session is tied to the default business.",
+    "forgetStore only handles 404 'Store not found'. A paused store (403 'This store is currently unavailable') remembered in sessionStorage is not auto-forgotten. This is probably intended; it is listed only for awareness."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter38_stale_tenant.py"],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "100% (all recovery + regression flows)"},
+  "seed_data_creation": "None. Used existing tenants gado and test-iter37-jewels.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Simulate a stale store by navigating to the origin, then running sessionStorage.setItem('atelier_store', '<slug>') and going to the target page. Do not use add_init_script: it re-seeds the slug on every load and fakes a loop. Count document requests (resource_type == 'document') to detect reload loops; framenavigated also fires on SPA history changes.",
+  "rca_of_issue": "A deleted (merged) tenant slug stayed in the tab's sessionStorage, so every API call sent that X-Tenant and resolve_tenant returned 404. Fix: open auth/platform/shopify paths fall back to the default tenant, and the frontend request() calls forgetStore() on 404 'Store not found' to clear the slug and reload once on the default store. Verified working."
+}

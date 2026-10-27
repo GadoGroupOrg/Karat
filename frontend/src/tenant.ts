@@ -35,5 +35,19 @@ export function switchStore(next: string): boolean {
   return false;
 }
 
+/** A remembered store that no longer exists (e.g. merged/removed): forget it and reload on the default. */
+export function forgetStore(): boolean {
+  if (!slug) return false;
+  slug = "";
+  if (web) {
+    window.sessionStorage.removeItem(KEY);
+    const u = new URL(window.location.href);
+    u.searchParams.delete("store");
+    window.location.replace(u.pathname.replace(/^\/s\/[a-z0-9-]+/i, "") + u.search || "/");
+    return true;
+  }
+  return false;
+}
+
 /** Clean hosted storefront link, e.g. https://app.com/s/luna (or /s/luna/build). */
 export const storeLink = (origin: string, path = "/") => `${origin}/s/${slug || "gado"}${path === "/" ? "" : path}`;
