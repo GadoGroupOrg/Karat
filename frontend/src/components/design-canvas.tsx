@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Catalog, DesignSpec, Stroke, assetUrl, requestAngle, requestRender, requestSketch } from "@/src/api";
 import { SketchPad } from "@/src/components/sketch-pad";
 import { SketchResult } from "@/src/components/sketch-result";
-import { Watermark } from "@/src/components/watermark";
 import { useCustomer } from "@/src/customer";
 import { useFeatures } from "@/src/api";
 import { JewelryPreview } from "@/src/components/jewelry-preview";
@@ -214,7 +213,6 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
             <Image source={{ uri: shownUrl }} style={styles.photo} contentFit="cover" blurRadius={40} />
             <Image source={{ uri: shownUrl }} style={[styles.photo, StyleSheet.absoluteFill]} contentFit="contain" transition={400} testID="builder-render-photo" />
             {!photoReady && <View style={styles.updatingVeil} />}
-            <Watermark />
           </View>
         ) : !photoOn ? (
           <View style={styles.placeholder} testID="photo-unavailable">
@@ -305,7 +303,6 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
             >
               <View style={styles.fsPhoto}>
                 <Image source={{ uri: shownUrl }} style={StyleSheet.absoluteFill} contentFit="contain" testID="fullscreen-photo" />
-                <Watermark />
               </View>
             </ScrollView>
           ) : isRing ? (

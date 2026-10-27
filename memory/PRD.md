@@ -141,7 +141,7 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - Pending: user publishes, creates app in Shopify Dev Dashboard, then adds SHOPIFY_API_KEY/SECRET via secrets card.
 
 ## Design protection + Powered by Karat (2026-06) — iteration 30
-- Feature `protect_designs` (default on): native blocks screenshots (expo-screen-capture); web shows store-name watermark over design images.
+- Feature `protect_designs` (default on): native blocks screenshots (expo-screen-capture); web shows store-name watermark over sketch results only (removed from builder studio photo per user, 2026-06).
 - "Powered by Karat" → https://karatdesign.io on all embeds (?embed=1 / iframe), not on /admin|/platform|/job-sheet. Always on (future: paid white-label option).
 
 ## Lead files & links (2026-06) — iteration 31
