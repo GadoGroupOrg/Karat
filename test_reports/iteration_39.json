@@ -1,0 +1,27 @@
+{
+  "summary": "KeyboardProvider/GateModal fix verified (frontend only, mobile viewport 375x667 and 390x844). Fresh logged-out visitor on /build: 'See price' opens the form gate ('A few details first'). Typed into name, email, phone and question fields, then closed it. 'Create studio photo' opens the account gate ('Create your account'). Typed into the fields, the short-password check showed, the sign-in/sign-up switch worked, and close worked. The same steps passed inside a cross-origin iframe page (/build?embed=1&store=gado), where 'Powered by Karat' shows. On /build?embed=1&store=gado directly, the 3D sketch button opens the account gate and Escape closes it. Across all runs: 0 pageerrors, 0 'PromiseResolve called on non-object', 0 'KeyboardContext' warnings in the browser console, the page text and the Expo log after the Metro restart (the old errors in expo.out.log are from before the restart). Other KeyboardAwareScrollView screens loaded and took typing with no errors: /try-on/shop-10762101948438, /design/<id>, /admin login, /platform login (bad credentials show 'Invalid email or password'), /admin/leads/<id> (adding a note works), /store-connect and /merchant. Regression: Save design passes the form gate and the design is saved. The quote request on /design/<id> succeeds and the lead appears in /admin/leads. As admin on /build, 'Back to dashboard' shows and goes to /admin. 'Powered by Karat' shows only in embed mode, which matches the code. Angle chips were NOT tested because they need a finished AI render, and no AI generations were triggered. No deprecated Expo packages were seen in the files in scope.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "GateModal", "issue": "A validation error (e.g. 'Password must be at least 8 characters.') stays visible after switching between the sign-up and sign-in tabs. setError(null) is not called on tab switch. Reference: src/components/gate-modal.tsx:93", "testID": "gate-switch-tab", "priority": "low"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "GateModal (form gate)", "issues": ["Gado's custom access questions 'Your name' and 'Your email address' repeat the built-in Full name/Email fields, so visitors enter the same data twice. This is a jeweler content/config issue, not a code bug."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional: clear the error in GateModal when switching tabs (gate-modal.tsx:93 onPress → also setError(null))."
+  ],
+  "critical_code_review_comments": [
+    "app/_layout.tsx: KeyboardProvider now wraps CustomerProvider, StatusBar, ScreenProtect, DashboardReturn, Stack and PoweredBy. Every KeyboardAwareScrollView user (gate-modal, build, design, try-on, admin login/leads/access/branding, platform login, store-connect, merchant) is now inside the provider. Nothing is left outside it."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not requested)", "frontend": "100%"},
+  "seed_data_creation": "Created a quote lead 'TEST_Iter39 Visitor' (test_iter39@example.com, lead id 6ae1e21901b34bfd59a8b822) for the gado store, with an admin note 'TEST_ iter39 note'. Also created a gate contact submission with the same name and email.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "GET /api/access (X-Tenant: gado) rules: prices=form, save_design=form, studio_photo/angles/try_on/sketch=account, quote=none. Ways to open the gate without AI: see-price-button (form gate), unlock-studio-photo-button (account gate), canvas-mode-live then sketch-start-button (account gate). The public URL is EXPO_PUBLIC_BACKEND_URL in frontend/.env (EXPO_BACKEND_URL is not set). Admin login returns access_token. Before checking logs, find the 'Starting Metro Bundler' line in expo.out.log, because older entries are from earlier runs."
+}

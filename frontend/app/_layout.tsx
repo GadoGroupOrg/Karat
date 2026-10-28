@@ -67,8 +67,8 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-          <CustomerProvider>
           <KeyboardProvider>
+          <CustomerProvider>
             <StatusBar style="dark" />
             <ScreenProtect />
             <DashboardReturn />
@@ -85,8 +85,8 @@ export default function RootLayout() {
             </Stack>
             </View>
             <PoweredBy />
-          </KeyboardProvider>
           </CustomerProvider>
+          </KeyboardProvider>
           </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>

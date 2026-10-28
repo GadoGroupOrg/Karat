@@ -90,7 +90,7 @@ export function GateModal({ need, action, questions, customer, onDone, onCancel,
               {busy ? <ActivityIndicator color={colors.onSurfaceInverse} /> : <Text style={styles.btnText}>{tab === "form" ? "Continue" : tab === "signup" ? "Create account" : "Sign in"}</Text>}
             </Pressable>
             {tab !== "form" && (
-              <Pressable testID="gate-switch-tab" onPress={() => setTab(tab === "signup" ? "signin" : "signup")} style={styles.link}>
+              <Pressable testID="gate-switch-tab" onPress={() => { setError(null); setTab(tab === "signup" ? "signin" : "signup"); }} style={styles.link}>
                 <Text style={styles.linkText}>{tab === "signup" ? "Already have an account? Sign in" : "New here? Create an account"}</Text>
               </Pressable>
             )}
