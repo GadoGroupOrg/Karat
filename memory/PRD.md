@@ -163,3 +163,8 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 4. Production: spec sheet PDF (piece, metal, size, widths, stones mm/ct/grade, accents, gold weight, engraving, finish, images/angles/sketches, deadline) + Production board (Design→CAD→Wax/Print→Casting→Setting→Polish→QC→Ready), assignees, due dates, comments
 5. Staff logins with roles (Owner, Sales/Consultant, Atelier/Bench — bench sees only Production board)
 - CAD/3D export: REMOVED from scope by user
+
+## 3D realism fix (2026-06) — iteration 40
+- Bright light-tent studio env with black flags; metal roughness 0.14, no clearcoat, exposure 1.05.
+- ROOT CAUSE of flat/washed metal after option change: GLView webglContextAttributes inline object → expo-gl web re-ran onContextCreate on every render (2nd renderer). Fixed with module constant GL_ATTRS + guard. Keep GLView props stable.
+- Fullscreen viewer unmounts on close; auto-render waits for access rules.

@@ -62,7 +62,9 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
   useEffect(() => {
     if (!photoOn && hasLive) setMode("live");
   }, [photoOn, hasLive]);
-  const { allowed, ensure } = useCustomer();
+  const { allowed, ensure, rules } = useCustomer();
+  const gateRef = useRef({ allowed, loaded: !!rules });
+  gateRef.current = { allowed, loaded: !!rules };
   const [angle, setAngle] = useState("hero");
   const [angleUrls, setAngleUrls] = useState<Record<string, string>>({});
   const [angleBusy, setAngleBusy] = useState<string | null>(null);
@@ -124,7 +126,8 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
     setAngle("hero");
     setAngleUrls({});
     if (!autoRender || !allowed("studio_photo") || !feat("studio_photo")) return;
-    const h = setTimeout(() => photoOnRef.current && run(false), RENDER_DELAY);
+    // Rules may still be loading: re-check at fire time so a gated visitor never triggers a refused render.
+    const h = setTimeout(() => photoOnRef.current && gateRef.current.loaded && gateRef.current.allowed("studio_photo") && run(false), RENDER_DELAY);
     return () => clearTimeout(h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
@@ -307,7 +310,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
             </ScrollView>
           ) : isRing ? (
             <View style={{ flex: 1 }}>
-              <RingViewer ref={fullViewer} spec={ringSpec} background={colors.surfaceSecondary} testID="fullscreen-ring-3d" />
+              {fullscreen && <RingViewer ref={fullViewer} spec={ringSpec} background={colors.surfaceSecondary} testID="fullscreen-ring-3d" />}
               {controls(fullViewer, true)}
             </View>
           ) : null}

@@ -1,0 +1,26 @@
+{
+  "summary": "I found and fixed the root cause of the washed-out, flat 3D metal after any option change on /build (390x844, logged out). expo-gl GLView.web componentDidUpdate compares the webglContextAttributes prop by reference. ring-viewer.tsx passed a new inline object on every render, so every re-render (after any chip tap) called onContextLost/onContextRestored. getContext() then returned the SAME GL context, and onContextCreate ran again. That built a 2nd THREE.WebGLRenderer plus a 2nd RAF loop on a context whose GL state was left dirty by the 1st renderer. The new renderer's state cache no longer matched the GPU, so its PMREM studio environment came out blurred: the env atlas toDataURL size dropped from 90KB to 10KB and the black flags were lost, which washed out the gold and the emerald. Fix: a module-level constant GL_ATTRS, plus a guard in onContextCreate (skip if the same gl is already in use; cancel any previous RAF). I removed the __KDBG debug hook. After the fix the gold metric holds at std 56-57, min 22-35 across every change I tested: default yellow, head rose, head match, band rose, band white (object std 53, min 21), back to yellow, halo, full pavé, hidden halo, carat 2, oval, wedding band, fullscreen (std 58), after fullscreen close, and Photo->3D. Before the fix it was std 11-15, min 175-189. I also checked the two earlier fixes. The fullscreen viewer is unmounted on close: 2 canvases while open, 1 after close, 0 in Photo mode. Logged-out visitors get no POST /api/renders, and no 'Render failed' chip appears. No console errors. The only WebGL messages were 'GPU stall due to ReadPixels' perf notes, caused by my own pixel sampling.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional cleanup: the resize branch in the ring-viewer.tsx render loop regenerates studioEnvironment (PMREM) on every buffer resize. This was a workaround for the same symptom. It is no longer needed now that the real cause is fixed, and it is costly on resize/orientation change, so it can be removed (keep setSize/aspect).",
+    "Never pass inline object/array props to GLView (webglContextAttributes). Keep them module-level or memoized."
+  ],
+  "critical_code_review_comments": [
+    "ring-viewer.tsx: inline webglContextAttributes object made expo-gl web re-init the context on every render. This was the root cause, now fixed with the GL_ATTRS constant.",
+    "ring-viewer.tsx onContextCreate: was not idempotent and could stack renderers/RAF loops. Now guarded."
+  ],
+  "updated_files": ["/app/frontend/src/components/ring3d/ring-viewer.tsx"],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Metric: draw the canvas to a 2D canvas and compute luminance std/min over pixels with R-B>40 (gold). Good = std ~56, min ~34. Test IDs: canvas-mode-live / canvas-mode-photo, option-head_metal-*, metal-option-*, style-option-*, option-band-*, addon-hidden-halo-toggle, bridal-mode-band, fullscreen-button, fullscreen-close-button. The __KDBG hook has been removed.",
+  "rca_of_issue": "Repro: open /build, tap 3D, tap any option chip -> metal washed out (std 11, min 180). Using the debug hook, I tagged the renderer before the tap and found a NEW renderer after it, even though the canvas count stayed at 1. Root cause: node_modules/expo-gl/build/GLView.web.js:120-125. componentDidUpdate runs `webglContextAttributes !== prevProps.webglContextAttributes` -> onContextLost + onContextRestored -> getGLContext -> canvas.getContext returns the existing context -> props.onContextCreate(gl) again. Mitigation: stable GL_ATTRS constant plus an idempotency guard in onContextCreate."
+}

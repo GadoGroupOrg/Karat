@@ -84,8 +84,8 @@ function gemGeometry(cut: Cut, size: number) {
 
 export function makeMaterials(spec: RingSpec) {
   const metal = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(spec.metalColor), metalness: 1, roughness: 0.09,
-    envMapIntensity: 1.6, clearcoat: 0.6, clearcoatRoughness: 0.05,
+    color: new THREE.Color(spec.metalColor), metalness: 1, roughness: 0.14,
+    envMapIntensity: 1.15, clearcoat: 0, clearcoatRoughness: 0.05,
   });
   const stoneColor = new THREE.Color(spec.stoneColor);
   const gemOuter = new THREE.MeshPhysicalMaterial({
@@ -218,7 +218,7 @@ export function buildRing(spec: RingSpec): RingBuild {
   if (spec.weddingBand) return buildWeddingBand(spec, m);
   const group = new THREE.Group();
   const b = BANDS[spec.band] ?? BANDS.polished;
-  const head: Mats = spec.headColor ? { ...m, metal: Object.assign(m.metal.clone(), { color: new THREE.Color(spec.headColor) }) } : m;
+  const head: Mats = spec.headColor ? { ...m, metal: makeMaterials({ ...spec, metalColor: spec.headColor }).metal } : m;
   const isToiEtMoi = spec.setting === "toi-et-moi";
   spec = { ...spec, setting: isToiEtMoi ? "toi-et-moi" : SETTING_3D[spec.setting] ?? spec.setting };
 
@@ -355,8 +355,9 @@ export function disposeGroup(g: THREE.Object3D) {
   });
 }
 
-// Studio environment: procedural HDR equirect map — dark warm studio, softbox, strip lights and
-// pin-point hot-spots that make facets flash and polished gold read as mirror metal.
+// Studio environment: procedural HDR equirect map — bright neutral jewellery studio (light-tent walls,
+// big softboxes, strip lights) plus pin-point hot-spots that make facets flash. Polished gold reflects
+// mostly light surroundings, so it reads as bright yellow metal instead of dark/tarnished.
 export function studioEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture | null {
   try {
     const W = 512, H = 256;
@@ -366,20 +367,28 @@ export function studioEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture 
     const rand = (n: number) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
     const spots = Array.from({ length: 22 }, (_, i) => ({ u: rand(i + 1), v: 0.18 + rand(i + 50) * 0.55, r: 0.004 + rand(i + 90) * 0.004 }));
     const strips = [
-      { u: 0.1, w: 0.012, i: 10 }, { u: 0.36, w: 0.01, i: 8 }, { u: 0.6, w: 0.014, i: 12 },
-      { u: 0.86, w: 0.01, i: 9 }, { u: 0.7, w: 0.006, i: 14 },
+      { u: 0.1, w: 0.012, i: 6 }, { u: 0.36, w: 0.01, i: 5 }, { u: 0.6, w: 0.014, i: 7 },
+      { u: 0.86, w: 0.01, i: 5 }, { u: 0.7, w: 0.006, i: 8 },
     ];
+    const box = (u: number, v: number, cu: number, cv: number, hu: number, hv: number) =>
+      Math.abs(u - cu) < hu && Math.abs(v - cv) < hv ? 1 : 0;
     for (let y = 0; y < H; y++) {
       const v = 1 - y / (H - 1); // row 0 is the bottom of the sphere (no flipY: expo-gl ignores it)
       for (let x = 0; x < W; x++) {
         const u = x / (W - 1);
-        let r = 0.02, g = 0.017, b = 0.014; // dark warm walls
-        if (v > 0.72) { r = g = b = 0.004; } // floor
-        if (v < 0.14) { const k = 1.8 * (1 - v / 0.14) + 0.4; r += k; g += k * 0.97; b += k * 0.92; } // overhead softbox
-        const fill = Math.exp(-(((u - 0.75) / 0.09) ** 2) - (((v - 0.42) / 0.12) ** 2)) * 1.1; // warm cream card behind camera
-        r += fill; g += fill * 0.95; b += fill * 0.86;
+        // Light-tent walls: bright top fading to a soft grey floor, slightly warm.
+        const wall = v < 0.5 ? 0.95 - v * 0.6 : 0.65 - (v - 0.5) * 0.9;
+        let r = wall, g = wall * 0.98, b = wall * 0.95;
+        if (v < 0.16) { const k = 3 * (1 - v / 0.16) + 0.6; r += k; g += k; b += k * 0.98; } // overhead softbox
+        const soft = 3.2 * (box(u, v, 0.25, 0.42, 0.07, 0.14) + box(u, v, 0.75, 0.42, 0.07, 0.14)); // side softboxes
+        r += soft; g += soft; b += soft * 0.98;
+        if (v > 0.78) { r *= 0.7; g *= 0.7; b *= 0.7; } // table edge contrast so the band shows form
+        // Black flags (like a jeweller's photo cards) between the softboxes: polished metal needs dark
+        // reflections next to bright ones, otherwise it reads flat and plasticky.
+        const flag = box(u, v, 0.5, 0.45, 0.05, 0.2) || box(u, v, 0.02, 0.45, 0.04, 0.2) || box(u, v, 0.98, 0.45, 0.04, 0.2) || box(u, v, 0.5, 0.6, 0.5, 0.025);
+        if (flag) { r = 0.03; g = 0.028; b = 0.026; }
         for (const s of strips) {
-          if (Math.abs(u - s.u) < s.w && v > 0.18 && v < 0.68) { r += s.i; g += s.i * 0.98; b += s.i * 0.95; }
+          if (Math.abs(u - s.u) < s.w && v > 0.18 && v < 0.68) { r += s.i; g += s.i; b += s.i * 0.98; }
         }
         if (Math.abs(v - 0.46) < 0.008 && u > 0.2 && u < 0.32) { r += 6; g += 6; b += 6; }
         for (const sp of spots) {

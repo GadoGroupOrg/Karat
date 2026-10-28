@@ -12,6 +12,11 @@ export type RingViewerHandle = {
   setAutoSpin: (on: boolean) => void;
 };
 
+// Must be a stable reference: expo-gl (web) re-initialises the context whenever this prop's identity
+// changes, which re-ran onContextCreate on the SAME GL context and created a second renderer whose
+// state cache no longer matched the GPU — the PMREM studio reflections came out washed and flat.
+const GL_ATTRS = { webglContextAttributes: { preserveDrawingBuffer: true, antialias: true } } as object;
+
 const ZOOM_MIN = 0.7, ZOOM_MAX = 3;
 const clampZoom = (z: number) => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
 const touchDist = (t: readonly { pageX: number; pageY: number }[]) =>
@@ -88,6 +93,16 @@ export const RingViewer = forwardRef<RingViewerHandle, Props>(function RingViewe
       disposeGroup(e.ring);
     }
     const built = buildRing(specRef.current);
+    const env = e.scene.environment;
+    if (env) {
+      built.group.traverse((o) => {
+        const mats = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+        (Array.isArray(mats) ? mats : mats ? [mats] : []).forEach((mt) => {
+          const std = mt as THREE.MeshStandardMaterial;
+          if ("envMap" in std && !std.envMap) { std.envMap = env; std.needsUpdate = true; }
+        });
+      });
+    }
     e.ring = built.group;
     e.stoneSize = built.stoneSize;
     e.pivot.add(built.group);
@@ -112,7 +127,9 @@ export const RingViewer = forwardRef<RingViewerHandle, Props>(function RingViewe
     const e = engine.current;
     if (e) {
       if (e.ring) disposeGroup(e.ring);
+      e.scene.environment?.dispose();
       e.renderer.dispose();
+      e.renderer.forceContextLoss(); // free the GL context right away (browsers cap live contexts)
     }
     engine.current = null;
   }, []);
@@ -142,6 +159,9 @@ export const RingViewer = forwardRef<RingViewerHandle, Props>(function RingViewe
   }));
 
   const onContextCreate = (gl: ExpoWebGLRenderingContext) => {
+    // Guard: never stack a second renderer/loop on the same context.
+    if (engine.current?.gl === gl) return;
+    if (raf.current) cancelAnimationFrame(raf.current);
     const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
     if (Platform.OS !== "web") {
       // expo-gl doesn't implement these pixelStorei flags; silence the warnings.
@@ -158,14 +178,14 @@ export const RingViewer = forwardRef<RingViewerHandle, Props>(function RingViewe
     renderer.setPixelRatio(1);
     renderer.setSize(w, h, false);
     renderer.toneMapping = THREE.NeutralToneMapping;
-    renderer.toneMappingExposure = 0.95;
+    renderer.toneMappingExposure = 1.05;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setClearColor(new THREE.Color(background), 1);
 
     const scene = new THREE.Scene();
     const env = studioEnvironment(renderer);
     if (env) scene.environment = env;
-    scene.add(new THREE.HemisphereLight(0xfff6ea, 0x3a3029, env ? 0.35 : 1.4));
+    scene.add(new THREE.HemisphereLight(0xfff6ea, 0xb8aa98, env ? 0.3 : 1.4));
     const key = new THREE.DirectionalLight(0xffffff, env ? 1.2 : 2.6);
     key.position.set(-3, 5, 4);
     scene.add(key);
@@ -277,7 +297,7 @@ export const RingViewer = forwardRef<RingViewerHandle, Props>(function RingViewe
         style={styles.fill}
         onContextCreate={onContextCreate}
         msaaSamples={4}
-        {...({ webglContextAttributes: { preserveDrawingBuffer: true, antialias: true } } as object)}
+        {...GL_ATTRS}
       />
     </View>
   );
