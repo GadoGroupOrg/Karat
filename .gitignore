@@ -89,3 +89,4 @@ credentials.json
 
 # Test files (contain test login passwords) - kept local only
 backend/tests/
+backend/backups/
