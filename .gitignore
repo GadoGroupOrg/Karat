@@ -86,3 +86,6 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Test files (contain test login passwords) - kept local only
+backend/tests/
