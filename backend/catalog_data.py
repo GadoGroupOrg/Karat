@@ -37,8 +37,6 @@ RING_SETTINGS = [
      "description": "Four slim claws lift the stone high to catch the most light."},
     {"id": "solitaire-6", "name": "6-Prong Solitaire", "price": 300, "grams": 0.7, "accent_ct": 0,
      "description": "Six claws for a rounder silhouette and extra security."},
-    {"id": "hidden-halo", "name": "Hidden Halo", "price": 550, "grams": 0.8, "accent_ct": 0.12,
-     "description": "A secret ring of diamonds under the stone, seen from the side."},
     {"id": "halo", "name": "Halo", "price": 650, "grams": 0.9, "accent_ct": 0.25,
      "description": "A frame of micro-pavé diamonds that makes the centre look larger."},
     {"id": "double-halo", "name": "Double Halo", "price": 950, "grams": 1.3, "accent_ct": 0.45,

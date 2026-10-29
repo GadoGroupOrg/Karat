@@ -1,0 +1,36 @@
+{
+  "summary": "Frontend retest of the 2 fixes from iteration 42 in the /build 3D builder. AI was not triggered: /api/renders was aborted in most runs. In one Photo-mode run it was answered with a mock JSON that points at an existing catalog image, so no AI ran. (1) SKETCH BUTTON PLACEMENT: PASS. On mobile 390x844, 3D mode, sketch-start-button is at x36 y234 (40x40), at the top-left. It is left-aligned with the Photo/3D segment and sits 14px below it (segment y182-220). It overlaps nothing: no clash with the zoom-in, zoom-out, spin, reset or fullscreen buttons, the segment, the hint, or render-status. elementFromPoint at its centre returns sketch-start-button. Tapping it opens the gate when signed out; after signing up, the sketch pad opens. Cancel closes the pad and brings back the button and the 3D viewer. Desktop 1280x900 3D mode: the sketch button is at x36 y234, with no overlaps. Photo mode is unchanged on desktop and mobile: sketch is right above fullscreen at the bottom-right, 12px from the right and bottom edges, with no overlap with angle-bar or render-status. (2) SPLIT SHANK PAVÉ: PASS for the stray stones. Split shank with partial pavé no longer shows lone melee on the band; only the strand pavé remains. Full and 3/4 pavé on split shank stop cleanly below the strand starts, with no floating stones. Checked round 1ct and oval 2ct in the default, top and low views, plus a 2x zoom. NEW FINDINGS: (a) Bypass with partial pavé still has 2 lone melee per shoulder, the same artifact that was fixed for split shank. (b) Split shank with partial pavé now looks the same as polished split shank, so the +0.15ct pavé option has no visible effect. (c) In sketch mode, the 3D view-controls still render on top of the sketch pad toolbar. REGRESSION: all 11 styles render in 3D. Gold luminance std is 46.6-49.2. 0 page errors and 0 console errors; the only warnings are the textShadow* deprecation (react-native-web) and the dev-only Metro disconnect. 0 real AI render requests.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "DesignCanvas 3D sketch mode (mobile 390x844)", "issue": "While sketching in 3D mode, the view-controls column stays visible and is drawn on top of the SketchPad. reset-view-button (314,412) covers the right end of sketch-note-input (32-358, y416-456). fullscreen-button (314,460) covers the right part of sketch-render-button (264-358, y464-504) and hides most of its 'Render' label. The Photo/3D segment (36-147, y182-220) also covers the start of the 'Draw your idea on the piece' banner (118-293, y190-205). Cause: line 266 renders controls(viewer,false) whenever isRing && mode==='live', without checking !sketching. The segment at line 244 also ignores sketching. Reference: /app/frontend/src/components/design-canvas.tsx:244,266", "testID": "view-controls / sketch-render-button / sketch-note-input", "priority": "medium"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Build 3D - Bypass + Partial Pavé", "issues": ["2 lone melee per shoulder are still visible near the band ends, in the default and top views. Math: gap = 0.55 rad (31.5°), so clear = 43.5°. Partial pavé covers 40-140° with a step of about 4.3°, so only deg 40 and 44.3 (and 135.7 and 140) survive. Reference: build-ring.ts:454-455. Suggestion: if the run that survives on a side is shorter than about 4 stones, drop it. Or start the run at 90±clear and extend it outward by the same length, for all settings where gap > 0."]},
+      {"screen": "Build 3D - Split Shank + Partial Pavé", "issues": ["With clear = 51° and the partial range 40-140°, the band now gets 0 stones. Split shank with partial pavé looks the same as split shank with polished, apart from band thickness (compared side by side at 2x zoom). The customer pays +0.15ct pavé and sees no change. Suggestion: for split shank, shift the partial range outward (for example 90±(clear .. clear+50)) so the band pavé continues the strand pavé. Reference: build-ring.ts:168, 454-455."]},
+      {"screen": "Carry-over (not in scope this round)", "issues": ["There is still a step or seam where the split-shank band cap meets the strands.", "Bypass shoulder kink.", "Pear and heart outlines.", "Bezel cup/stem gap."]}
+    ],
+    "react_native_issues": [
+      {"component": "watermark textShadow", "issue": "react-native-web warns: '\"textShadow*\" style props are deprecated. Use \"textShadow\".' Reference: /app/frontend/src/components/watermark.tsx:31 (minor; this is a web-only warning)."}
+    ]
+  },
+  "test_report_links": ["/tmp/r3d/i43_ssp.jpg", "/tmp/r3d/i43_ssf.jpg", "/tmp/r3d/i43_ssz.jpg", "/tmp/r3d/i43_bpz.jpg", "/tmp/r3d/i43_reg.jpg", "/tmp/r3d/i43_pad.jpg", "/tmp/r3d/i43_mob_live.jpg", "/tmp/r3d/i43_mob_photo.jpg", "/tmp/r3d/i43_desk_photo.jpg"],
+  "action_items": [
+    "Hide view-controls (and the canvas-mode segment) while sketching in 3D mode: add !sketching to design-canvas.tsx:266 and :244.",
+    "Bypass + Partial Pavé: remove the 2 lone melee per shoulder (build-ring.ts:454-455). Apply the same rule to every setting where gap > 0.",
+    "Split Shank + Partial Pavé: band pavé now renders 0 stones, so the option has no visible effect. Shift the partial range outward so some band pavé shows.",
+    "Minor: watermark.tsx:31 uses deprecated textShadowColor/textShadowRadius on web."
+  ],
+  "critical_code_review_comments": [
+    "design-canvas.tsx:268: the live-mode override {bottom:'auto', top: 3xl+lg, left: md} is correct. Photo mode still uses the default right/bottom controls style.",
+    "build-ring.ts:455: when every angle is filtered out, an InstancedMesh with count 0 is created. This is harmless, but it can be skipped."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "90% (both requested fixes pass; 1 new medium UI overlap in sketch mode; bypass partial-pavé strays)"},
+  "seed_data_creation": "Created TEST_ customer accounts test_i43_<ts>@example.com, test_i43b_<ts>@example.com and test_i43p_<ts>@example.com (password Password123) through the gate signup. The credentials file lists bo@example.com / Password123, but it returned 'Invalid email or password'.",
+  "test_credentials": "bo@example.com / Password123 from /app/memory/test_credentials.md failed on the /build gate sign-in (401). Update the credentials file or re-seed this account.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use the live 3D view via [data-testid=canvas-mode-live]; the viewer is [data-testid=ring-3d-viewer]. Use page.goto with wait_until='domcontentloaded' (networkidle times out at desktop size). Abort **/api/renders. To test Photo mode without AI, route.fulfill POST /api/renders with {id, image_url:<any catalog img src>, cached:true}. The sketch and studio photo flows need sign-in: sign up a new account in gate-modal (gate-name-input, gate-email-input, gate-password-input, gate-submit-button). Sketch pad testIDs: sketch-pad, sketch-note-input, sketch-cancel-button, sketch-render-button (do not tap render, it calls the AI). Crop helper: /tmp/r3d/crop3.py <names> <x1,y1,x2,y2> <out> <scale>, which reads /tmp/r3d/i43_<name>.png."
+}

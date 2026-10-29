@@ -1,0 +1,53 @@
+{
+  "summary": "Iteration 41: hidden-halo removed from the style list, per-style 3D models. Backend: GET /api/catalog?store=gado now returns 11 ring styles and no 'hidden-halo'. The hidden_halo add-on group is still there (none/yes, default none, no 'when'). POST /api/price with hidden_halo=yes adds a 'Hidden halo' line and raises the total for all 11 styles. Every band option prices correctly. Legacy styleId 'hidden-halo' now returns 400 (safe, no 500). 27/27 iter41+iter23 tests pass (after updating 1 outdated iter23 test). Frontend (/build, desktop 1280x900 and mobile 390x844): there is no 'Hidden Halo' card (11 style cards). The addon-hidden-halo-toggle switches between 'Add a hidden halo' and 'Hidden halo added', and the 3D view shows the row of small stones on a gold collar under the centre stone. Every style gives a different 3D model. I checked them in screenshots from the default, top and side views and with zoom. I also tried them with the 5 band options, the oval/emerald/pear shapes and carats 0.5 to 3, and switched styles quickly on mobile. No page errors, no WebGL errors (only GPU ReadPixels performance messages from screenshots), and there is always exactly 1 canvas. Metal stays polished: gold-pixel luminance std is 42-51 on every capture (>=40). Wedding band 3D is unaffected. No POST /api/renders was sent in any run (I intercepted and blocked them; count was 0), so render photo is not auto-triggered. I fixed three clearly broken geometry issues in build-ring.ts (see updated_files and rca). Visual issues still open are listed below.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "tests (stale)", "issue": "Older tests are outdated, not regressions: test_iter21 test_hidden_halo_group_present expects a 'when' gate (removed on purpose in iter23). test_iter26 TestSketchValidation now gets 403 gate:account (a later gate). test_jewelry_api.py dates from iteration 3 (expects 4 product types)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Build 3D - Bypass", "issues": [
+        "The centre stone sits high (raised = 0.14 + 0.3d), so each bypass sweep has to climb about 0.35 units right after the band end. This leaves a visible S-kink or zig-zag at both shoulders in the default and side views.",
+        "The sweep tube is round (radius b.tube*0.92) while the band is a flattened oval (z scale 1.85), so there is a step in thickness where band meets sweep.",
+        "At 0.5ct the fixed-thickness sweeps cover most of the small stone. With emerald or oval at larger carats the sweep runs across the stone's girdle (overlaps it in top view).",
+        "Suggestion: lower the head for bypass, scale the sweep radius with d, and flatten the sweep cross-section (or loft the band into the sweep)."]},
+      {"screen": "Build 3D - Split Shank", "issues": [
+        "Now attached and correct, but the split is short (BAND_GAP 0.42 rad), so the two-strand section only shows just under the head. There is a small seam where the wide band end meets the two thin strands. Suggest a larger gap (~0.7 rad) and a slightly thicker strand (b.tube*0.7)."]},
+      {"screen": "Build 3D - Three-Stone", "issues": ["The side-stone prong bases are at a fixed topY-0.06, but the band curves down at x≈±0.55. At some angles the bases look like they barely touch the band or hover just above it. Use the band surface height at that x as the prong base."]},
+      {"screen": "Build 3D - shapes", "issues": ["Pear and marquise use the same symmetric 20-segment brilliant outline, and heart is a round with 16 segments. Pear does not look like a teardrop, and heart has no lobes or point. This is not specific to one style but stands out on Toi et Moi (the second stone defaults to pear) and Vintage+pear."]},
+      {"screen": "Build 3D controls (mobile 390x844)", "issues": ["The sketch-start-button (top offset spacing.3xl+lg) overlaps the first view-control (zoom-in) by about 6px on the 342px-tall mobile stage. Five 40px controls plus gaps fill the full height. Move the sketch button to the left or reduce the control stack on small stages."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter41_ring_styles_3d.py", "/app/backend/tests/test_iter23_hidden_halo.py", "/app/test_reports/pytest/iter41.xml"],
+  "action_items": [
+    "Bypass 3D: remove the shoulder S-kink and the thickness step (lower the head for bypass, flatten or scale the sweep tube with carat, keep the sweep off the stone girdle for oval/emerald).",
+    "Split shank 3D: consider a longer split (BAND_GAP ~0.7) and slightly thicker strands so the split reads from the default view.",
+    "Three-stone 3D: base the side-stone prongs on the band surface height at their x position.",
+    "Pear, marquise and heart gem geometry: give each its own outline (teardrop, pointed ends, lobes).",
+    "Mobile 3D stage: fix the overlap between the sketch button and the zoom-in control.",
+    "Update or remove the stale tests: test_iter21 hidden_halo 'when' assertion, test_iter26 sketch 400 tests (now 403 gate), test_jewelry_api.py."
+  ],
+  "critical_code_review_comments": [
+    "build-ring.ts: band pavé used a fixed ±16° clearance around the head. For split-shank (gap 24°) and bypass (gap 31.5°) this put pavé stones in the open gap over empty space. Fixed: clearance is now max(16, gapDeg+4).",
+    "build-ring.ts: the Vintage shoulder milgrain beads were built inside the `for side` loop while already covering 25-155° on both shoulders. This created a duplicate InstancedMesh on top of the first (z-fighting, double cost). Fixed: now built once.",
+    "build-ring.ts: bandEnd() is now used only for the end caps. The split-shank and bypass strands start inside the band so the join is hidden.",
+    "No deprecated Expo packages found (expo-av / expo-barcode-scanner / expo-background-fetch not in package.json).",
+    "addon-hidden-halo-toggle uses accessibilityRole=switch with accessibilityState.checked, but no aria-checked appears on web (minor a11y)."
+  ],
+  "updated_files": [
+    "/app/frontend/src/components/ring3d/build-ring.ts (split-shank strands rebuilt to follow the band circle and fan out across the finger axis; previously they curled outward past the band ends into loops; bypass sweeps start inside the band with no protruding stub; band pavé kept clear of the shank gap; vintage filigree loops now hang from the gallery rail, previously floating beside the head; duplicate milgrain InstancedMesh removed)",
+    "/app/backend/tests/test_iter41_ring_styles_3d.py (new)",
+    "/app/backend/tests/test_iter23_hidden_halo.py (legacy hidden-halo style test accepts 400 now that the style is removed)"
+  ],
+  "success_rate": {"backend": "100% (27/27 relevant tests; 5 stale legacy failures unrelated)", "frontend": "~85% (all styles render as distinct models, no crashes; bypass/split-shank/three-stone still need visual tuning)"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use the live 3D view via [data-testid=canvas-mode-live]; the viewer is [data-testid=ring-3d-viewer]. Use reset-view-button plus mouse drag (0,160) for a top view and (220,0) for a side view. Selectors: style-option-<id>, option-band-<id>, option-shape-<id>, option-carat-<n>, addon-hidden-halo-toggle. Block POST **/api/renders** with page.route so no AI renders run. The PIL grid helper at /tmp/r3d/grid.py builds composites and computes gold-pixel luminance std (polish check ≥40). The design state persists between sessions, so set shape/carat/band explicitly.",
+  "rca_of_issue": "Split shank looked like a pretzel or ram's horns: the strand control points went from the band end (x≈0.44) out to x=rx*1.25+0.18 (≈0.59) and back to x≈0.12, so CatmullRom drew outward loops. Fix: points follow the band circle (R+b.tube) toward the top while z spreads from 0 to ±max(0.6rz, 0.9 band half-width), ending under the basket. Vintage filigree loops were placed at (±0.55·ox, ±0.62·oz), where no metal exists (the basket tubes are at z=0 and the prongs are at 45°), so they floated. Fix: they now hang from the gallery rail (0.8rx, gy-0.2d). The band pavé exclusion zone was narrower than the shank gap, so stones floated in the gap."
+}

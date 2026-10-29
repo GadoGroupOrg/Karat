@@ -28,5 +28,5 @@ const styles = StyleSheet.create({
   wrap: { overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "transparent" },
   grid: { transform: [{ rotate: "-24deg" }], gap: 56, width: "160%" },
   // Fixed white with low opacity so it reads on both light and dark photos in any theme.
-  text: { fontFamily: fonts.bold, fontSize: 18, letterSpacing: 3, color: "#FFFFFF", opacity: 0.4, textAlign: "center", textShadowColor: "rgba(0,0,0,0.25)", textShadowRadius: 2 },
+  text: { fontFamily: fonts.bold, fontSize: 18, letterSpacing: 3, color: "#FFFFFF", opacity: 0.4, textAlign: "center" },
 });

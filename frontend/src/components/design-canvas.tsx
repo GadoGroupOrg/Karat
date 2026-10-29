@@ -241,7 +241,7 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
       </View>
       {!!sketchError && sketching && <Text style={styles.sketchError} testID="sketch-error">{sketchError}</Text>}
 
-      {hasLive && photoOn && <View style={styles.segment} testID="canvas-mode-toggle">
+      {!sketching && hasLive && photoOn && <View style={styles.segment} testID="canvas-mode-toggle">
         {(["photo", "live"] as const).map((m) => {
           const sel = mode === m;
           return (
@@ -263,9 +263,9 @@ export function DesignCanvas({ catalog, design, height, onRenderChange, initialR
           <Text style={styles.hintText}>Drag 360° · pinch to zoom</Text>
         </View>
       )}
-      {isRing && mode === "live" && controls(viewer, false)}
+      {!sketching && isRing && mode === "live" && controls(viewer, false)}
       {!sketching && (mode === "photo" ? !!shownUrl : isRing) && (
-        <View style={[styles.controls, mode === "live" && { bottom: "auto", top: spacing["3xl"] + spacing.lg }]}>
+        <View style={[styles.controls, mode === "live" && { bottom: "auto", top: spacing["3xl"] + spacing.lg, right: "auto", left: spacing.md }]}>
           {feat("sketch") && <CtrlBtn testID="sketch-start-button" icon="edit-3" onPress={startSketch} />}
           {mode === "photo" && <CtrlBtn testID="photo-fullscreen-button" icon="maximize-2" onPress={() => setFullscreen(true)} />}
         </View>

@@ -170,10 +170,54 @@ const BANDS: Record<string, { tube: number; zs: number; radial: number; pave?: [
   "full-pave": { tube: 0.082, zs: 1.85, radial: 40, pave: [-90, 270] },
   infinity: { tube: 0.07, zs: 1.6, radial: 40 },
 };
-const SETTING_3D: Record<string, string> = {
-  "hidden-halo": "halo", "double-halo": "halo", "vintage-milgrain": "halo", "toi-et-moi": "three-stone",
-  "split-shank": "cathedral", bypass: "solitaire-4",
-};
+const SETTING_3D: Record<string, string> = { "toi-et-moi": "three-stone" };
+// Styles whose band opens under the head (the shank continues as strands/sweeps instead of a full circle).
+const BAND_GAP: Record<string, number> = { "split-shank": 0.68, bypass: 0.55 };
+
+function ringOfGems(group: THREE.Group, n: number, ds: number, at: (i: number) => [THREE.Vector3, THREE.Vector3], mat: THREE.Material) {
+  const mesh = new THREE.InstancedMesh(gemGeometry(cutFor("round"), ds), mat, n);
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i < n; i++) {
+    const [p, dir] = at(i);
+    mesh.setMatrixAt(i, new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromUnitVectors(up, dir), new THREE.Vector3(1, 1, 1)));
+  }
+  group.add(mesh);
+}
+
+function beads(group: THREE.Group, pts: THREE.Vector3[], r: number, mat: THREE.Material) {
+  const mesh = new THREE.InstancedMesh(new THREE.SphereGeometry(r, 8, 6), mat, pts.length);
+  pts.forEach((p, i) => mesh.setMatrixAt(i, new THREE.Matrix4().makeTranslation(p.x, p.y, p.z)));
+  group.add(mesh);
+}
+
+/** A halo row: pavé stones in a gold collet (seat + raised outer rim), as on a real halo head. */
+function haloRow(group: THREE.Group, hx: number, hz: number, y: number, ds: number, m: Mats, head: Mats, milgrain = false) {
+  const perim = Math.PI * (3 * (hx + hz) - Math.sqrt((3 * hx + hz) * (hx + 3 * hz)));
+  const n = Math.max(10, Math.floor(perim / (ds * 1.06)));
+  ringOfGems(group, n, ds, (i) => {
+    const a = (i / n) * Math.PI * 2;
+    return [new THREE.Vector3(Math.cos(a) * hx, y, Math.sin(a) * hz), new THREE.Vector3(Math.cos(a) * 0.12, 1, Math.sin(a) * 0.12).normalize()];
+  }, m.melee);
+  const seat = new THREE.Mesh(new THREE.TorusGeometry(1, ds * 0.42, 10, 96), head.metal);
+  seat.rotation.x = Math.PI / 2;
+  seat.scale.set(hx, hz, 1);
+  seat.position.y = y - ds * 0.45;
+  group.add(seat);
+  const ox = hx + ds * 0.58, oz = hz + ds * 0.58;
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(1, ds * 0.16, 8, 120), head.metal);
+  rim.rotation.x = Math.PI / 2;
+  rim.scale.set(ox, oz, 1);
+  rim.position.y = y - ds * 0.05;
+  group.add(rim);
+  if (milgrain) {
+    const k = Math.floor((Math.PI * (ox + oz)) / (ds * 0.32));
+    beads(group, Array.from({ length: k }, (_, i) => {
+      const a = (i / k) * Math.PI * 2;
+      return new THREE.Vector3(Math.cos(a) * (ox + ds * 0.12), y - ds * 0.05, Math.sin(a) * (oz + ds * 0.12));
+    }), ds * 0.13, head.metal);
+  }
+  return { ox, oz };
+}
 
 const WEDDING_3D: Record<string, string> = {
   pave: "partial-pave", channel: "three-quarter-pave", eternity: "full-pave", "diamond-cut": "diamond-cut",
@@ -222,15 +266,30 @@ export function buildRing(spec: RingSpec): RingBuild {
   const isToiEtMoi = spec.setting === "toi-et-moi";
   spec = { ...spec, setting: isToiEtMoi ? "toi-et-moi" : SETTING_3D[spec.setting] ?? spec.setting };
 
-  // Band
-  const bandGeo = new THREE.TorusGeometry(R + b.tube, b.tube, b.radial, 220);
+  // Band (comfort-fit oval profile; open at the top for split-shank / bypass designs)
+  const gap = BAND_GAP[spec.setting] ?? 0;
+  const bandGeo = new THREE.TorusGeometry(R + b.tube, b.tube, b.radial, 220, Math.PI * 2 - gap * 2);
+  if (gap) bandGeo.rotateZ(Math.PI / 2 + gap);
   bandGeo.scale(1, 1, b.zs);
   group.add(new THREE.Mesh(bandGeo, m.metal));
   const topY = R + 2 * b.tube;
+  const bandEnd = (side: number) => {
+    const a = Math.PI / 2 - side * gap;
+    return new THREE.Vector3(Math.cos(a) * (R + b.tube), Math.sin(a) * (R + b.tube), 0);
+  };
+  if (gap) {
+    // Round off the open band ends so the shoulders flow into the strands instead of showing a cut face.
+    for (const side of [-1, 1]) {
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(b.tube, 24, 16), m.metal);
+      cap.scale.set(1, 1, b.zs);
+      cap.position.copy(bandEnd(side));
+      group.add(cap);
+    }
+  }
 
   // Centre stone
   const cut = cutFor(spec.shape);
-  const d = 0.74 * Math.cbrt(Math.max(0.25, spec.carat));
+  const d = 0.66 * Math.cbrt(Math.max(0.25, spec.carat));
   const rx = (d / 2) * cut.sx, rz = (d / 2) * cut.sz;
   const raised = spec.setting === "bezel" ? 0.1 + 0.18 * d : 0.14 + 0.3 * d;
   const gy = topY + raised;
@@ -267,47 +326,63 @@ export function buildRing(spec: RingSpec): RingBuild {
   }
 
   if (spec.hiddenHalo) {
-    const ds = 0.05, hx = rx * 0.72, hz = rz * 0.72, hy = gy - 0.24 * d;
-    const n = Math.floor((Math.PI * (hx + hz)) / (ds * 1.05));
-    const ring = new THREE.InstancedMesh(gemGeometry(cutFor("round"), ds), m.melee, n);
-    const out = new THREE.Vector3();
-    for (let i = 0; i < n; i++) {
+    // Hidden halo: a row of pavé tucked under the centre stone's girdle on a gold collar, seen from the side.
+    const ds = Math.min(0.075, Math.max(0.05, d * 0.1)), hx = rx * 0.82, hz = rz * 0.82, hy = gy - 0.2 * d;
+    const n = Math.floor((Math.PI * (hx + hz)) / (ds * 1.04));
+    ringOfGems(group, n, ds, (i) => {
       const a = (i / n) * Math.PI * 2;
-      out.set(Math.cos(a), 0.35, Math.sin(a)).normalize();
-      ring.setMatrixAt(i, new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * hx, hy, Math.sin(a) * hz),
-        new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), out), new THREE.Vector3(1, 1, 1)));
-    }
-    group.add(ring);
+      return [new THREE.Vector3(Math.cos(a) * hx, hy, Math.sin(a) * hz), new THREE.Vector3(Math.cos(a), 0.55, Math.sin(a)).normalize()];
+    }, m.melee);
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(1, ds * 0.4, 10, 96), head.metal);
+    collar.rotation.x = Math.PI / 2;
+    collar.scale.set(hx * 0.9, hz * 0.9, 1);
+    collar.position.y = hy - ds * 0.4;
+    group.add(collar);
   }
 
-  if (spec.setting === "halo") {
-    const ds = 0.085;
-    const hx = rx + ds * 0.62, hz = rz + ds * 0.62;
-    const perim = Math.PI * (3 * (hx + hz) - Math.sqrt((3 * hx + hz) * (hx + 3 * hz)));
-    const n = Math.floor(perim / (ds * 1.08));
-    const melee = new THREE.InstancedMesh(gemGeometry(cutFor("round"), ds), m.melee, n);
-    const mtx = new THREE.Matrix4();
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      mtx.makeTranslation(Math.cos(a) * hx, gy - 0.025 * d, Math.sin(a) * hz);
-      melee.setMatrixAt(i, mtx);
+  const haloDs = Math.min(0.1, Math.max(0.065, d * 0.14));
+  if (spec.setting === "halo" || spec.setting === "double-halo" || spec.setting === "vintage-milgrain") {
+    const milgrain = spec.setting === "vintage-milgrain";
+    const inner = haloRow(group, rx + haloDs * 0.62, rz + haloDs * 0.62, gy - 0.03 * d, haloDs, m, head, milgrain);
+    if (spec.setting === "double-halo") haloRow(group, inner.ox + haloDs * 0.55, inner.oz + haloDs * 0.55, gy - 0.07 * d, haloDs * 0.9, m, head);
+    // Halo heads sit on a basket; vintage adds filigree scrolls on the sides and milgrain along the shoulders.
+    for (const side of [-1, 1]) {
+      group.add(tube([
+        new THREE.Vector3(side * rx * 0.2, topY - 0.02, 0),
+        new THREE.Vector3(side * inner.ox * 0.85, gy - 0.35 * d, 0),
+        new THREE.Vector3(side * inner.ox * 0.95, gy - 0.08 * d, 0),
+      ], 0.028, head.metal));
+      if (milgrain) {
+        for (const zs of [-1, 1]) {
+          // Filigree drops hang from the gallery rail (attached, not floating beside the head).
+          const lr = 0.055, a = Math.atan2(zs * Math.sin(0.55), side * Math.cos(0.55));
+          const loop = new THREE.Mesh(new THREE.TorusGeometry(lr, 0.012, 6, 24), head.metal);
+          loop.position.set(Math.cos(a) * rx * 0.8, gy - 0.2 * d - lr * 0.85, Math.sin(a) * rz * 0.8);
+          loop.rotation.y = Math.PI / 2 - a;
+          group.add(loop);
+        }
+        if (side > 0) {
+          // shoulder milgrain spans both shoulders: add once (not per side)
+          const edge: THREE.Vector3[] = [];
+          for (let deg = 25; deg <= 155; deg += 2.2) {
+            const a = (deg * Math.PI) / 180;
+            for (const zs of [-1, 1]) edge.push(new THREE.Vector3(Math.cos(a) * (R + b.tube * 1.35), Math.sin(a) * (R + b.tube * 1.35), zs * b.tube * b.zs * 0.92));
+          }
+          beads(group, edge, 0.013, m.metal);
+        }
+      }
     }
-    group.add(melee);
-    const frame = new THREE.Mesh(new THREE.TorusGeometry(1, 0.035, 10, 72), head.metal);
-    frame.rotation.x = Math.PI / 2;
-    frame.scale.set(hx, hz, 1);
-    frame.position.y = gy - 0.025 * d - 0.035;
-    group.add(frame);
   }
 
   if (spec.setting === "three-stone") {
     const d2 = d * 0.62;
     for (const side of [-1, 1]) {
-      const sx = side * (rx + (d2 / 2) * cut.sx + 0.05);
-      const c2 = new THREE.Vector3(sx, gy - 0.08 * d, 0);
+      const sx = side * (rx + (d2 / 2) * cut.sx + 0.03);
+      const by = Math.sqrt(Math.max(0, topY * topY - sx * sx)); // band surface under the side stone
+      const c2 = new THREE.Vector3(sx, Math.min(gy - 0.05 * d, by + 0.1 + 0.28 * d2), 0);
       const sc = spec.sideColors?.[side < 0 ? 0 : 1];
       addGem(group, cut, d2, c2, sc ? gemMats(m, sc) : m, -side * 0.22);
-      addProngs(group, c2, (d2 / 2) * cut.sx, (d2 / 2) * cut.sz, d2, 4, topY - 0.06, head);
+      addProngs(group, c2, (d2 / 2) * cut.sx, (d2 / 2) * cut.sz, d2, 4, by - 0.03, head);
     }
   }
 
@@ -325,12 +400,61 @@ export function buildRing(spec: RingSpec): RingBuild {
     }
   }
 
+  if (spec.setting === "split-shank") {
+    // Each shoulder divides into two strands that rejoin under the head; the upper strands carry pavé.
+    // Strands follow the band circle (starting inside the band end so the join is hidden) and fan out
+    // across the finger axis as they approach the head, meeting under the basket.
+    const st = b.tube * 0.72;
+    const onCircle = (a: number, r: number, z: number) => new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, z);
+    for (const side of [-1, 1]) {
+      for (const zs of [-1, 1]) {
+        const pts = [
+          onCircle(Math.PI / 2 - side * (gap + 0.12), R + b.tube, 0),
+          onCircle(Math.PI / 2 - side * gap * 0.75, R + b.tube, zs * b.tube * b.zs * 0.7),
+          onCircle(Math.PI / 2 - side * gap * 0.35, R + b.tube + 0.04, zs * Math.max(rz * 0.6, b.tube * b.zs * 0.9)),
+          new THREE.Vector3(side * rx * 0.3, topY - 0.02, zs * rz * 0.4),
+        ];
+        group.add(tube(pts, st, m.metal));
+        const curve = new THREE.CatmullRomCurve3(pts);
+        const k = 7;
+        ringOfGems(group, k, st * 1.5, (i) => {
+          const t = 0.22 + (i / (k - 1)) * 0.55;
+          const p = curve.getPoint(t);
+          const out = new THREE.Vector3(p.x, p.y, 0).normalize();
+          return [p.add(out.clone().multiplyScalar(st * 0.8)), out];
+        }, m.melee);
+      }
+    }
+  }
+
+  if (spec.setting === "bypass") {
+    // The two shoulders sweep past each other around the stone: one in front, one behind.
+    for (const side of [-1, 1]) {
+      const zs = side;
+      const pts = [
+        new THREE.Vector3(Math.cos(Math.PI / 2 - side * (gap + 0.1)) * (R + b.tube), Math.sin(Math.PI / 2 - side * (gap + 0.1)) * (R + b.tube), 0),
+        new THREE.Vector3(Math.cos(Math.PI / 2 - side * gap * 0.6) * (R + b.tube + 0.05), Math.sin(Math.PI / 2 - side * gap * 0.6) * (R + b.tube + 0.05), zs * rz * 0.3),
+        new THREE.Vector3(side * rx * 0.25, gy - 0.32 * d, zs * (rz * 1.18 + 0.04)),
+        new THREE.Vector3(-side * rx * 0.75, gy - 0.1 * d, zs * rz * 0.85),
+        new THREE.Vector3(-side * rx * 1.08, gy + 0.02 * d, zs * rz * 0.35),
+      ];
+      group.add(tube(pts, b.tube * 0.92, m.metal));
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(b.tube * 0.92, 16, 12), m.metal);
+      cap.position.copy(pts[pts.length - 1]);
+      group.add(cap);
+    }
+  }
+
   if (b.pave) {
     // melee sits proud of the band surface (girdle just above the metal) so the crowns read clearly
     const ds = 0.078;
     const step = (ds / (R + 2 * b.tube)) * (180 / Math.PI) * 1.12;
     const angles: number[] = [];
-    for (let deg = b.pave[0]; deg <= b.pave[1]; deg += step) if (Math.abs(deg - 90) > 16) angles.push((deg * Math.PI) / 180);
+    // keep clear of the head, and of the open gap on split-shank / bypass (no stones floating over air)
+    const clear = Math.max(16, (gap * 180) / Math.PI + (gap ? 12 : 4));
+    // Partial pavé on an open (split-shank / bypass) band: start where the band resumes and run 50° down each shoulder.
+    const [p0, p1] = gap && b.pave[0] === 40 ? [90 - clear - 50, 90 + clear + 50] : b.pave;
+    for (let deg = p0; deg <= p1; deg += step) if (Math.abs(deg - 90) > clear) angles.push((deg * Math.PI) / 180);
     const pave = new THREE.InstancedMesh(gemGeometry(cutFor("round"), ds), m.melee, angles.length);
     const up = new THREE.Vector3(0, 1, 0);
     angles.forEach((a, i) => {

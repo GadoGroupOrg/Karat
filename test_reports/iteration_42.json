@@ -1,0 +1,35 @@
+{
+  "summary": "Retest of iteration 41 follow-ups in the 3D ring builder (web, 1920x1080 and 390x844). AI render calls were blocked with page.route. SPLIT SHANK: PASS. BAND_GAP 0.68 makes the split clearly visible on both shoulders. The thicker strands (b.tube*0.72) carry pavé on both front and back strands, meet under the basket, and nothing floats. Rounded caps are present at the band ends. Checked round 1ct polished and oval 2ct partial-pavé in default and top views. THREE-STONE: PASS. Side stones now sit just above the band surface, and their prongs run down into the band with no hovering. Checked round 1ct, oval 0.5ct, emerald 2ct and pear 3ct. TOI ET MOI: not affected (round 1ct and oval 2ct; still has its own prongs). REGRESSION: all 11 styles render in 3D, and the hidden-halo add-on renders on solitaire-4, bezel, three-stone and split-shank. There were 0 console or page errors (only GPU ReadPixels performance notices) and 0 POST /api/renders. Gold luminance std is 44.9-50.4 in every capture (target 40 or more). Backend regression test_iter41 passed 23/23. The mobile overlap of sketch-start-button and zoom-in is still present (6px). Deprecated packages: none checked or changed this round.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Build 3D controls (mobile 390x844)", "issue": "sketch-start-button is at x314 y234-274 (40x40) and zoom-in-button is at x314 y268-308, so they overlap by 6px. The canvas is 342px tall (y170-512). The full control column runs to y500 (fullscreen-button at y460-500). Cause: the sketch stack uses top: spacing['3xl']+spacing.lg in live mode, while the view-controls stack is anchored to the bottom. Reference: /app/frontend/src/components/design-canvas.tsx:267. Fix: put the sketch button in the view-controls column on small stages, or move it to the left or top row (for example next to canvas-mode-toggle).", "testID": "sketch-start-button", "priority": "medium"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Build 3D - Split Shank + Partial Pavé band", "issues": ["Band pavé is limited to 40-140° and keeps clear of the gap (clear = 43°). This leaves only 2 lone melee per shoulder on the band, at about 40/44° and 135/139°, just below where the strands begin. It looks like stray stones. Suggestion: for split-shank, skip band pavé inside the strand zone, or start the band pavé at 90±(gap+clear) and extend the range outward so it reads as a continuous run. Reference: build-ring.ts:448-455."]},
+      {"screen": "Build 3D - Split Shank", "issues": ["Minor: where the wider oval band cap meets the two thinner strands there is still a visible step or seam at both band ends in the default view. It is acceptable, but a short tapered transition, for example a cap scaled down toward the strands, would look more cast than assembled."]},
+      {"screen": "Build 3D - Bezel (+ hidden halo), seen from below", "issues": ["The bezel cup's bottom opening (radius 0.3d) is wider than the stem top (radius 0.275d, from rx*0.55 with sx=1). This leaves a thin ring gap where the green pavilion shows through from below. Also, the hidden halo radius (0.41d) is slightly larger than the bezel wall radius at that height (about 0.39d), so the melee poke through the cup wall. Reference: build-ring.ts:314-323 and 330."]},
+      {"screen": "Build 3D - Three-Stone pear/emerald 2-3ct", "issues": ["Minor: at large carats the centre stone's outer prongs pass through the inner edge of the side stones' prong cages. Real rings often share prongs here, but these read as overlapping metal."]},
+      {"screen": "Still open from iteration 41 (not addressed this round)", "issues": ["Bypass: the S-kink or thin sweep at the shoulders is still visible in the default view.", "Pear, marquise and heart outlines: pear (Toi et Moi second stone, three-stone pear) still looks like a marquise or oval, and heart has no lobes."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter41_ring_styles_3d.py", "/app/test_reports/pytest/iter42.xml", "/tmp/r3d/i42_ss_zoom.jpg", "/tmp/r3d/i42_ts_zoom.jpg", "/tmp/r3d/i42_reg.jpg", "/tmp/r3d/i42_hh.jpg"],
+  "action_items": [
+    "Fix the overlap between sketch-start-button and zoom-in on mobile (6px, positions above). Reference: design-canvas.tsx:267.",
+    "Split shank with partial pavé: remove the 2 lone band melee per shoulder, or make the band pavé continuous outside the strand zone.",
+    "Optional polish: close the gap between the bezel cup bottom and the stem (stem top radius 0.3d*sx or more), and shrink the hidden halo radius on bezel to the wall radius or less.",
+    "Carry-over: bypass shoulder kink; real pear and heart outlines."
+  ],
+  "critical_code_review_comments": [
+    "build-ring.ts three-stone: by = sqrt(topY^2 - sx^2) gives the band height at z=0 only. Stones are at z=0, so this is correct here.",
+    "build-ring.ts bezel: bezMesh.material.side = DoubleSide mutates the shared head.metal material, so every metal part on bezel rings becomes double-sided. This is harmless visually but costs a little GPU time. Clone the material instead."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (23/23 regression)", "frontend": "92% (split shank, three-stone, toi et moi, 11-style and hidden-halo regression, polish and no-AI checks pass; mobile button overlap fails)"},
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use the live 3D view via [data-testid=canvas-mode-live]; the viewer is [data-testid=ring-3d-viewer]. Selectors: style-option-<id>, option-shape-<id>, option-carat-<n> (0.5, 0.75, 1, 1.5, 2, 2.5, 3), option-band-<id>, addon-hidden-halo-toggle, reset-view-button. Block **/api/renders with page.route. Views: reset, then drag (0,160) for top or (0,-60) for a low view; (220,0) changes little. Screenshot the viewer element, then run /tmp/r3d/grid.py <prefix> <names> <crop> <cols> <out> to get gold luminance std. The design state persists, so set shape, carat and band explicitly."
+}

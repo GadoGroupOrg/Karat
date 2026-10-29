@@ -168,3 +168,7 @@ App connecting to websites/ecommerce stores with a mobile app for end users. Sta
 - Bright light-tent studio env with black flags; metal roughness 0.14, no clearcoat, exposure 1.05.
 - ROOT CAUSE of flat/washed metal after option change: GLView webglContextAttributes inline object → expo-gl web re-ran onContextCreate on every render (2nd renderer). Fixed with module constant GL_ATTRS + guard. Keep GLView props stable.
 - Fullscreen viewer unmounts on close; auto-render waits for access rules.
+
+## 3D style models (2026-06)
+- build-ring.ts: dedicated 3D for double-halo, vintage-milgrain (milgrain beads, filigree), split-shank (open band + pavé strands), bypass (sweeping shoulders); halo rebuilt (collet seat+rim, larger pavé); hidden-halo add-on with collar; centre stone scale 0.66*cbrt(ct).
+- Hidden Halo removed from main styles (catalog_data.py); only add-on toggle.
